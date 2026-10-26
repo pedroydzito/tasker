@@ -86,6 +86,7 @@ struct Sidebar: View {
                 .animation(DS.curva, value: nav.selection)
             }
             .scrollIndicators(.never)
+            .indicadorDeRolagem()
 
             rodape
         }

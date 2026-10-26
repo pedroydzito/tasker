@@ -6,11 +6,15 @@ import SwiftUI
 /// se adaptar à barra clara ou escura.
 struct MenuBarLabel: View {
     let store: TaskStore
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         let count = store.hasAccount ? store.badgeCount : 0
         let show = store.prefs.showCountInMenuBar && count > 0
         Image(nsImage: Self.icon(count: show ? count : nil, style: store.prefs.menuBarStyle))
+            .onReceive(NotificationCenter.default.publisher(for: AppDelegate.abrirJanelaPrincipal)) { _ in
+                openWindow(id: WindowID.main)
+            }
     }
 
     static func icon(count: Int?, style: MenuBarStyle) -> NSImage {

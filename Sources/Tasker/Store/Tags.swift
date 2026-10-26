@@ -11,6 +11,17 @@ struct Tag: Identifiable, Codable, Hashable {
 struct TagDatabase: Codable {
     var tags: [Tag] = []
     var assignments: [String: [String]] = [:] // taskID → [tagID]
+    /// Horário da tarefa ("HH:mm"). O Google Tasks só guarda a data, então o horário fica no app.
+    var horarios: [String: String] = [:]
+
+    init() {}
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        tags = try c.decodeIfPresent([Tag].self, forKey: .tags) ?? []
+        assignments = try c.decodeIfPresent([String: [String]].self, forKey: .assignments) ?? [:]
+        horarios = try c.decodeIfPresent([String: String].self, forKey: .horarios) ?? [:]
+    }
 
     static var fileURL: URL {
         let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]

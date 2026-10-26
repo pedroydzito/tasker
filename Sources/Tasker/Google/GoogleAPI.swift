@@ -81,6 +81,7 @@ final class GoogleAPI {
     @discardableResult
     func send(_ method: String, _ url: URL, json: [String: Any]? = nil) async throws -> Data {
         var retried = false
+        var tentativas = 0
         while true {
             let token = try await auth.validAccessToken()
             var request = URLRequest(url: url)
@@ -95,6 +96,15 @@ final class GoogleAPI {
             if status == 401, !retried {
                 retried = true
                 auth.invalidateAccessToken()
+                continue
+            }
+            // Limite de requisições (403 rateLimitExceeded / 429) ou falha passageira (5xx):
+            // espera um pouco e tenta de novo, até 3 vezes.
+            let corpo = String(decoding: data, as: UTF8.self)
+            let limite = status == 429 || (status == 403 && corpo.localizedCaseInsensitiveContains("rateLimit"))
+            if (limite || (500..<600).contains(status)), tentativas < 3 {
+                tentativas += 1
+                try await Task.sleep(for: .milliseconds(600 * (1 << tentativas)))
                 continue
             }
             guard (200..<300).contains(status) else {

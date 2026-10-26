@@ -75,7 +75,7 @@ final class TaskStore {
     // MARK: Consultas (leituras baratas do índice)
 
     var tasks: [String: TaskItem] { index.byID }
-    var todayTasks: [TaskItem] { index.today }
+    var todayTasks: [TaskItem] { porHorario(index.today) }
     var overdueTasks: [TaskItem] { index.overdue }
     var completedToday: [TaskItem] { index.completedToday }
     var completedTasks: [TaskItem] { index.completed }
@@ -88,7 +88,14 @@ final class TaskStore {
         index.today.count + (prefs.includeOverdueInCount ? index.overdue.count : 0)
     }
 
-    func tasks(on day: Date) -> [TaskItem] { index.byDay[day] ?? [] }
+    /// Tarefas do dia; as com horário vêm primeiro, em ordem de hora.
+    func tasks(on day: Date) -> [TaskItem] { porHorario(index.byDay[day] ?? []) }
+
+    func porHorario(_ tarefas: [TaskItem]) -> [TaskItem] {
+        let comHora = tarefas.filter { $0.horario != nil }
+        guard !comHora.isEmpty else { return tarefas }
+        return comHora.sorted { ($0.horario ?? "") < ($1.horario ?? "") } + tarefas.filter { $0.horario == nil }
+    }
     func tasks(inList listID: String) -> [TaskItem] { index.byList[listID] ?? [] }
     func completedTasks(inList listID: String) -> [TaskItem] { index.completedByList[listID] ?? [] }
     /// Concluídas cuja data era este dia (para o calendário mostrar riscadas).
@@ -645,6 +652,9 @@ final class TaskStore {
         } confirmar: {}
     }
 
+    /// Horário opcional da tarefa ("HH:mm"), guardado no app.
+    func horario(of task: TaskItem) -> String? { task.horario }
+
     /// Define as etiquetas de uma tarefa de uma vez (usado ao salvar uma edição).
     func setTags(_ ids: [String], on task: TaskItem) {
         tagDB.assignments[task.id] = ids.isEmpty ? nil : ids
@@ -660,24 +670,26 @@ final class TaskStore {
 
     // MARK: Alterações (otimistas)
 
-    func addTask(title: String, listID: String? = nil, due: Date?, notes: String? = nil, tagIDs: [String] = []) {
+    func addTask(title: String, listID: String? = nil, due: Date?, notes: String? = nil, tagIDs: [String] = [],
+                 horario: String? = nil) {
         let title = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !title.isEmpty, let listID = listID ?? defaultList?.id else { return }
 
         let tempID = "local-\(UUID().uuidString)"
         let dueString = due.map(TaskItem.dueString)
-        taskMap[tempID] = TaskItem(id: tempID, listID: listID, title: title, notes: notes, due: dueString, position: "")
+        let notas = horario.map { HorarioNasNotas.juntar(notes ?? "", $0) } ?? notes
+        taskMap[tempID] = TaskItem(id: tempID, listID: listID, title: title, notes: notas, due: dueString, position: "")
         if !tagIDs.isEmpty { tagDB.assignments[tempID] = tagIDs }
 
         Task {
             do {
-                let created = try await backend.insertTask(listID: listID, title: title, notes: notes, due: dueString)
+                let created = try await backend.insertTask(listID: listID, title: title, notes: notas, due: dueString)
                 taskMap[tempID] = nil
                 taskMap[created.id] = TaskItem(created, listID: listID)
                 if let tags = tagDB.assignments.removeValue(forKey: tempID) {
                     tagDB.assignments[created.id] = tags
-                    tagDB.save()
                 }
+                tagDB.save()
                 saveCache()
             } catch {
                 taskMap[tempID] = nil
@@ -759,6 +771,7 @@ final class TaskStore {
             do {
                 try await self.backend.deleteTask(listID: task.listID, taskID: task.id)
                 self.tagDB.assignments[task.id] = nil
+                self.tagDB.horarios[task.id] = nil
                 self.tagDB.save()
                 self.saveCache()
             } catch {

@@ -72,7 +72,7 @@ struct TaskItem: Identifiable, Codable, Hashable {
 
     var displayTitle: String { title.isEmpty ? "(sem título)" : title }
 
-    var hasNotes: Bool { !(notes ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    var hasNotes: Bool { !notasVisiveis.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
     static func dueString(for day: Date) -> String {
         let c = Calendar.current.dateComponents([.year, .month, .day], from: day)
@@ -144,4 +144,38 @@ struct CalendarEvent: Identifiable, Codable, Hashable {
         "1": "#7986CB", "2": "#33B679", "3": "#8E24AA", "4": "#E67C73", "5": "#F6BF26", "6": "#F4511E",
         "7": "#039BE5", "8": "#616161", "9": "#3F51B5", "10": "#0B8043", "11": "#D50000",
     ]
+}
+
+// MARK: Horário (sincronizado pelas notas)
+
+/// O Google Tasks não guarda horário, então ele vai como a última linha das notas
+/// ("Horário: 14:30") — aparece no Google e o Tasker o lê e esconde da descrição.
+enum HorarioNasNotas {
+    static let prefixo = "Horário: "
+
+    static func separar(_ notas: String?) -> (texto: String, horario: String?) {
+        guard let notas, !notas.isEmpty else { return ("", nil) }
+        var linhas = notas.components(separatedBy: "\n")
+        while let ultima = linhas.last, ultima.trimmingCharacters(in: .whitespaces).isEmpty { linhas.removeLast() }
+        guard let ultima = linhas.last?.trimmingCharacters(in: .whitespaces), ultima.hasPrefix(prefixo) else {
+            return (notas, nil)
+        }
+        let hora = String(ultima.dropFirst(prefixo.count)).trimmingCharacters(in: .whitespaces)
+        guard hora.count == 5, hora.dropFirst(2).first == ":" else { return (notas, nil) }
+        linhas.removeLast()
+        while let fim = linhas.last, fim.trimmingCharacters(in: .whitespaces).isEmpty { linhas.removeLast() }
+        return (linhas.joined(separator: "\n"), hora)
+    }
+
+    static func juntar(_ texto: String, _ horario: String?) -> String {
+        let limpo = texto.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let horario else { return limpo }
+        return limpo.isEmpty ? prefixo + horario : limpo + "\n\n" + prefixo + horario
+    }
+}
+
+extension TaskItem {
+    var horario: String? { HorarioNasNotas.separar(notes).horario }
+    /// Notas sem a linha do horário (o que aparece como descrição).
+    var notasVisiveis: String { HorarioNasNotas.separar(notes).texto }
 }

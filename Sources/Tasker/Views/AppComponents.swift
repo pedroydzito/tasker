@@ -61,12 +61,21 @@ struct ListIconComAnel: View {
 struct ListChip: View {
     @Environment(TaskStore.self) private var store
     let listID: String
+    /// Mostra a setinha dentro da pílula (quando o chip abre o dropdown de listas).
+    var comSeta = false
+    var aberta = false
 
     var body: some View {
         let color = store.color(forList: listID)
         HStack(spacing: 5) {
             ListIconView(listID: listID, size: 16, redondo: true)
             Text(store.displayName(listID)).lineLimit(1)
+            if comSeta {
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 8, weight: .bold))
+                    .rotationEffect(.degrees(aberta ? 180 : 0))
+                    .padding(.leading, 1)
+            }
         }
         .txt(.xs, .semibold)
         .foregroundStyle(color)
@@ -497,6 +506,7 @@ struct SeletorDeIcone: View {
             }
             .scrollIndicators(.automatic)
             .frame(height: 172)
+            .indicadorDeRolagem(fundo: DS.superficie)
             .overlay {
                 if resultados.isEmpty {
                     Text("Nenhum ícone para “\(busca)”").txt(.xs).foregroundStyle(DS.texto3)

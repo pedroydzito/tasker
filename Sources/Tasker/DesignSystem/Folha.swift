@@ -161,6 +161,7 @@ private struct CaixaDaFolha: View {
                     })
             }
             .scrollIndicators(.automatic)
+            .indicadorDeRolagem(fundo: DS.superficie)
             .frame(height: max(80, min(alturaCorpo, alturaMaxima - alturaCabecalho)))
         }
         .frame(maxWidth: atual.largura)
@@ -297,7 +298,6 @@ struct SeletorDeData: View {
             HStack(spacing: DS.e2) {
                 atalho("Hoje", 0, "sun.max")
                 atalho("Amanhã", 1, "sunrise")
-                atalho("+1 semana", 7, "calendar.badge.plus")
             }
             CalendarioMes(mes: $mes, selecionado: inicial, hoje: store.today,
                           ocupado: { !store.tasks(on: $0).isEmpty }) { dia in

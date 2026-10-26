@@ -22,31 +22,15 @@ struct TaskRow: View {
     private var isSelected: Bool { style == .full && nav.selectedTaskID == task.id }
 
     var body: some View {
-        HStack(spacing: DS.e3) {
-            CheckCircle(color: store.color(forList: task.listID), checked: checked, size: 18, action: toggle)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(task.displayTitle)
-                    .txt(style == .compact ? .sm : .md, .medium)
-                    .strikethrough(checked, color: DS.texto3)
-                    .foregroundStyle(checked ? DS.texto3 : DS.texto)
-                    .lineLimit(1)
-                if style == .full { metadata }
-            }
-
-            Spacer(minLength: DS.e2)
-
+        Group {
             if style == .compact {
-                if task.hasNotes {
-                    Image(systemName: "text.alignleft").font(.system(size: 10.5)).foregroundStyle(DS.texto3)
+                linhaCompacta
+            } else {
+                // Cartão largo: data à direita, numa linha só. Estreito: data embaixo do nome.
+                ViewThatFits(in: .horizontal) {
+                    linhaLarga
+                    linhaEmpilhada
                 }
-                if showDate, let day = task.dueDay {
-                    Text(DayLabel.short(day, today: store.today))
-                        .txt(.xs, .medium)
-                        .foregroundStyle(day < store.today ? DS.perigoTexto : DS.texto3)
-                }
-            } else if showList {
-                ListChip(listID: task.listID)
             }
         }
         .padding(.leading, 12 + CGFloat(depth) * 26)
@@ -77,22 +61,99 @@ struct TaskRow: View {
         .opacity(task.isLocal ? 0.55 : 1)
     }
 
-    /// Metadado numa linha, separado por "·": data, primeira linha da nota, etiquetas.
-    @ViewBuilder private var metadata: some View {
+    private var circulo: some View {
+        CheckCircle(color: store.color(forList: task.listID), checked: checked, size: 18, action: toggle)
+    }
+
+    private var titulo: some View {
+        Text(task.displayTitle)
+            .txt(style == .compact ? .sm : .md, .medium)
+            .strikethrough(checked, color: DS.texto3)
+            .foregroundStyle(checked ? DS.texto3 : DS.texto)
+            .lineLimit(1)
+    }
+
+    /// Menu da barra: no dia de hoje mostra o horário (se tiver) no lugar de "Hoje".
+    private var linhaCompacta: some View {
+        HStack(spacing: DS.e3) {
+            circulo
+            titulo
+            Spacer(minLength: DS.e2)
+            if task.hasNotes {
+                Image(systemName: "text.alignleft").font(.system(size: 10.5)).foregroundStyle(DS.texto3)
+            }
+            if showDate || store.horario(of: task) != nil, let texto = textoDaData(compacto: true) {
+                Text(texto)
+                    .txt(.xs, .medium)
+                    .monospacedDigit()
+                    .foregroundStyle((task.dueDay ?? .distantFuture) < store.today ? DS.perigoTexto : DS.texto3)
+            }
+        }
+    }
+
+    private var linhaLarga: some View {
+        HStack(spacing: DS.e3) {
+            circulo
+            titulo.fixedSize()
+            metadadosSemData.fixedSize()
+            Spacer(minLength: 120)
+            dataComHora
+            if showList { ListChip(listID: task.listID) }
+        }
+    }
+
+    private var linhaEmpilhada: some View {
+        HStack(spacing: DS.e3) {
+            circulo
+            VStack(alignment: .leading, spacing: 2) {
+                titulo
+                HStack(spacing: 6) {
+                    dataComHora
+                    metadadosSemData
+                }
+                .txt(.xs)
+            }
+            Spacer(minLength: DS.e2)
+            if showList { ListChip(listID: task.listID) }
+        }
+    }
+
+    /// Data (e horário) como metadado; atrasada em vermelho.
+    @ViewBuilder private var dataComHora: some View {
+        if let texto = textoDaData(compacto: false), showDate || store.horario(of: task) != nil {
+            let atrasada = (task.dueDay ?? .distantFuture) < store.today
+            HStack(spacing: DS.e1) {
+                Image(systemName: atrasada ? "exclamationmark.circle" : (store.horario(of: task) != nil ? "clock" : "calendar"))
+                    .font(.system(size: 10, weight: .semibold))
+                Text(texto).monospacedDigit()
+            }
+            .txt(.xs, .medium)
+            .foregroundStyle(atrasada ? DS.perigoTexto : DS.texto3)
+        }
+    }
+
+    private func textoDaData(compacto: Bool) -> String? {
+        let hora = store.horario(of: task)
+        guard let day = task.dueDay else { return nil }
+        let rotulo = DayLabel.short(day, today: store.today)
+        if let hora {
+            if !showDate || (compacto && day == store.today) { return hora }
+            return "\(rotulo) · \(hora)"
+        }
+        return showDate ? rotulo : nil
+    }
+
+    /// Nota e etiquetas (sem a data).
+    @ViewBuilder private var metadadosSemData: some View {
         let tags = store.tags(for: task)
-        let note = (task.notes ?? "").components(separatedBy: .newlines).first?.trimmingCharacters(in: .whitespaces) ?? ""
-        let hasDate = showDate && task.dueDay != nil
-        if hasDate || !note.isEmpty || !tags.isEmpty {
+        let note = task.notasVisiveis.components(separatedBy: .newlines).first?.trimmingCharacters(in: .whitespaces) ?? ""
+        if !note.isEmpty || !tags.isEmpty {
             HStack(spacing: 6) {
-                if showDate, let day = task.dueDay { DueLabel(day: day, today: store.today) }
                 if !note.isEmpty {
-                    if hasDate { Text("·") }
-                    Text(note).lineLimit(1).frame(maxWidth: 280, alignment: .leading)
+                    Image(systemName: "text.alignleft").font(.system(size: 9.5))
+                    Text(note).lineLimit(1).frame(maxWidth: 220, alignment: .leading)
                 }
-                ForEach(tags) { tag in
-                    if hasDate || !note.isEmpty || tag.id != tags.first?.id { Text("·") }
-                    TagChip(tag: tag)
-                }
+                ForEach(tags) { TagChip(tag: $0) }
             }
             .txt(.xs)
             .foregroundStyle(DS.texto3)
@@ -126,7 +187,6 @@ struct TaskRow: View {
         Divider()
         Button("Para hoje") { store.setDue(task, store.today) }
         Button("Para amanhã") { store.setDue(task, Calendar.current.adding(days: 1, to: store.today)) }
-        Button("Para a próxima semana") { store.setDue(task, Calendar.current.adding(days: 7, to: store.today)) }
         Button("Tirar a data") { store.setDue(task, nil) }
         if !store.tags.isEmpty {
             Menu("Etiquetas") {

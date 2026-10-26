@@ -22,6 +22,7 @@ struct PageScaffold<Leading: View, Content: View>: View {
             .frame(maxWidth: .infinity)
         }
         .scrollIndicators(.never)
+        .indicadorDeRolagem()
     }
 }
 
@@ -81,7 +82,7 @@ struct TodayView: View {
                 }
 
                 if !done.isEmpty {
-                    SecaoTarefas("Concluídas hoje", contagem: done.count, recolhida: true) {
+                    SecaoTarefas("Concluídas", contagem: done.count, recolhida: true) {
                         ForEach(done) { TaskRow(task: $0, showDate: false) }
                     }
                 }

@@ -531,3 +531,46 @@ struct Encadeado: ViewModifier {
 extension View {
     func encadeado(_ indice: Int) -> some View { modifier(Encadeado(indice: indice)) }
 }
+
+// MARK: Indicativo de rolagem
+
+/// Mostra que há mais conteúdo: esmaecido na borda e uma setinha embaixo enquanto der para rolar.
+struct IndicadorDeRolagem: ViewModifier {
+    var fundo: Color
+    @State private var temAcima = false
+    @State private var temAbaixo = false
+
+    func body(content: Content) -> some View {
+        content
+            .onScrollGeometryChange(for: [Bool].self) { g in
+                [g.contentOffset.y > 2, g.contentOffset.y + g.containerSize.height < g.contentSize.height - 2]
+            } action: { _, valor in
+                temAcima = valor[0]
+                temAbaixo = valor[1]
+            }
+            .overlay(alignment: .top) {
+                LinearGradient(colors: [fundo, fundo.opacity(0)], startPoint: .top, endPoint: .bottom)
+                    .frame(height: 16)
+                    .opacity(temAcima ? 1 : 0)
+                    .allowsHitTesting(false)
+            }
+            .overlay(alignment: .bottom) {
+                ZStack(alignment: .bottom) {
+                    LinearGradient(colors: [fundo.opacity(0), fundo], startPoint: .top, endPoint: .bottom)
+                    Image(systemName: "chevron.compact.down")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(DS.texto3)
+                        .padding(.bottom, 2)
+                }
+                .frame(height: 26)
+                .opacity(temAbaixo ? 1 : 0)
+                .allowsHitTesting(false)
+            }
+            .animation(DS.curvaRapida, value: temAcima)
+            .animation(DS.curvaRapida, value: temAbaixo)
+    }
+}
+
+extension View {
+    func indicadorDeRolagem(fundo: Color = DS.fundo) -> some View { modifier(IndicadorDeRolagem(fundo: fundo)) }
+}

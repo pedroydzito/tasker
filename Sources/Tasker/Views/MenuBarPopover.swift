@@ -148,6 +148,13 @@ struct MenuBarPopover: View {
                         ForEach(today) { TaskRow(task: $0, style: .compact) }
                     }
                 }
+
+                let feitas = store.completedToday
+                if !feitas.isEmpty {
+                    SecaoTarefas("Concluídas", contagem: feitas.count, recolhida: true) {
+                        ForEach(feitas) { TaskRow(task: $0, style: .compact) }
+                    }
+                }
             }
         }
     }
@@ -205,6 +212,7 @@ struct MenuBarPopover: View {
                 })
         }
         .scrollIndicators(.never)
+        .indicadorDeRolagem()
         .frame(maxHeight: .infinity)
     }
 
@@ -303,6 +311,7 @@ struct PopoverCalendarView: View {
                 .padding(.bottom, DS.e4)
             }
             .scrollIndicators(.never)
+            .indicadorDeRolagem()
             .frame(maxHeight: .infinity)
         }
     }

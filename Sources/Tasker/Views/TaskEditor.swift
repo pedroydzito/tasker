@@ -7,19 +7,22 @@ struct RascunhoDeTarefa: Equatable {
     var due: Date?
     var listID: String
     var tagIDs: [String]
+    var horario: String?
 
     @MainActor
     init(_ task: TaskItem, store: TaskStore) {
         title = task.title
-        notes = task.notes ?? ""
+        notes = task.notasVisiveis
         due = task.dueDay
         listID = task.listID
         tagIDs = store.tags(for: task).map(\.id)
+        horario = task.horario
     }
 
     @MainActor
     func aplicar(em task: TaskItem, store: TaskStore) {
-        store.save(task, title: title, notes: notes, due: due)
+        // O horário vai junto, como última linha das notas (o Google Tasks não guarda hora).
+        store.save(task, title: title, notes: HorarioNasNotas.juntar(notes, due == nil ? nil : horario), due: due)
         if Set(tagIDs) != Set(store.tags(for: task).map(\.id)) { store.setTags(tagIDs, on: task) }
         if listID != task.listID { store.moveTask(store.tasks[task.id] ?? task, toList: listID) }
     }
@@ -41,13 +44,6 @@ struct TaskInspector: View {
         let current = store.tasks[task.id] ?? task
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: DS.e1) {
-                Button {
-                    store.setCompleted(current, !current.isCompleted)
-                } label: {
-                    Label(current.isCompleted ? "Reabrir" : "Concluir",
-                          systemImage: current.isCompleted ? "arrow.uturn.backward" : "checkmark")
-                }
-                .buttonStyle(Botao(variante: current.isCompleted ? .superficie : .primario))
                 Spacer()
                 if let link = task.webViewLink.flatMap(URL.init(string:)) {
                     BotaoIcone(simbolo: "arrow.up.right", rotulo: "Abrir no Google") { NSWorkspace.shared.open(link) }
@@ -68,10 +64,18 @@ struct TaskInspector: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: DS.e6) {
                         VStack(alignment: .leading, spacing: DS.e3) {
-                            TextField("Título", text: binding.title, axis: .vertical)
-                                .textFieldStyle(.plain)
-                                .display(.titulo)
-                                .foregroundStyle(DS.texto)
+                            HStack(alignment: .firstTextBaseline, spacing: DS.e3) {
+                                // Concluir: o mesmo círculo da lista de tarefas.
+                                CheckCircle(color: store.color(forList: current.listID), checked: current.isCompleted, size: 22) {
+                                    store.setCompleted(current, !current.isCompleted)
+                                }
+                                .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + 6 }
+                                TextField("Título", text: binding.title, axis: .vertical)
+                                    .textFieldStyle(.plain)
+                                    .display(.titulo)
+                                    .strikethrough(current.isCompleted, color: DS.texto3)
+                                    .foregroundStyle(current.isCompleted ? DS.texto3 : DS.texto)
+                            }
                             PropriedadesDaTarefa(rascunho: binding)
                         }
 
@@ -135,9 +139,7 @@ struct PropriedadesDaTarefa: View {
                     withAnimation(DS.curva) { listasAbertas.toggle(); dataAberta = false }
                 } label: {
                     HStack(spacing: 3) {
-                        ListChip(listID: rascunho.listID)
-                        Image(systemName: "chevron.down").font(.system(size: 8, weight: .bold)).foregroundStyle(DS.texto3)
-                            .rotationEffect(.degrees(listasAbertas ? 180 : 0))
+                        ListChip(listID: rascunho.listID, comSeta: true, aberta: listasAbertas)
                     }
                 }
                 .buttonStyle(SoAfunda(escala: 0.95))
@@ -146,7 +148,7 @@ struct PropriedadesDaTarefa: View {
                 Button {
                     withAnimation(DS.curva) { dataAberta.toggle(); listasAbertas = false }
                 } label: {
-                    Chip(rascunho.due.map { DayLabel.short($0, today: store.today) } ?? "Sem data",
+                    Chip(rascunho.due.map { DayLabel.short($0, today: store.today) + (rascunho.horario.map { " · \($0)" } ?? "") } ?? "Sem data",
                          cor: rascunho.due.map { $0 < store.today ? DS.perigoTexto : DS.texto2 }) {
                         Image(systemName: "calendar").font(.system(size: 10, weight: .semibold))
                     }
@@ -192,7 +194,9 @@ struct PropriedadesDaTarefa: View {
                 .transition(.opacity.combined(with: .offset(y: -6)))
             }
             if dataAberta {
-                SeletorDeDataEmbutido(due: $rascunho.due) { withAnimation(DS.curva) { dataAberta = false } }
+                SeletorDeDataEmbutido(due: $rascunho.due, horario: $rascunho.horario) {
+                    withAnimation(DS.curva) { dataAberta = false }
+                }
                     .frame(maxWidth: 320)
                     .transition(.opacity.combined(with: .offset(y: -6)))
             }
@@ -204,21 +208,50 @@ struct PropriedadesDaTarefa: View {
 struct SeletorDeDataEmbutido: View {
     @Environment(TaskStore.self) private var store
     @Binding var due: Date?
+    @Binding var horario: String?
     let fechar: () -> Void
     @State private var mes = Calendar.current.dateInterval(of: .month, for: .now)?.start ?? .now
+    @State private var textoHora = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.e3) {
             HStack(spacing: DS.e1) {
                 atalho("Hoje", 0)
                 atalho("Amanhã", 1)
-                atalho("+1 semana", 7)
                 Button("Sem data") { due = nil; fechar() }.buttonStyle(Botao(variante: .fantasma))
             }
             CalendarioMes(mes: $mes, selecionado: due, hoje: store.today,
                           ocupado: { !store.tasks(on: $0).isEmpty }) { dia in
                 due = dia
-                fechar()
+            }
+            // Horário opcional (fica no Tasker; o Google Tasks só guarda a data).
+            HStack(spacing: DS.e2) {
+                Image(systemName: "clock").font(.system(size: 12, weight: .medium)).foregroundStyle(DS.texto3)
+                TextField("Sem horário", text: $textoHora)
+                    .textFieldStyle(.plain)
+                    .txt(.sm, .medium)
+                    .monospacedDigit()
+                    .frame(width: 84)
+                    .padding(.horizontal, DS.e2)
+                    .frame(height: 30)
+                    .background(DS.superficie2, in: RoundedRectangle(cornerRadius: DS.raioP, style: .continuous))
+                    .onSubmit(aplicarHora)
+                    .onChange(of: textoHora) { _, _ in aplicarHora() }
+                ForEach(["09:00", "12:00", "18:00"], id: \.self) { h in
+                    Button(h) { textoHora = h }.buttonStyle(Botao(variante: horario == h ? .primario : .superficie))
+                }
+                if horario != nil {
+                    BotaoIcone(simbolo: "xmark", rotulo: "Tirar o horário", tamanho: 24, tamanhoIcone: 10) {
+                        textoHora = ""
+                        horario = nil
+                    }
+                }
+            }
+            .disabled(due == nil)
+            .opacity(due == nil ? 0.5 : 1)
+            HStack {
+                Spacer()
+                Button("Pronto", action: fechar).buttonStyle(.superficie)
             }
         }
         .padding(DS.e3)
@@ -227,7 +260,22 @@ struct SeletorDeDataEmbutido: View {
         .sombra()
         .onAppear {
             if let due { mes = Calendar.current.dateInterval(of: .month, for: due)?.start ?? mes }
+            textoHora = horario ?? ""
         }
+    }
+
+    /// Aceita "9", "930", "9:30", "09h30".
+    private func aplicarHora() {
+        let digitos = textoHora.filter(\.isNumber)
+        guard !digitos.isEmpty else { horario = nil; return }
+        var h = 0, m = 0
+        switch digitos.count {
+        case 1, 2: h = Int(digitos) ?? 0
+        case 3: h = Int(digitos.prefix(1)) ?? 0; m = Int(digitos.suffix(2)) ?? 0
+        default: h = Int(digitos.prefix(2)) ?? 0; m = Int(digitos.dropFirst(2).prefix(2)) ?? 0
+        }
+        guard h < 24, m < 60 else { return }
+        horario = String(format: "%02d:%02d", h, m)
     }
 
     private func atalho(_ rotulo: String, _ dias: Int) -> some View {

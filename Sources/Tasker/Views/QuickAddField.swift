@@ -109,11 +109,7 @@ struct QuickAddField: View {
                     withAnimation(DS.curva) { dropdownAberto.toggle() }
                 } label: {
                     HStack(spacing: 3) {
-                        ListChip(listID: listID)
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 8, weight: .bold))
-                            .foregroundStyle(DS.texto3)
-                            .rotationEffect(.degrees(dropdownAberto ? 180 : 0))
+                        ListChip(listID: listID, comSeta: true, aberta: dropdownAberto)
                     }
                 }
                 .buttonStyle(SoAfunda(escala: 0.95))
@@ -178,6 +174,7 @@ struct DropdownDeListas: View {
             }
             .scrollIndicators(.never)
             .frame(maxHeight: 200)
+            .indicadorDeRolagem(fundo: DS.superficie)
             .fixedSize(horizontal: false, vertical: true)
 
             Rectangle().fill(DS.borda).frame(height: 1).padding(.vertical, 3)

@@ -12,17 +12,22 @@ struct CalendarView: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: DS.e4) {
-                header
-                weekdayHeader
-                grid
-                    .id(month)
-                    .transition(.asymmetric(insertion: .offset(x: 28 * direcao).combined(with: .opacity), removal: .opacity))
+            // Rolável: o mês nunca passa da altura da janela (antes empurrava a barra lateral).
+            ScrollView {
+                VStack(alignment: .leading, spacing: DS.e4) {
+                    header
+                    weekdayHeader
+                    grid
+                        .id(month)
+                        .transition(.asymmetric(insertion: .offset(x: 28 * direcao).combined(with: .opacity), removal: .opacity))
+                }
+                .animation(DS.curva, value: month)
+                .padding(.horizontal, DS.e8)
+                .padding(.top, 56)
+                .padding(.bottom, DS.e6)
             }
-            .animation(DS.curva, value: month)
-            .padding(.horizontal, DS.e8)
-            .padding(.top, 56)
-            .padding(.bottom, DS.e6)
+            .scrollIndicators(.automatic)
+            .indicadorDeRolagem()
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             Rectangle().fill(DS.borda).frame(width: 1)
@@ -214,5 +219,6 @@ private struct DayAgenda: View {
             .padding(.top, 32)
         }
         .scrollIndicators(.never)
+        .indicadorDeRolagem(fundo: DS.superficie)
     }
 }
