@@ -1,0 +1,19 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - run: swift --version
+      - run: ./scripts/build-app.sh
+      - run: cd build && ditto -c -k --keepParent Tasker.app Tasker.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Tasker
+          path: build/Tasker.zip
