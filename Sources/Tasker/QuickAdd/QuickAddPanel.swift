@@ -2,14 +2,17 @@ import AppKit
 import SwiftUI
 
 private final class KeyPanel: NSPanel {
+    var aoCancelar: (() -> Void)?
     override var canBecomeKey: Bool { true }
+    /// ESC fecha o painel, de qualquer lugar dentro dele.
+    override func cancelOperation(_ sender: Any?) { aoCancelar?() }
 }
 
 /// Janela flutuante de "adicionar tarefa" aberta pelo atalho global.
 @MainActor
 final class QuickAddPanelController {
     private let store: TaskStore
-    private var panel: NSPanel?
+    private var panel: KeyPanel?
     private var resignObserver: NSObjectProtocol?
 
     init(store: TaskStore) {
@@ -27,23 +30,38 @@ final class QuickAddPanelController {
 
         let root = QuickAddPanelView { [weak self] in self?.close() }
             .environment(store)
-        panel.contentView = NSHostingView(rootView: root)
+        let hosting = NSHostingView(rootView: root)
+        panel.contentView = hosting
 
         if let screen = NSScreen.main {
-            let size = NSSize(width: 580, height: 96)
+            // Altura com folga para o dropdown de listas; a área vazia é transparente.
+            let size = NSSize(width: 580, height: 380)
             let frame = screen.visibleFrame
             panel.setFrame(NSRect(x: frame.midX - size.width / 2, y: frame.maxY - frame.height * 0.28,
                                   width: size.width, height: size.height), display: true)
         }
         NSApp.activate()
         panel.makeKeyAndOrderFront(nil)
+        // Já pronto para digitar: o campo recebe o foco assim que a janela vira principal.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            panel.makeKey()
+            if let campo = Self.primeiroCampo(em: hosting) { panel.makeFirstResponder(campo) }
+        }
     }
 
     func close() {
         panel?.orderOut(nil)
     }
 
-    private func makePanel() -> NSPanel {
+    private static func primeiroCampo(em view: NSView) -> NSView? {
+        if view is NSTextField || view is NSTextView { return view }
+        for sub in view.subviews {
+            if let achado = primeiroCampo(em: sub) { return achado }
+        }
+        return nil
+    }
+
+    private func makePanel() -> KeyPanel {
         let panel = KeyPanel(contentRect: .zero, styleMask: [.titled, .fullSizeContentView, .nonactivatingPanel],
                              backing: .buffered, defer: false)
         panel.titlebarAppearsTransparent = true
@@ -58,7 +76,8 @@ final class QuickAddPanelController {
         panel.isReleasedWhenClosed = false
         panel.backgroundColor = .clear
         panel.isOpaque = false
-        panel.hasShadow = true
+        panel.hasShadow = false
+        panel.aoCancelar = { [weak self] in self?.close() }
 
         resignObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.didResignKeyNotification, object: panel, queue: .main
@@ -74,12 +93,17 @@ struct QuickAddPanelView: View {
     let onClose: () -> Void
 
     var body: some View {
-        QuickAddField(defaultDue: store.today, style: .large, onAdded: onClose)
-            .padding(DS.e2)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .background(DS.superficie, in: RoundedRectangle(cornerRadius: DS.raioCartao, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: DS.raioCartao, style: .continuous).strokeBorder(DS.borda))
-            .tint(DS.acento)
-            .onExitCommand(perform: onClose)
+        VStack {
+            QuickAddField(defaultDue: store.today, style: .large, onAdded: onClose)
+                .padding(DS.e2)
+                .background(DS.superficie, in: RoundedRectangle(cornerRadius: DS.raioCartao, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: DS.raioCartao, style: .continuous).strokeBorder(DS.borda))
+                .sombraAlta()
+                .padding(DS.e5)
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .tint(DS.acento)
+        .onExitCommand(perform: onClose)
     }
 }

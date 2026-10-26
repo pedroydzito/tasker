@@ -169,6 +169,13 @@ final class GoogleAPI {
         try await send("DELETE", Self.url(Self.tasksBase, ["lists", listID, "tasks", taskID]))
     }
 
+    /// Move a tarefa para outra lista (o Google mantém o mesmo id).
+    func moveTask(listID: String, taskID: String, toList: String) async throws -> GTask {
+        let url = Self.url(Self.tasksBase, ["lists", listID, "tasks", taskID, "move"], ["destinationTasklist": toList])
+        let data = try await send("POST", url)
+        return try JSONDecoder().decode(GTask.self, from: data)
+    }
+
     func insertList(title: String) async throws -> GTaskList {
         let data = try await send("POST", Self.url(Self.tasksBase, ["users", "@me", "lists"]), json: ["title": title])
         return try JSONDecoder().decode(GTaskList.self, from: data)

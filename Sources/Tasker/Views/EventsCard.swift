@@ -44,7 +44,7 @@ struct EventRow: View {
                 Capsule()
                     .fill(cor)
                     .frame(width: hovering ? 5 : 3, height: hovering ? 18 : 16)
-                    .frame(width: 5, alignment: .leading)
+                    .frame(width: 5, height: 18, alignment: .leading)
                 Text(event.timeLabel).txt(.xs, .medium).monospacedDigit().foregroundStyle(DS.texto3)
                     .frame(minWidth: 74, alignment: .leading)
                 Text(event.title).txt(.sm, .medium).foregroundStyle(DS.texto).lineLimit(1)

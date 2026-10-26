@@ -23,6 +23,65 @@ final class Folhas {
     func fechar() {
         atual = nil
     }
+
+    /// Confirmação padrão para tudo que remove algo.
+    func confirmar(_ titulo: String, mensagem: String, botao: String = "Excluir", acao: @escaping () -> Void) {
+        abrir(titulo, largura: 360) {
+            Confirmacao(mensagem: mensagem, botao: botao, acao: acao)
+        }
+    }
+}
+
+/// Conteúdo da folha de confirmação.
+struct Confirmacao: View {
+    @Environment(Folhas.self) private var folhas
+    let mensagem: String
+    let botao: String
+    let acao: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DS.e4) {
+            Text(mensagem).txt(.sm).foregroundStyle(DS.texto2).fixedSize(horizontal: false, vertical: true)
+            RodapeFolha {
+                Spacer()
+                Button("Cancelar") { folhas.fechar() }.buttonStyle(.superficie).keyboardShortcut(.cancelAction)
+                Button(botao) {
+                    withAnimation(DS.curvaSaida) { folhas.fechar() }
+                    acao()
+                }
+                .buttonStyle(.perigo)
+                .keyboardShortcut(.defaultAction)
+            }
+        }
+    }
+}
+
+/// Aviso "excluído — Desfazer" no rodapé da janela (some em 3 s).
+struct ToastDesfazer: View {
+    @Environment(TaskStore.self) private var store
+
+    var body: some View {
+        ZStack {
+            if let aviso = store.aviso {
+                HStack(spacing: DS.e3) {
+                    Image(systemName: "trash").font(.system(size: 12, weight: .semibold)).foregroundStyle(DS.texto3)
+                    Text(aviso.texto).txt(.sm, .medium).foregroundStyle(DS.texto).lineLimit(1)
+                    Button("Desfazer") { withAnimation(DS.curva) { store.desfazerAviso() } }
+                        .buttonStyle(Botao(variante: .fantasma))
+                        .foregroundStyle(DS.acentoTexto)
+                }
+                .padding(.leading, DS.e4)
+                .padding(.trailing, DS.e1)
+                .padding(.vertical, DS.e1)
+                .background(DS.superficie, in: Capsule())
+                .overlay(Capsule().strokeBorder(DS.borda))
+                .sombraAlta()
+                .id(aviso.id)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(DS.curva, value: store.aviso?.id)
+    }
 }
 
 /// Hospeda as folhas por cima de uma janela inteira.

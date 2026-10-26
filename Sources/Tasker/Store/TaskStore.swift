@@ -44,6 +44,8 @@ final class TaskStore {
     private(set) var eventRange: Range<Date>?
     private(set) var today = Calendar.current.startOfDay(for: .now)
     private(set) var tagDB = TagDatabase.load()
+    /// Aviso de "excluído — Desfazer" (some sozinho em 3 s).
+    private(set) var aviso: AvisoDesfazer?
 
     /// Fonte das tarefas. Toda alteração reconstrói o índice uma única vez.
     @ObservationIgnored private var taskMap: [String: TaskItem] = [:] {
@@ -55,6 +57,14 @@ final class TaskStore {
     @ObservationIgnored private var lastEventSync = Date.distantPast
     @ObservationIgnored private var pendingIDs: Set<String> = []
     @ObservationIgnored private var observers: [NSObjectProtocol] = []
+    @ObservationIgnored private var listasSaindo: Set<String> = []
+    @ObservationIgnored private var tarefaAviso: Task<Void, Never>?
+
+    /// A lista principal do Google ("Minhas tarefas"), sempre a primeira.
+    var pinnedListID: String? {
+        get { UserDefaults.standard.string(forKey: "pinnedListID") }
+        set { UserDefaults.standard.set(newValue, forKey: "pinnedListID") }
+    }
 
     init(auth: GoogleAuth, api: GoogleAPI, prefs: Preferences) {
         self.auth = auth
@@ -133,19 +143,24 @@ final class TaskStore {
     /// Aplica a ordem escolhida pelo usuário; listas novas vão para o fim, na ordem do Google.
     private func ordered(_ input: [TaskList]) -> [TaskList] {
         let order = prefs.listOrder
-        guard !order.isEmpty else { return input }
         let position = Dictionary(uniqueKeysWithValues: order.enumerated().map { ($1, $0) })
-        return input.enumerated().sorted { a, b in
+        var result = input.enumerated().sorted { a, b in
             let pa = position[a.element.id] ?? (order.count + a.offset)
             let pb = position[b.element.id] ?? (order.count + b.offset)
             return pa < pb
         }.map(\.element)
+        // "Minhas tarefas" fica sempre em primeiro.
+        if let pinned = pinnedListID, let i = result.firstIndex(where: { $0.id == pinned }), i != 0 {
+            result.insert(result.remove(at: i), at: 0)
+        }
+        return result
     }
 
     /// Move uma lista para uma posição (arrastar na barra lateral).
     func moveList(_ id: String, toIndex target: Int) {
-        guard let from = lists.firstIndex(where: { $0.id == id }) else { return }
-        let to = max(0, min(target, lists.count - 1))
+        guard id != pinnedListID, let from = lists.firstIndex(where: { $0.id == id }) else { return }
+        let minimo = pinnedListID == nil ? 0 : 1
+        let to = max(minimo, min(target, lists.count - 1))
         guard from != to else { return }
         var reordered = lists
         let item = reordered.remove(at: from)
@@ -192,16 +207,61 @@ final class TaskStore {
         }
     }
 
+    /// Exclui a lista: some na hora, e só é apagada de verdade se não houver "Desfazer" em 3 s.
     func deleteList(_ id: String) async {
-        do {
-            try await backend.deleteList(id: id)
-            lists.removeAll { $0.id == id }
-            taskMap = taskMap.filter { $0.value.listID != id }
-            listsChanged()
-            saveCache()
-        } catch {
-            lastError = "Não consegui excluir a lista: \(error.localizedDescription)"
+        guard id != pinnedListID, let i = lists.firstIndex(where: { $0.id == id }) else { return }
+        let lista = lists[i]
+        let tarefas = taskMap.filter { $0.value.listID == id }
+        listasSaindo.insert(id)
+        lists.remove(at: i)
+        taskMap = taskMap.filter { $0.value.listID != id }
+        listsChanged()
+        mostrarAviso("Lista “\(displayNameFallback(lista))” excluída") { [weak self] in
+            guard let self else { return }
+            self.listasSaindo.remove(id)
+            self.lists.insert(lista, at: min(i, self.lists.count))
+            self.taskMap.merge(tarefas) { a, _ in a }
+            self.listsChanged()
+        } confirmar: { [weak self] in
+            guard let self else { return }
+            do {
+                try await self.backend.deleteList(id: id)
+                self.listasSaindo.remove(id)
+                self.saveCache()
+            } catch {
+                self.listasSaindo.remove(id)
+                self.lastError = "Não consegui excluir a lista: \(error.localizedDescription)"
+                await self.sync(force: true)
+            }
         }
+    }
+
+    private func displayNameFallback(_ list: TaskList) -> String {
+        let (_, nome) = Self.splitLeadingSymbols(list.title)
+        return nome.isEmpty ? list.title : nome
+    }
+
+    // MARK: Desfazer
+
+    /// Mostra o aviso por 3 s. Se ninguém desfizer, roda `confirmar` (a exclusão de verdade).
+    func mostrarAviso(_ texto: String, desfazer: @escaping () -> Void, confirmar: @escaping () async -> Void) {
+        if let anterior = aviso { anterior.expirar() }
+        tarefaAviso?.cancel()
+        let novo = AvisoDesfazer(texto: texto, desfazer: desfazer, confirmar: confirmar)
+        aviso = novo
+        tarefaAviso = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(3))
+            guard !Task.isCancelled, let self, self.aviso?.id == novo.id else { return }
+            self.aviso = nil
+            novo.expirar()
+        }
+    }
+
+    func desfazerAviso() {
+        guard let atual = aviso else { return }
+        tarefaAviso?.cancel()
+        aviso = nil
+        atual.cancelar()
     }
 
     // MARK: Modo de uso
@@ -406,7 +466,10 @@ final class TaskStore {
     private func syncTasks(full: Bool) async throws {
         let remoteLists = try await backend.fetchTaskLists()
         let hadLists = !lists.isEmpty
-        let newLists = ordered(remoteLists.map { TaskList(id: $0.id, title: $0.title ?? "Sem título") })
+        // O Google devolve a lista principal primeiro; ela fica fixa no topo.
+        if let first = remoteLists.first?.id { pinnedListID = first }
+        let newLists = ordered(remoteLists.filter { !listasSaindo.contains($0.id) }
+            .map { TaskList(id: $0.id, title: $0.title ?? "Sem título") })
         if newLists != lists {
             lists = newLists
             listsChanged()
@@ -569,11 +632,22 @@ final class TaskStore {
     }
 
     func deleteTag(_ tag: Tag) {
+        let copia = tagDB
         tagDB.tags.removeAll { $0.id == tag.id }
         for (taskID, ids) in tagDB.assignments {
             let remaining = ids.filter { $0 != tag.id }
             tagDB.assignments[taskID] = remaining.isEmpty ? nil : remaining
         }
+        tagDB.save()
+        mostrarAviso("Etiqueta “\(tag.name)” excluída") { [weak self] in
+            self?.tagDB = copia
+            self?.tagDB.save()
+        } confirmar: {}
+    }
+
+    /// Define as etiquetas de uma tarefa de uma vez (usado ao salvar uma edição).
+    func setTags(_ ids: [String], on task: TaskItem) {
+        tagDB.assignments[task.id] = ids.isEmpty ? nil : ids
         tagDB.save()
     }
 
@@ -645,20 +719,51 @@ final class TaskStore {
         }
     }
 
-    func delete(_ task: TaskItem) {
-        guard !task.isLocal, let original = taskMap[task.id] else { return }
-        taskMap[task.id] = nil
+    /// Troca a tarefa de lista (arrastar para a barra lateral ou escolher no detalhe).
+    func moveTask(_ task: TaskItem, toList destino: String) {
+        guard !task.isLocal, task.listID != destino, let original = taskMap[task.id] else { return }
+        var movida = original
+        movida.listID = destino
+        movida.parent = nil
+        taskMap[task.id] = movida
         pendingIDs.insert(task.id)
         Task {
             defer { pendingIDs.remove(task.id) }
             do {
-                try await backend.deleteTask(listID: task.listID, taskID: task.id)
-                tagDB.assignments[task.id] = nil
-                tagDB.save()
+                let result = try await backend.moveTask(listID: original.listID, taskID: task.id, toList: destino)
+                taskMap[task.id] = nil
+                taskMap[result.id] = TaskItem(result, listID: destino)
+                if result.id != task.id, let tags = tagDB.assignments.removeValue(forKey: task.id) {
+                    tagDB.assignments[result.id] = tags
+                    tagDB.save()
+                }
                 saveCache()
             } catch {
                 taskMap[task.id] = original
-                lastError = "Não foi possível excluir: \(error.localizedDescription)"
+                lastError = "Não consegui mudar a tarefa de lista: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    /// Exclui a tarefa: some na hora; só é apagada de verdade se não houver "Desfazer" em 3 s.
+    func delete(_ task: TaskItem) {
+        guard !task.isLocal, let original = taskMap[task.id] else { return }
+        taskMap[task.id] = nil
+        pendingIDs.insert(task.id)
+        mostrarAviso("Tarefa excluída") { [weak self] in
+            self?.taskMap[task.id] = original
+            self?.pendingIDs.remove(task.id)
+        } confirmar: { [weak self] in
+            guard let self else { return }
+            defer { self.pendingIDs.remove(task.id) }
+            do {
+                try await self.backend.deleteTask(listID: task.listID, taskID: task.id)
+                self.tagDB.assignments[task.id] = nil
+                self.tagDB.save()
+                self.saveCache()
+            } catch {
+                self.taskMap[task.id] = original
+                self.lastError = "Não foi possível excluir: \(error.localizedDescription)"
             }
         }
     }
@@ -797,4 +902,32 @@ struct IndentedTask: Identifiable {
     let task: TaskItem
     let depth: Int
     var id: String { task.id }
+}
+
+/// "Excluído — Desfazer". Roda a exclusão de verdade quando expira; nada se for desfeito.
+@MainActor
+final class AvisoDesfazer: Identifiable {
+    let id = UUID()
+    let texto: String
+    private var desfazerAcao: (() -> Void)?
+    private var confirmarAcao: (() async -> Void)?
+
+    init(texto: String, desfazer: @escaping () -> Void, confirmar: @escaping () async -> Void) {
+        self.texto = texto
+        desfazerAcao = desfazer
+        confirmarAcao = confirmar
+    }
+
+    func cancelar() {
+        desfazerAcao?()
+        desfazerAcao = nil
+        confirmarAcao = nil
+    }
+
+    func expirar() {
+        guard let confirmar = confirmarAcao else { return }
+        confirmarAcao = nil
+        desfazerAcao = nil
+        Task { await confirmar() }
+    }
 }

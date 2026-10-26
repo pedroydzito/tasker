@@ -8,6 +8,7 @@ protocol TaskBackend: AnyObject {
     func insertTask(listID: String, title: String, notes: String?, due: String?) async throws -> GTask
     func patchTask(listID: String, taskID: String, fields: [String: Any]) async throws -> GTask
     func deleteTask(listID: String, taskID: String) async throws
+    func moveTask(listID: String, taskID: String, toList: String) async throws -> GTask
     func insertList(title: String) async throws -> GTaskList
     func renameList(id: String, title: String) async throws -> GTaskList
     func deleteList(id: String) async throws
@@ -90,6 +91,16 @@ final class LocalBackend: TaskBackend {
     func deleteTask(listID: String, taskID: String) async throws {
         banco.tasks[listID]?.removeAll { $0.id == taskID }
         salvar()
+    }
+
+    func moveTask(listID: String, taskID: String, toList: String) async throws -> GTask {
+        guard var task = banco.tasks[listID]?.first(where: { $0.id == taskID }) else { throw LocalError.naoEncontrado }
+        banco.tasks[listID]?.removeAll { $0.id == taskID }
+        task.updated = Self.agora()
+        task.parent = nil
+        banco.tasks[toList, default: []].append(task)
+        salvar()
+        return task
     }
 
     func insertList(title: String) async throws -> GTaskList {

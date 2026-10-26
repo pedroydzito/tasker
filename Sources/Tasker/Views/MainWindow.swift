@@ -5,6 +5,8 @@ struct MainWindow: View {
     @Environment(GoogleAuth.self) private var auth
     @Environment(Navigation.self) private var nav
     @State private var folhas = Folhas()
+    @AppStorage("larguraBarraLateral") private var larguraBarra: Double = 256
+    @AppStorage("larguraDetalhes") private var larguraDetalhes: Double = 400
 
     var body: some View {
         Group {
@@ -31,8 +33,8 @@ struct MainWindow: View {
     private var layout: some View {
         let selectedTask = nav.selectedTaskID.flatMap { store.tasks[$0] }
         return HStack(spacing: 0) {
-            Sidebar().frame(width: 256)
-            Rectangle().fill(DS.borda).frame(width: 1)
+            Sidebar().frame(width: larguraBarra)
+            Divisoria(largura: $larguraBarra, minimo: 210, maximo: 360, sentido: 1)
 
             ZStack(alignment: .bottom) {
                 ZStack {
@@ -44,13 +46,14 @@ struct MainWindow: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
                 floatingBar
+                ToastDesfazer().padding(.bottom, 84)
             }
 
             if let task = selectedTask {
-                Rectangle().fill(DS.borda).frame(width: 1)
+                Divisoria(largura: $larguraDetalhes, minimo: 320, maximo: 600, sentido: -1)
                 TaskInspector(task: task) { withAnimation(DS.curva) { nav.selectedTaskID = nil } }
                     .id(task.id)
-                    .frame(width: 400)
+                    .frame(width: larguraDetalhes)
                     .transition(.move(edge: .trailing).combined(with: .opacity))
             }
         }
@@ -93,5 +96,38 @@ struct MainWindow: View {
                 .padding(.horizontal, DS.e8)
                 .padding(.bottom, DS.e5)
         }
+    }
+}
+
+/// Divisória que redimensiona o painel vizinho arrastando (com limites).
+/// `sentido` 1 = painel à esquerda, -1 = painel à direita.
+struct Divisoria: View {
+    @Binding var largura: Double
+    let minimo: Double
+    let maximo: Double
+    let sentido: Double
+    @State private var inicio: Double?
+    @State private var hovering = false
+
+    var body: some View {
+        Rectangle()
+            .fill(hovering || inicio != nil ? DS.acento.opacity(0.5) : DS.borda)
+            .frame(width: hovering || inicio != nil ? 2 : 1)
+            .frame(width: 1)
+            .overlay {
+                Color.clear
+                    .frame(width: 9)
+                    .contentShape(Rectangle())
+                    .onHover { hovering = $0 }
+                    .pointerStyle(.columnResize)
+                    .gesture(DragGesture(minimumDistance: 1, coordinateSpace: .global)
+                        .onChanged { g in
+                            if inicio == nil { inicio = largura }
+                            largura = min(maximo, max(minimo, (inicio ?? largura) + sentido * g.translation.width))
+                        }
+                        .onEnded { _ in inicio = nil })
+            }
+            .animation(DS.curvaRapida, value: hovering)
+            .zIndex(2)
     }
 }

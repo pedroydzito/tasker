@@ -1,22 +1,41 @@
 import SwiftUI
 
-/// Painel de detalhes da tarefa (janela principal). Salva sozinho.
+/// Rascunho de uma edição: nada vai para o Google até clicar em "Salvar".
+struct RascunhoDeTarefa: Equatable {
+    var title: String
+    var notes: String
+    var due: Date?
+    var listID: String
+    var tagIDs: [String]
+
+    @MainActor
+    init(_ task: TaskItem, store: TaskStore) {
+        title = task.title
+        notes = task.notes ?? ""
+        due = task.dueDay
+        listID = task.listID
+        tagIDs = store.tags(for: task).map(\.id)
+    }
+
+    @MainActor
+    func aplicar(em task: TaskItem, store: TaskStore) {
+        store.save(task, title: title, notes: notes, due: due)
+        if Set(tagIDs) != Set(store.tags(for: task).map(\.id)) { store.setTags(tagIDs, on: task) }
+        if listID != task.listID { store.moveTask(store.tasks[task.id] ?? task, toList: listID) }
+    }
+}
+
+/// Painel de detalhes da tarefa (janela principal). Só salva ao clicar em "Salvar".
 struct TaskInspector: View {
     @Environment(TaskStore.self) private var store
+    @Environment(Folhas.self) private var folhas
     let task: TaskItem
     let onClose: () -> Void
 
-    @State private var title: String
-    @State private var notes: String
-    @State private var due: Date?
+    @State private var rascunho: RascunhoDeTarefa?
+    @State private var original: RascunhoDeTarefa?
 
-    init(task: TaskItem, onClose: @escaping () -> Void) {
-        self.task = task
-        self.onClose = onClose
-        _title = State(initialValue: task.title)
-        _notes = State(initialValue: task.notes ?? "")
-        _due = State(initialValue: task.dueDay)
-    }
+    private var alterado: Bool { rascunho != nil && rascunho != original }
 
     var body: some View {
         let current = store.tasks[task.id] ?? task
@@ -34,8 +53,10 @@ struct TaskInspector: View {
                     BotaoIcone(simbolo: "arrow.up.right", rotulo: "Abrir no Google") { NSWorkspace.shared.open(link) }
                 }
                 BotaoIcone(simbolo: "trash", rotulo: "Excluir tarefa") {
-                    store.delete(current)
-                    onClose()
+                    folhas.confirmar("Excluir tarefa", mensagem: "“\(current.displayTitle)” será excluída. Dá para desfazer logo depois.") {
+                        store.delete(current)
+                        onClose()
+                    }
                 }
                 BotaoIcone(simbolo: "xmark", rotulo: "Fechar painel", acao: onClose)
             }
@@ -43,139 +64,205 @@ struct TaskInspector: View {
             .padding(.top, DS.e4)
             .padding(.bottom, DS.e3)
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: DS.e6) {
-                    VStack(alignment: .leading, spacing: DS.e3) {
-                        TextField("Título", text: $title, axis: .vertical)
-                            .textFieldStyle(.plain)
-                            .display(.titulo)
-                            .foregroundStyle(DS.texto)
-                        PropriedadesDaTarefa(task: current, due: $due)
-                    }
+            if let binding = Binding($rascunho) {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: DS.e6) {
+                        VStack(alignment: .leading, spacing: DS.e3) {
+                            TextField("Título", text: binding.title, axis: .vertical)
+                                .textFieldStyle(.plain)
+                                .display(.titulo)
+                                .foregroundStyle(DS.texto)
+                            PropriedadesDaTarefa(rascunho: binding)
+                        }
 
-                    VStack(alignment: .leading, spacing: DS.e2) {
-                        Text("Descrição").rotulo()
-                        TextEditor(text: $notes)
-                            .txt(.md)
-                            .scrollContentBackground(.hidden)
-                            .frame(minHeight: 180)
-                            .padding(DS.e3)
-                            .background(DS.superficie2, in: RoundedRectangle(cornerRadius: DS.raioM, style: .continuous))
+                        VStack(alignment: .leading, spacing: DS.e2) {
+                            Text("Descrição").rotulo()
+                            TextEditor(text: binding.notes)
+                                .txt(.md)
+                                .scrollContentBackground(.hidden)
+                                .frame(minHeight: 180)
+                                .padding(DS.e3)
+                                .background(DS.superficie2, in: RoundedRectangle(cornerRadius: DS.raioM, style: .continuous))
+                        }
                     }
-
-                    Label("Salvo automaticamente no Google Tasks", systemImage: "checkmark.icloud")
-                        .txt(.xs)
-                        .foregroundStyle(DS.texto3)
+                    .padding(.horizontal, DS.e6)
+                    .padding(.vertical, DS.e3)
                 }
-                .padding(.horizontal, DS.e6)
-                .padding(.vertical, DS.e3)
+                .scrollIndicators(.never)
             }
-            .scrollIndicators(.never)
+
+            if alterado {
+                HStack(spacing: DS.e2) {
+                    Text("Alterações não salvas").txt(.xs).foregroundStyle(DS.texto3)
+                    Spacer()
+                    Button("Descartar") { rascunho = original }.buttonStyle(.superficie)
+                    Button("Salvar", action: salvar).buttonStyle(.primario).keyboardShortcut("s", modifiers: .command)
+                }
+                .padding(.horizontal, DS.e5)
+                .padding(.vertical, DS.e3)
+                .overlay(alignment: .top) { Rectangle().fill(DS.borda).frame(height: 1) }
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
         }
+        .animation(DS.curva, value: alterado)
         .background(DS.superficie)
-        .task(id: "\(title)\u{0}\(notes)\u{0}\(due?.timeIntervalSince1970 ?? 0)") {
-            try? await Task.sleep(for: .milliseconds(700))
-            guard !Task.isCancelled else { return }
-            persist()
+        .onAppear {
+            let inicial = RascunhoDeTarefa(task, store: store)
+            rascunho = inicial
+            original = inicial
         }
-        .onDisappear(perform: persist)
     }
 
-    private func persist() {
-        guard let current = store.tasks[task.id] else { return }
-        store.save(current, title: title, notes: notes, due: due)
+    private func salvar() {
+        guard let rascunho, let current = store.tasks[task.id] else { return }
+        rascunho.aplicar(em: current, store: store)
+        original = rascunho
     }
 }
 
-/// Linha de propriedades: chip da lista (com foto), data e etiquetas.
+/// Lista (dropdown no lugar), data e etiquetas — tudo no rascunho.
 struct PropriedadesDaTarefa: View {
     @Environment(TaskStore.self) private var store
     @Environment(Folhas.self) private var folhas
-    let task: TaskItem
-    @Binding var due: Date?
+    @Binding var rascunho: RascunhoDeTarefa
+    @State private var listasAbertas = false
+    @State private var dataAberta = false
 
     var body: some View {
-        HStack(spacing: DS.e2) {
-            ListChip(listID: task.listID)
-
-            Button {
-                let inicial = due
-                folhas.abrir("Quando?") {
-                    SeletorDeData(inicial: inicial) { due = $0 }
+        VStack(alignment: .leading, spacing: DS.e2) {
+            HStack(spacing: DS.e2) {
+                Button {
+                    withAnimation(DS.curva) { listasAbertas.toggle(); dataAberta = false }
+                } label: {
+                    HStack(spacing: 3) {
+                        ListChip(listID: rascunho.listID)
+                        Image(systemName: "chevron.down").font(.system(size: 8, weight: .bold)).foregroundStyle(DS.texto3)
+                            .rotationEffect(.degrees(listasAbertas ? 180 : 0))
+                    }
                 }
-            } label: {
-                Chip(due.map { DayLabel.short($0, today: store.today) } ?? "Sem data",
-                     cor: due.map { $0 < store.today ? DS.perigoTexto : DS.texto2 }) {
-                    Image(systemName: "calendar").font(.system(size: 10, weight: .semibold))
-                }
-            }
-            .buttonStyle(SoAfunda(escala: 0.94))
+                .buttonStyle(SoAfunda(escala: 0.95))
+                .help("Trocar a lista")
 
-            ForEach(store.tags(for: task)) { tag in
-                Button { store.toggleTag(tag, on: task) } label: {
-                    Chip("#\(tag.name)", cor: Color(hex: tag.colorHex))
+                Button {
+                    withAnimation(DS.curva) { dataAberta.toggle(); listasAbertas = false }
+                } label: {
+                    Chip(rascunho.due.map { DayLabel.short($0, today: store.today) } ?? "Sem data",
+                         cor: rascunho.due.map { $0 < store.today ? DS.perigoTexto : DS.texto2 }) {
+                        Image(systemName: "calendar").font(.system(size: 10, weight: .semibold))
+                    }
                 }
                 .buttonStyle(SoAfunda(escala: 0.94))
-                .help("Remover etiqueta")
+
+                ForEach(store.tags.filter { rascunho.tagIDs.contains($0.id) }) { tag in
+                    Button { rascunho.tagIDs.removeAll { $0 == tag.id } } label: {
+                        Chip("#\(tag.name)", cor: Color(hex: tag.colorHex))
+                    }
+                    .buttonStyle(SoAfunda(escala: 0.94))
+                    .help("Tirar a etiqueta")
+                }
+
+                Menu {
+                    ForEach(store.tags) { tag in
+                        let has = rascunho.tagIDs.contains(tag.id)
+                        Button {
+                            if has { rascunho.tagIDs.removeAll { $0 == tag.id } } else { rascunho.tagIDs.append(tag.id) }
+                        } label: {
+                            if has { Label(tag.name, systemImage: "checkmark") } else { Text(tag.name) }
+                        }
+                    }
+                    if !store.tags.isEmpty { Divider() }
+                    Button("Nova etiqueta…") {
+                        folhas.abrir("Nova etiqueta") { CriadorDeEtiqueta() }
+                    }
+                } label: {
+                    Image(systemName: "number").font(.system(size: 11, weight: .semibold))
+                }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .help("Etiquetas (só no Tasker)")
             }
 
-            Menu {
-                ForEach(store.tags) { tag in
-                    let has = store.tags(for: task).contains(tag)
-                    Button { store.toggleTag(tag, on: task) } label: {
-                        if has { Label(tag.name, systemImage: "checkmark") } else { Text(tag.name) }
-                    }
+            if listasAbertas {
+                DropdownDeListas(atual: rascunho.listID) { id in
+                    rascunho.listID = id
+                    withAnimation(DS.curva) { listasAbertas = false }
                 }
-                if !store.tags.isEmpty { Divider() }
-                Button("Nova etiqueta…") {
-                    let current = task
-                    folhas.abrir("Nova etiqueta") {
-                        CriadorDeEtiqueta { tag in store.toggleTag(tag, on: current) }
-                    }
-                }
-            } label: {
-                Image(systemName: "number").font(.system(size: 11, weight: .semibold))
+                .frame(maxWidth: 300)
+                .transition(.opacity.combined(with: .offset(y: -6)))
             }
-            .menuStyle(.borderlessButton)
-            .menuIndicator(.hidden)
-            .fixedSize()
-            .help("Etiquetas (só no Tasker)")
+            if dataAberta {
+                SeletorDeDataEmbutido(due: $rascunho.due) { withAnimation(DS.curva) { dataAberta = false } }
+                    .frame(maxWidth: 320)
+                    .transition(.opacity.combined(with: .offset(y: -6)))
+            }
         }
     }
 }
 
-/// Editor rápido (folha), usado no menu da barra.
+/// Seletor de data no lugar (sem abrir outra tela): atalhos + calendário do mês.
+struct SeletorDeDataEmbutido: View {
+    @Environment(TaskStore.self) private var store
+    @Binding var due: Date?
+    let fechar: () -> Void
+    @State private var mes = Calendar.current.dateInterval(of: .month, for: .now)?.start ?? .now
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DS.e3) {
+            HStack(spacing: DS.e1) {
+                atalho("Hoje", 0)
+                atalho("Amanhã", 1)
+                atalho("+1 semana", 7)
+                Button("Sem data") { due = nil; fechar() }.buttonStyle(Botao(variante: .fantasma))
+            }
+            CalendarioMes(mes: $mes, selecionado: due, hoje: store.today,
+                          ocupado: { !store.tasks(on: $0).isEmpty }) { dia in
+                due = dia
+                fechar()
+            }
+        }
+        .padding(DS.e3)
+        .background(DS.superficie, in: RoundedRectangle(cornerRadius: DS.raioM, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: DS.raioM, style: .continuous).strokeBorder(DS.borda))
+        .sombra()
+        .onAppear {
+            if let due { mes = Calendar.current.dateInterval(of: .month, for: due)?.start ?? mes }
+        }
+    }
+
+    private func atalho(_ rotulo: String, _ dias: Int) -> some View {
+        let dia = Calendar.current.adding(days: dias, to: store.today)
+        return Button(rotulo) { due = dia; fechar() }
+            .buttonStyle(Botao(variante: due == dia ? .primario : .superficie))
+    }
+}
+
+/// Editor rápido (folha), usado no menu da barra. Só salva ao clicar em "Salvar".
 struct EditorRapido: View {
     @Environment(TaskStore.self) private var store
     @Environment(Folhas.self) private var folhas
     let task: TaskItem
-
-    @State private var title: String
-    @State private var notes: String
-    @State private var due: Date?
-
-    init(task: TaskItem) {
-        self.task = task
-        _title = State(initialValue: task.title)
-        _notes = State(initialValue: task.notes ?? "")
-        _due = State(initialValue: task.dueDay)
-    }
+    @State private var rascunho: RascunhoDeTarefa?
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.e4) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Título").rotulo()
-                TextField("Título", text: $title).campo().onSubmit(save)
+            if let binding = Binding($rascunho) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Título").rotulo()
+                    TextField("Título", text: binding.title).campo().onSubmit(save)
+                }
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Descrição").rotulo()
+                    TextField("Detalhes", text: binding.notes, axis: .vertical).lineLimit(2...6).campo()
+                }
+                PropriedadesDaTarefa(rascunho: binding)
             }
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Descrição").rotulo()
-                TextField("Detalhes", text: $notes, axis: .vertical).lineLimit(2...6).campo()
-            }
-            PropriedadesDaTarefa(task: store.tasks[task.id] ?? task, due: $due)
             RodapeFolha {
                 Button("Excluir") {
-                    store.delete(task)
-                    folhas.fechar()
+                    let alvo = store.tasks[task.id] ?? task
+                    folhas.confirmar("Excluir tarefa", mensagem: "“\(alvo.displayTitle)” será excluída. Dá para desfazer logo depois.") {
+                        store.delete(alvo)
+                    }
                 }
                 .buttonStyle(Botao(variante: .fantasma))
                 Spacer()
@@ -183,10 +270,12 @@ struct EditorRapido: View {
                 Button("Salvar", action: save).buttonStyle(.primario).keyboardShortcut(.defaultAction)
             }
         }
+        .onAppear { rascunho = RascunhoDeTarefa(task, store: store) }
     }
 
     private func save() {
-        store.save(store.tasks[task.id] ?? task, title: title, notes: notes, due: due)
+        guard let rascunho else { return }
+        rascunho.aplicar(em: store.tasks[task.id] ?? task, store: store)
         withAnimation(DS.curvaSaida) { folhas.fechar() }
     }
 }

@@ -301,76 +301,106 @@ struct CalendarIssueBanner: View {
 
 // MARK: Conteúdo das folhas
 
-/// Folha "Personalizar lista": nome, ícone (biblioteca, foto ou inicial) e cor.
+/// Folha "Personalizar lista": nome, ícone (biblioteca, foto ou inicial) e cor. Só salva ao clicar em "Salvar".
 struct EditorDeLista: View {
+    enum Modo: Hashable { case icone, foto, inicial }
+
     @Environment(TaskStore.self) private var store
     @Environment(Folhas.self) private var folhas
     let listID: String
-    @State private var nome = ""
-    @State private var confirmarExclusao = false
 
-    private let colunas = Array(repeating: GridItem(.flexible(), spacing: 6), count: 8)
+    @State private var nome = ""
+    @State private var modo: Modo = .inicial
+    @State private var simbolo: String?
+    @State private var foto: NSImage?
+    @State private var fotoURL: URL?
+    @State private var cor = Palette.lists[0]
+    @State private var carregado = false
 
     var body: some View {
-        let atual = store.symbol(forList: listID)
-        let temFoto = store.photo(forList: listID) != nil
-        let cor = store.color(forList: listID)
         VStack(alignment: .leading, spacing: DS.e5) {
             HStack(spacing: DS.e4) {
-                ListIconComAnel(listID: listID, size: 52)
+                PreviaDeLista(nome: nome, modo: modo, simbolo: simbolo, foto: foto, cor: Color(hex: cor), tamanho: 56)
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Nome").rotulo()
-                    TextField("Nome da lista", text: $nome)
-                        .campo()
-                        .onSubmit { Task { await store.renameList(listID, to: nome) } }
+                    TextField("Nome da lista", text: $nome).campo()
                 }
             }
 
-            VStack(alignment: .leading, spacing: DS.e2) {
-                Text("Ícone").rotulo()
-                GradeDeIcones(selecionado: temFoto ? nil : atual, cor: cor) { simbolo in
-                    store.removePhoto(forList: listID)
-                    store.setSymbol(simbolo, forList: listID)
-                }
-                HStack(spacing: DS.e2) {
-                    Button { escolherFoto() } label: { Label("Usar foto", systemImage: "photo") }
-                        .buttonStyle(.superficie)
-                    Button("Só a inicial") {
-                        store.removePhoto(forList: listID)
-                        store.setSymbol(nil, forList: listID)
-                    }
-                    .buttonStyle(.superficie)
+            VStack(alignment: .leading, spacing: DS.e3) {
+                HStack {
+                    Text("Ícone").rotulo()
                     Spacer()
+                    Segmentado(selecao: $modo, opcoes: [(.icone, "Ícone"), (.foto, "Foto"), (.inicial, "Inicial")])
+                }
+                switch modo {
+                case .icone:
+                    SeletorDeIcone(selecionado: $simbolo, cor: Color(hex: cor))
+                case .foto:
+                    HStack(spacing: DS.e3) {
+                        Button { escolherFoto() } label: {
+                            Label(foto == nil ? "Escolher foto…" : "Trocar foto…", systemImage: "photo")
+                        }
+                        .buttonStyle(.superficie)
+                        Text("Fica redonda nos chips e quadrada no ícone da lista.").txt(.xs).foregroundStyle(DS.texto3)
+                    }
+                case .inicial:
+                    Text("Mostra a primeira letra do nome sobre a cor da lista.").txt(.xs).foregroundStyle(DS.texto3)
                 }
             }
 
             VStack(alignment: .leading, spacing: DS.e2) {
                 Text("Cor").rotulo()
-                AmostrasDeCor(selecao: Binding(get: { cor.hexString }, set: { store.setColor(Color(hex: $0), forList: listID) }))
+                AmostrasDeCor(selecao: $cor)
             }
 
             RodapeFolha {
-                if confirmarExclusao {
-                    Text("Excluir a lista e as tarefas dela?").txt(.xs).foregroundStyle(DS.perigoTexto)
-                    Spacer()
-                    Button("Cancelar") { confirmarExclusao = false }.buttonStyle(.superficie)
+                if listID != store.pinnedListID {
                     Button("Excluir lista") {
-                        Task { await store.deleteList(listID) }
-                        folhas.fechar()
+                        let nomeAtual = store.displayName(listID)
+                        folhas.confirmar("Excluir lista",
+                                         mensagem: "“\(nomeAtual)” e as tarefas dela serão excluídas, também no Google Tasks. Dá para desfazer logo depois.") {
+                            Task { await store.deleteList(listID) }
+                        }
                     }
-                    .buttonStyle(.perigo)
-                } else {
-                    Button("Excluir lista") { confirmarExclusao = true }.buttonStyle(Botao(variante: .fantasma))
-                    Spacer()
-                    Button("Concluir") {
-                        if nome != (store.list(listID)?.title ?? "") { Task { await store.renameList(listID, to: nome) } }
-                        folhas.fechar()
-                    }
-                    .buttonStyle(.primario)
+                    .buttonStyle(Botao(variante: .fantasma))
                 }
+                Spacer()
+                Button("Cancelar") { folhas.fechar() }.buttonStyle(.superficie)
+                Button("Salvar", action: salvar).buttonStyle(.primario).keyboardShortcut(.defaultAction)
+                    .disabled(modo == .foto && foto == nil)
             }
         }
-        .onAppear { nome = store.list(listID)?.title ?? "" }
+        .onAppear(perform: carregar)
+    }
+
+    private func carregar() {
+        guard !carregado else { return }
+        carregado = true
+        nome = store.list(listID)?.title ?? ""
+        simbolo = store.symbol(forList: listID)
+        foto = store.photo(forList: listID)
+        cor = store.color(forList: listID).hexString
+        modo = foto != nil ? .foto : (simbolo != nil ? .icone : .inicial)
+    }
+
+    private func salvar() {
+        if nome.trimmingCharacters(in: .whitespaces) != (store.list(listID)?.title ?? "") {
+            Task { await store.renameList(listID, to: nome) }
+        }
+        store.setColor(Color(hex: cor), forList: listID)
+        switch modo {
+        case .icone:
+            store.removePhoto(forList: listID)
+            store.setSymbol(simbolo, forList: listID)
+        case .foto:
+            if let fotoURL { store.setPhoto(from: fotoURL, forList: listID) }
+            store.setSymbol(nil, forList: listID)
+        case .inicial:
+            store.removePhoto(forList: listID)
+            store.setSymbol(nil, forList: listID)
+        }
+        withAnimation(DS.curvaSaida) { folhas.fechar() }
     }
 
     private func escolherFoto() {
@@ -378,66 +408,101 @@ struct EditorDeLista: View {
         panel.allowedContentTypes = [.image]
         panel.allowsMultipleSelection = false
         panel.message = "Escolha uma foto para \(store.displayName(listID))"
-        if panel.runModal() == .OK, let url = panel.url {
-            store.setPhoto(from: url, forList: listID)
+        if panel.runModal() == .OK, let url = panel.url, let imagem = NSImage(contentsOf: url) {
+            fotoURL = url
+            foto = imagem
         }
     }
 }
 
-/// Biblioteca de ícones (contorno): uma linha que rola para o lado, ou "Ver todos" em grade.
-struct GradeDeIcones: View {
-    let selecionado: String?
+/// Prévia do ladrilho com o que está sendo editado (antes de salvar).
+struct PreviaDeLista: View {
+    let nome: String
+    let modo: EditorDeLista.Modo
+    let simbolo: String?
+    let foto: NSImage?
     let cor: Color
-    let escolher: (String) -> Void
-    @State private var todos = false
+    var tamanho: CGFloat = 56
 
-    private let colunas = Array(repeating: GridItem(.flexible(), spacing: 6), count: 8)
+    var body: some View {
+        Group {
+            if modo == .foto, let foto {
+                Image(nsImage: foto).resizable().scaledToFill()
+            } else {
+                ZStack {
+                    cor.opacity(0.16)
+                    if modo == .icone, let simbolo {
+                        Image(systemName: simbolo).font(.system(size: tamanho * 0.48, weight: .medium)).foregroundStyle(cor)
+                    } else {
+                        let (_, limpo) = TaskStore.splitLeadingSymbols(nome)
+                        Text(String((limpo.isEmpty ? nome : limpo).prefix(1)).uppercased())
+                            .font(.system(size: tamanho * 0.46, weight: .bold, design: .rounded))
+                            .foregroundStyle(cor)
+                    }
+                }
+            }
+        }
+        .frame(width: tamanho, height: tamanho)
+        .clipShape(RoundedRectangle(cornerRadius: ListIconView.raio(tamanho), style: .continuous))
+        .padding(4)
+        .overlay(RoundedRectangle(cornerRadius: ListIconView.raio(tamanho) + 4, style: .continuous).strokeBorder(cor, lineWidth: 2))
+        .animation(DS.curva, value: modo)
+    }
+}
+
+/// Seletor de ícone: busca em português + grade. O escolhido fica preenchido na cor (nada é cortado).
+struct SeletorDeIcone: View {
+    @Binding var selecionado: String?
+    let cor: Color
+    @State private var busca = ""
+
+    private let colunas = Array(repeating: GridItem(.flexible(), spacing: 6), count: 9)
+
+    private var resultados: [String] {
+        let termo = busca.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: nil).trimmingCharacters(in: .whitespaces)
+        guard !termo.isEmpty else { return Palette.simbolos }
+        return Palette.icones.filter {
+            ($0.busca + " " + $0.nome).folding(options: [.diacriticInsensitive, .caseInsensitive], locale: nil).contains(termo)
+        }.map(\.nome)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.e2) {
-            if todos {
+            HStack(spacing: DS.e2) {
+                Image(systemName: "magnifyingglass").font(.system(size: 12, weight: .medium)).foregroundStyle(DS.texto3)
+                TextField("Buscar: casa, trabalho, dinheiro…", text: $busca).textFieldStyle(.plain).txt(.sm)
+            }
+            .padding(.horizontal, DS.e3)
+            .frame(height: 34)
+            .background(DS.superficie2, in: RoundedRectangle(cornerRadius: DS.raioM, style: .continuous))
+
+            ScrollView {
                 LazyVGrid(columns: colunas, spacing: 6) {
-                    ForEach(Palette.simbolos, id: \.self) { celula($0) }
-                }
-                .transition(.opacity)
-            } else {
-                ScrollView(.horizontal) {
-                    LazyHStack(spacing: 6) {
-                        // O escolhido vem primeiro, para estar sempre à vista.
-                        ForEach(ordenados, id: \.self) { celula($0).frame(width: 38) }
+                    ForEach(resultados, id: \.self) { nome in
+                        let ativo = selecionado == nome
+                        Button { selecionado = nome } label: {
+                            Image(systemName: nome)
+                                .font(.system(size: 15, weight: .regular))
+                                .foregroundStyle(ativo ? Color.white : DS.texto2)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 36)
+                                .background(RoundedRectangle(cornerRadius: DS.raioM, style: .continuous)
+                                    .fill(ativo ? cor : DS.superficie2))
+                        }
+                        .buttonStyle(Pressionavel(raio: DS.raioM, escala: 0.92))
+                        .help(nome)
                     }
-                    .padding(.vertical, 2)
                 }
-                .scrollIndicators(.never)
-                .frame(height: 40)
+                .padding(2)
             }
-            Button(todos ? "Mostrar menos" : "Ver todos os \(Palette.simbolos.count) ícones") {
-                withAnimation(DS.curva) { todos.toggle() }
+            .scrollIndicators(.automatic)
+            .frame(height: 172)
+            .overlay {
+                if resultados.isEmpty {
+                    Text("Nenhum ícone para “\(busca)”").txt(.xs).foregroundStyle(DS.texto3)
+                }
             }
-            .buttonStyle(Botao(variante: .fantasma))
         }
-    }
-
-    private var ordenados: [String] {
-        guard let selecionado, Palette.simbolos.contains(selecionado) else { return Palette.simbolos }
-        return [selecionado] + Palette.simbolos.filter { $0 != selecionado }
-    }
-
-    private func celula(_ simbolo: String) -> some View {
-        let ativo = selecionado == simbolo
-        return Button { escolher(simbolo) } label: {
-            Image(systemName: simbolo)
-                .font(.system(size: 14, weight: .regular))
-                .foregroundStyle(ativo ? cor : DS.texto2)
-                .frame(maxWidth: .infinity)
-                .frame(height: 34)
-                .background(RoundedRectangle(cornerRadius: DS.raioP, style: .continuous)
-                    .fill(ativo ? cor.opacity(0.14) : DS.superficie2))
-                .overlay(RoundedRectangle(cornerRadius: DS.raioP, style: .continuous)
-                    .strokeBorder(ativo ? cor : .clear, lineWidth: 1.5))
-        }
-        .buttonStyle(Pressionavel(raio: DS.raioP, escala: 0.94))
-        .help(simbolo)
     }
 }
 
@@ -460,9 +525,7 @@ struct NovaLista: View {
             }
             VStack(alignment: .leading, spacing: DS.e2) {
                 Text("Ícone").rotulo()
-                GradeDeIcones(selecionado: simbolo, cor: Color(hex: cor)) { s in
-                    simbolo = simbolo == s ? nil : s
-                }
+                SeletorDeIcone(selecionado: $simbolo, cor: Color(hex: cor))
             }
             VStack(alignment: .leading, spacing: DS.e2) {
                 Text("Cor").rotulo()

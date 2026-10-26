@@ -112,19 +112,37 @@ extension Color {
 enum Palette {
     static let lists = ["#E8553F", "#E08A1E", "#C9A21B", "#3FA35B", "#1FA6A0", "#3B82E0", "#6E5CE6", "#C255C9", "#D9467A", "#7A7468"]
     /// Biblioteca de ícones para as listas (SF Symbols — nada de emoji).
-    static let simbolos = [
-        "person", "person.2", "person.3", "briefcase", "building.2", "house", "storefront", "cart", "bag",
-        "paintbrush.pointed", "paintpalette", "pencil.and.ruler", "pencil", "scissors", "camera", "photo", "film",
-        "video", "music.note", "headphones", "mic", "gamecontroller", "tv", "book", "books.vertical", "graduationcap",
-        "lightbulb", "brain", "heart", "star", "flame", "bolt", "leaf", "tree", "sun.max", "moon", "cloud",
-        "figure.run", "dumbbell", "bicycle", "fork.knife", "cup.and.saucer", "wineglass", "airplane", "car", "bus",
-        "map", "mappin.and.ellipse", "globe.americas", "creditcard", "banknote", "dollarsign.circle", "chart.bar",
-        "chart.line.uptrend.xyaxis", "chart.pie", "doc.text", "folder", "tray", "archivebox", "paperclip", "link",
-        "laptopcomputer", "desktopcomputer", "iphone", "chevron.left.forwardslash.chevron.right", "terminal",
-        "megaphone", "bubble.left", "phone", "envelope", "paperplane", "calendar", "clock", "alarm", "flag",
-        "bookmark", "tag", "target", "checklist", "list.bullet", "square.grid.2x2", "sparkles", "wand.and.stars",
-        "gift", "pawprint", "stethoscope", "cross.case", "hammer", "wrench.and.screwdriver", "gearshape", "lock",
+    /// Biblioteca de ícones (contorno) com palavras de busca em português.
+    static let icones: [(nome: String, busca: String)] = [
+        ("person", "pessoa cliente perfil"), ("person.2", "pessoas dupla equipe"), ("person.3", "grupo time equipe"),
+        ("briefcase", "trabalho maleta emprego"), ("building.2", "empresa prédio escritório"), ("house", "casa lar"),
+        ("storefront", "loja comércio"), ("cart", "compras mercado carrinho"), ("bag", "sacola compras"),
+        ("paintbrush.pointed", "design pincel arte"), ("paintpalette", "arte paleta cores"), ("pencil.and.ruler", "projeto régua"),
+        ("pencil", "lápis escrever editar"), ("scissors", "tesoura corte"), ("camera", "câmera foto"), ("photo", "imagem foto"),
+        ("film", "filme cinema vídeo"), ("video", "vídeo gravação"), ("music.note", "música som"), ("headphones", "fone podcast"),
+        ("mic", "microfone áudio"), ("gamecontroller", "jogo game"), ("tv", "tv série"), ("book", "livro leitura"),
+        ("books.vertical", "livros estudo biblioteca"), ("graduationcap", "estudo faculdade curso"), ("lightbulb", "ideia lâmpada"),
+        ("brain", "mente cérebro"), ("heart", "coração amor saúde"), ("star", "estrela favorito"), ("flame", "fogo urgente"),
+        ("bolt", "raio energia rápido"), ("leaf", "folha natureza"), ("tree", "árvore natureza"), ("sun.max", "sol dia"),
+        ("moon", "lua noite"), ("cloud", "nuvem"), ("figure.run", "corrida exercício"), ("dumbbell", "academia treino"),
+        ("bicycle", "bicicleta"), ("fork.knife", "comida restaurante"), ("cup.and.saucer", "café"), ("wineglass", "vinho festa"),
+        ("airplane", "viagem avião"), ("car", "carro"), ("bus", "ônibus transporte"), ("map", "mapa"),
+        ("mappin.and.ellipse", "lugar local"), ("globe.americas", "mundo internet"), ("creditcard", "cartão pagamento"),
+        ("banknote", "dinheiro nota"), ("dollarsign.circle", "dinheiro finanças"), ("chart.bar", "gráfico métricas"),
+        ("chart.line.uptrend.xyaxis", "crescimento vendas"), ("chart.pie", "gráfico pizza"), ("doc.text", "documento texto"),
+        ("folder", "pasta arquivos"), ("tray", "caixa entrada"), ("archivebox", "arquivo caixa"), ("paperclip", "anexo clipe"),
+        ("link", "link"), ("laptopcomputer", "notebook computador"), ("desktopcomputer", "computador"), ("iphone", "celular telefone"),
+        ("chevron.left.forwardslash.chevron.right", "código programação dev"), ("terminal", "terminal dev"),
+        ("megaphone", "marketing anúncio"), ("bubble.left", "conversa mensagem"), ("phone", "telefone ligação"),
+        ("envelope", "email carta"), ("paperplane", "enviar"), ("calendar", "calendário agenda"), ("clock", "relógio hora"),
+        ("alarm", "alarme lembrete"), ("flag", "bandeira meta"), ("bookmark", "marcador"), ("tag", "etiqueta"),
+        ("target", "alvo meta objetivo"), ("checklist", "lista tarefas"), ("list.bullet", "lista"), ("square.grid.2x2", "grade apps"),
+        ("sparkles", "brilho mágica"), ("wand.and.stars", "mágica"), ("gift", "presente aniversário"), ("pawprint", "pet animal"),
+        ("stethoscope", "médico saúde"), ("cross.case", "saúde remédio"), ("hammer", "ferramenta obra"),
+        ("wrench.and.screwdriver", "manutenção conserto"), ("gearshape", "configuração"), ("lock", "senha segurança"),
     ]
+
+    static var simbolos: [String] { icones.map(\.nome) }
 }
 
 // MARK: Tipografia

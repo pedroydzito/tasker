@@ -88,6 +88,7 @@ struct ListDetailView: View {
 /// Tarefas com uma etiqueta local.
 struct TagDetailView: View {
     @Environment(TaskStore.self) private var store
+    @Environment(Folhas.self) private var folhas
     let tagID: String
 
     var body: some View {
@@ -95,17 +96,12 @@ struct TagDetailView: View {
             let items = store.tasks(withTag: tagID)
             PageScaffold(rotulo: "Etiqueta · só no Tasker", title: "#\(tag.name)") {
                 VStack(alignment: .leading, spacing: DS.e6) {
-                    HStack(spacing: DS.e4) {
-                        TextField("Nome", text: Binding(
-                            get: { tag.name },
-                            set: { var t = tag; t.name = $0; store.updateTag(t) }
-                        ))
-                        .campo()
-                        .frame(maxWidth: 240)
-                        AmostrasDeCor(selecao: Binding(
-                            get: { tag.colorHex },
-                            set: { var t = tag; t.colorHex = $0; store.updateTag(t) }
-                        ))
+                    HStack {
+                        Button {
+                            folhas.abrir("Editar etiqueta", largura: 380) { EditorDeEtiqueta(tag: tag) }
+                        } label: { Label("Editar etiqueta", systemImage: "pencil") }
+                        .buttonStyle(.superficie)
+                        Spacer()
                     }
                     SecaoTarefas("Tarefas", contagem: items.count) {
                         if items.isEmpty {
@@ -147,6 +143,54 @@ struct CompletedView: View {
                         .onAppear { limit += 40 }
                 }
             }
+        }
+    }
+}
+
+/// Folha "Editar etiqueta": nome e cor — só salva ao clicar em "Salvar".
+struct EditorDeEtiqueta: View {
+    @Environment(TaskStore.self) private var store
+    @Environment(Folhas.self) private var folhas
+    @Environment(Navigation.self) private var nav
+    let tag: Tag
+    @State private var nome = ""
+    @State private var cor = ""
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DS.e4) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Nome").rotulo()
+                TextField("Nome", text: $nome).campo()
+            }
+            VStack(alignment: .leading, spacing: DS.e2) {
+                Text("Cor").rotulo()
+                AmostrasDeCor(selecao: $cor)
+            }
+            RodapeFolha {
+                Button("Excluir etiqueta") {
+                    let alvo = tag
+                    folhas.confirmar("Excluir etiqueta", mensagem: "A etiqueta “\(alvo.name)” sai de todas as tarefas.") {
+                        if nav.selection == .tag(alvo.id) { nav.selection = .today }
+                        store.deleteTag(alvo)
+                    }
+                }
+                .buttonStyle(Botao(variante: .fantasma))
+                Spacer()
+                Button("Cancelar") { folhas.fechar() }.buttonStyle(.superficie)
+                Button("Salvar") {
+                    var novo = tag
+                    novo.name = nome.trimmingCharacters(in: .whitespaces).isEmpty ? tag.name : nome
+                    novo.colorHex = cor
+                    store.updateTag(novo)
+                    withAnimation(DS.curvaSaida) { folhas.fechar() }
+                }
+                .buttonStyle(.primario)
+                .keyboardShortcut(.defaultAction)
+            }
+        }
+        .onAppear {
+            nome = tag.name
+            cor = tag.colorHex
         }
     }
 }

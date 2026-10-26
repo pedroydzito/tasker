@@ -63,9 +63,16 @@ struct TaskRow: View {
         .animation(DS.curvaRapida, value: isSelected)
         .onTapGesture(perform: open)
         .pointerStyle(.link)
-        .simultaneousGesture(DragGesture(minimumDistance: 0)
-            .onChanged { _ in if !pressed { withAnimation(DS.toque) { pressed = true } } }
-            .onEnded { _ in withAnimation(DS.curvaRapida) { pressed = false } })
+        // Arraste até uma lista da barra lateral para mudar a tarefa de lista.
+        .draggable("tarefa:\(task.id)") {
+            HStack(spacing: DS.e2) {
+                Circle().strokeBorder(store.color(forList: task.listID), lineWidth: 1.75).frame(width: 14, height: 14)
+                Text(task.displayTitle).txt(.sm, .medium).lineLimit(1)
+            }
+            .padding(.horizontal, DS.e3)
+            .padding(.vertical, DS.e2)
+            .background(DS.superficie, in: Capsule())
+        }
         .contextMenu { contextMenu }
         .opacity(task.isLocal ? 0.55 : 1)
     }
@@ -135,6 +142,11 @@ struct TaskRow: View {
         if let link = task.webViewLink.flatMap(URL.init(string:)) {
             Button("Abrir no Google") { NSWorkspace.shared.open(link) }
         }
-        Button("Excluir", role: .destructive) { store.delete(task) }
+        Button("Excluir…", role: .destructive) {
+            let alvo = task
+            folhas.confirmar("Excluir tarefa", mensagem: "“\(alvo.displayTitle)” será excluída. Dá para desfazer logo depois.") {
+                store.delete(alvo)
+            }
+        }
     }
 }

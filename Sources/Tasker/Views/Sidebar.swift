@@ -11,6 +11,7 @@ struct Sidebar: View {
     @AppStorage("sidebar.listsCollapsed") private var listsCollapsed = false
     @AppStorage("sidebar.tagsCollapsed") private var tagsCollapsed = false
     @Namespace private var trilho
+    @State private var alvoDeTarefa: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -34,7 +35,11 @@ struct Sidebar: View {
                         }
                     }
                     if !listsCollapsed {
-                        ListaReordenavel(ids: store.lists.map(\.id), mover: { id, alvo in store.moveList(id, toIndex: alvo) }) { id in
+                        // "Minhas tarefas" fica fixa no topo; as outras se reordenam arrastando.
+                        let fixa = store.pinnedListID.flatMap { store.list($0) }
+                        if let fixa { linhaLista(fixa).frame(height: 36) }
+                        ListaReordenavel(ids: store.lists.map(\.id).filter { $0 != fixa?.id },
+                                         mover: { id, alvo in store.moveList(id, toIndex: alvo + (fixa == nil ? 0 : 1)) }) { id in
                             if let list = store.list(id) { linhaLista(list) }
                         }
                     }
@@ -58,9 +63,12 @@ struct Sidebar: View {
                                 nav.selection = .tag(tag.id)
                             }
                             .contextMenu {
-                                Button("Excluir etiqueta", role: .destructive) {
-                                    if nav.selection == .tag(tag.id) { nav.selection = .today }
-                                    store.deleteTag(tag)
+                                Button("Excluir etiqueta…", role: .destructive) {
+                                    folhas.confirmar("Excluir etiqueta",
+                                                     mensagem: "A etiqueta “\(tag.name)” sai de todas as tarefas.") {
+                                        if nav.selection == .tag(tag.id) { nav.selection = .today }
+                                        store.deleteTag(tag)
+                                    }
                                 }
                             }
                             }
@@ -137,6 +145,22 @@ struct Sidebar: View {
             ListIconView(listID: list.id, size: 22)
         } acao: {
             nav.selection = .list(list.id)
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: DS.raioM, style: .continuous)
+                .strokeBorder(store.color(forList: list.id), lineWidth: 2)
+                .opacity(alvoDeTarefa == list.id ? 1 : 0)
+        }
+        .dropDestination(for: String.self) { itens, _ in
+            guard let item = itens.first, item.hasPrefix("tarefa:") else { return false }
+            let taskID = String(item.dropFirst("tarefa:".count))
+            guard let task = store.tasks[taskID] else { return false }
+            withAnimation(DS.curva) { store.moveTask(task, toList: list.id) }
+            return true
+        } isTargeted: { dentro in
+            withAnimation(DS.curvaRapida) {
+                if dentro { alvoDeTarefa = list.id } else if alvoDeTarefa == list.id { alvoDeTarefa = nil }
+            }
         }
         .contextMenu {
             Button("Personalizar ícone e cor…") {
