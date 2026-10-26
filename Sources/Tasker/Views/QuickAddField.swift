@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Campo de nova tarefa com seletor de lista e reconhecimento de datas, ~lista e #etiqueta.
+/// Campo de nova tarefa: entende datas, ~lista e #etiqueta.
 struct QuickAddField: View {
     enum Style { case compact, inline, large, floating }
 
@@ -27,65 +27,59 @@ struct QuickAddField: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 9) {
+        VStack(alignment: .leading, spacing: DS.e2) {
+            HStack(spacing: DS.e3) {
                 Image(systemName: "plus")
-                    .font(.system(size: fontSize - 1, weight: .medium))
-                    .foregroundStyle(style == .inline || style == .floating ? Color.accentColor : .secondary)
+                    .font(.system(size: style == .large ? 16 : 13, weight: .semibold))
+                    .foregroundStyle(focused ? DS.acento : DS.texto3)
+                    .rotationEffect(.degrees(focused ? 90 : 0))
+                    .animation(DS.curva, value: focused)
                 TextField(placeholder, text: $text)
                     .textFieldStyle(.plain)
-                    .font(.system(size: fontSize))
+                    .txt(style == .large ? .lg : .md)
+                    .foregroundStyle(DS.texto)
                     .focused($focused)
                     .onSubmit(submit)
                 if fixedListID == nil { listMenu }
-                if style == .floating {
+                if style == .floating || style == .large {
                     Button(action: submit) {
-                        Image(systemName: "arrow.up.circle.fill")
-                            .font(.system(size: 22))
-                            .foregroundStyle(text.isEmpty ? Theme.subtle.opacity(0.5) : Color.accentColor)
+                        Image(systemName: "arrow.up")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundStyle(text.isEmpty ? DS.texto3 : DS.acentoSolidoTexto)
+                            .frame(width: 28, height: 28)
+                            .background(Circle().fill(text.isEmpty ? DS.superficie2 : DS.acentoSolido))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(SoAfunda(escala: 0.9))
                     .disabled(text.isEmpty)
+                    .animation(DS.curvaRapida, value: text.isEmpty)
+                    .help("Adicionar tarefa")
                 }
             }
-            .padding(.horizontal, style == .inline ? 10 : 14)
-            .padding(.vertical, verticalPadding)
+            .padding(.leading, DS.e4)
+            .padding(.trailing, style == .floating || style == .large ? 6 : DS.e3)
+            .frame(height: style == .large ? 52 : (style == .floating ? 44 : 40))
             .background {
-                if style == .compact || style == .large {
-                    RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.field)
+                if style == .compact || style == .inline {
+                    RoundedRectangle(cornerRadius: DS.raioM, style: .continuous).fill(DS.superficie2)
                 }
             }
 
             if !text.isEmpty {
-                chips.padding(.horizontal, 14).padding(.bottom, style == .floating ? 4 : 0).transition(.opacity)
+                chips.padding(.horizontal, DS.e4).padding(.bottom, style == .floating ? 6 : 0)
+                    .transition(.opacity.combined(with: .offset(y: -4)))
             }
         }
+        .animation(DS.curva, value: text.isEmpty)
         .onAppear { if style == .large { focused = true } }
-    }
-
-    private var fontSize: CGFloat {
-        switch style {
-        case .large: 18
-        case .floating: 14.5
-        default: 14
-        }
-    }
-
-    private var verticalPadding: CGFloat {
-        switch style {
-        case .large: 12
-        case .floating: 8
-        default: 9
-        }
     }
 
     private var placeholder: String {
         let name = store.displayName(listID ?? "")
-        let list = name.isEmpty ? "Minhas tarefas" : name
+        let list = name.isEmpty ? "minhas tarefas" : name
         switch style {
-        case .large: return "Nova tarefa — ex.: Ligar pro cliente amanhã ~\(list.lowercased()) #urgente"
-        case .floating: return "Adicionar tarefa a \"\(list)\"…   ⌥Espaço de qualquer lugar"
-        default: return "Adicionar tarefa a \"\(list)\""
+        case .large: return "nova tarefa — ex.: ligar pro cliente amanhã ~\(list.lowercased()) #urgente"
+        case .floating: return "adicionar tarefa em \(list)  ·  ⌥espaço de qualquer lugar"
+        default: return "adicionar tarefa em \(list)"
         }
     }
 
@@ -95,13 +89,14 @@ struct QuickAddField: View {
                 Button {
                     chosenListID = list.id
                 } label: {
-                    if list.id == listID { Label(list.title, systemImage: "checkmark") } else { Text(list.title) }
+                    if list.id == listID { Label(store.displayName(list.id), systemImage: "checkmark") }
+                    else { Text(store.displayName(list.id)) }
                 }
             }
         } label: {
             Image(systemName: "chevron.down")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(.secondary)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(DS.texto3)
         }
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
@@ -110,21 +105,18 @@ struct QuickAddField: View {
     }
 
     private var chips: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: DS.e2) {
             if let listID { ListChip(listID: listID) }
-            if let due {
-                DueLabel(day: due, today: store.today)
-            } else {
-                Text("Sem data").foregroundStyle(Theme.subtle)
+            Chip(due.map { DayLabel.short($0, today: store.today).lowercased() } ?? "sem data") {
+                Image(systemName: "calendar").font(.system(size: 10, weight: .semibold))
             }
             ForEach(parsed.tagNames, id: \.self) { name in
-                TagChip(name: name, color: store.tags.first { $0.name.lowercased() == name.lowercased() }
-                    .map { Color(hex: $0.colorHex) } ?? .secondary)
+                Chip("#\(name)", cor: store.tags.first { $0.name.lowercased() == name.lowercased() }
+                    .map { Color(hex: $0.colorHex) } ?? DS.texto2)
             }
             Spacer()
-            Text("↩︎ para adicionar").foregroundStyle(.tertiary)
+            Text("↩︎ adicionar").txt(.xs).foregroundStyle(DS.texto3)
         }
-        .font(.system(size: 11.5))
     }
 
     private func submit() {

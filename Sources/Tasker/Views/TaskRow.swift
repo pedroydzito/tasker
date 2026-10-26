@@ -1,10 +1,13 @@
 import SwiftUI
 
+/// Linha de tarefa (padrão "linha de lista" do design system):
+/// [círculo] título / metadado (data · nota · #etiquetas)  ……  [chip da lista]
 struct TaskRow: View {
     enum Style { case compact, full }
 
     @Environment(TaskStore.self) private var store
     @Environment(Navigation.self) private var nav
+    @Environment(Folhas.self) private var folhas
     let task: TaskItem
     var style: Style = .full
     var showDate = true
@@ -13,104 +16,89 @@ struct TaskRow: View {
 
     @State private var checking = false
     @State private var hovering = false
-    @State private var editing = false
+    @State private var pressed = false
 
     private var checked: Bool { task.isCompleted || checking }
     private var isSelected: Bool { style == .full && nav.selectedTaskID == task.id }
 
     var body: some View {
-        Group {
-            if style == .compact { compactBody } else { cardBody }
+        HStack(spacing: DS.e3) {
+            CheckCircle(color: store.color(forList: task.listID), checked: checked,
+                        size: style == .compact ? 18 : 20, action: toggle)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(task.displayTitle)
+                    .txt(style == .compact ? .sm : .md, .medium)
+                    .strikethrough(checked, color: DS.texto3)
+                    .foregroundStyle(checked ? DS.texto3 : DS.texto)
+                    .lineLimit(1)
+                if style == .full { metadata }
+            }
+
+            Spacer(minLength: DS.e2)
+
+            if style == .compact {
+                if task.hasNotes {
+                    Image(systemName: "text.alignleft").font(.system(size: 10.5)).foregroundStyle(DS.texto3)
+                }
+                if showDate, let day = task.dueDay {
+                    Text(DayLabel.short(day, today: store.today).lowercased())
+                        .txt(.xs, .medium)
+                        .foregroundStyle(day < store.today ? DS.acentoTexto : DS.texto3)
+                }
+            } else if showList {
+                ListChip(listID: task.listID)
+            }
         }
+        .padding(.leading, (style == .compact ? 10 : 14) + CGFloat(depth) * 26)
+        .padding(.trailing, style == .compact ? 10 : 14)
+        .padding(.vertical, style == .compact ? 8 : 11)
+        .background(
+            RoundedRectangle(cornerRadius: style == .compact ? DS.raioM : DS.raioG, style: .continuous)
+                .fill(isSelected ? DS.superficie2 : (pressed ? DS.veuAtivo : (hovering ? DS.veuHover : .clear)))
+        )
+        .scaleEffect(pressed ? 0.995 : 1)
         .contentShape(Rectangle())
         .onHover { hovering = $0 }
-        .onTapGesture {
-            // Na janela principal abre o painel de detalhes; no popover da barra de menu, um popover.
-            if style == .full { nav.selectedTaskID = task.id } else { editing = true }
-        }
-        .popover(isPresented: $editing, arrowEdge: .trailing) {
-            TaskEditor(task: task) { editing = false }
-        }
+        .animation(DS.curvaRapida, value: hovering)
+        .animation(DS.curvaRapida, value: isSelected)
+        .onTapGesture(perform: open)
+        .simultaneousGesture(DragGesture(minimumDistance: 0)
+            .onChanged { _ in if !pressed { withAnimation(DS.toque) { pressed = true } } }
+            .onEnded { _ in withAnimation(DS.curvaRapida) { pressed = false } })
         .contextMenu { contextMenu }
-        .opacity(task.isLocal ? 0.6 : 1)
+        .opacity(task.isLocal ? 0.55 : 1)
     }
 
-    // MARK: Popover (linha simples, como no KiteTasks)
-
-    private var compactBody: some View {
-        HStack(spacing: 10) {
-            CheckCircle(color: store.color(forList: task.listID), checked: checked, action: toggle)
-            Text(task.displayTitle)
-                .font(.system(size: 13.5))
-                .strikethrough(checked, color: .secondary)
-                .foregroundStyle(checked ? .secondary : .primary)
-                .lineLimit(1)
-            Spacer(minLength: 8)
-            if task.hasNotes {
-                Image(systemName: "text.alignleft").font(.system(size: 11)).foregroundStyle(.tertiary)
-            }
-            if showDate, let day = task.dueDay {
-                Text(DayLabel.short(day, today: store.today))
-                    .font(.system(size: 12))
-                    .foregroundStyle(day < store.today ? Color.red : Theme.subtle)
-            }
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 7)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color.primary.opacity(hovering || editing ? 0.045 : 0))
-        )
-    }
-
-    // MARK: Janela principal (cartão)
-
-    private var cardBody: some View {
+    /// Metadado numa linha, separado por "·": data, primeira linha da nota, etiquetas.
+    @ViewBuilder private var metadata: some View {
         let tags = store.tags(for: task)
-        let hasMeta = (showDate && task.dueDay != nil) || task.hasNotes || !tags.isEmpty
-        return VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 11) {
-                CheckCircle(color: store.color(forList: task.listID), checked: checked, action: toggle)
-                Text(task.displayTitle)
-                    .font(.system(size: 14, weight: .medium))
-                    .strikethrough(checked, color: .secondary)
-                    .foregroundStyle(checked ? .secondary : .primary)
-                    .lineLimit(1)
-                if showList { ListChip(listID: task.listID) }
-                Spacer(minLength: 0)
-            }
-            if hasMeta {
-                HStack(spacing: 14) {
-                    if showDate, let day = task.dueDay {
-                        DueLabel(day: day, today: store.today)
-                    }
-                    if task.hasNotes {
-                        HStack(spacing: 4) {
-                            Image(systemName: "text.alignleft")
-                            Text((task.notes ?? "").components(separatedBy: .newlines).first ?? "")
-                                .lineLimit(1)
-                        }
-                        .frame(maxWidth: 260, alignment: .leading)
-                    }
-                    ForEach(tags) { TagChip(name: $0.name, color: Color(hex: $0.colorHex)) }
+        let note = (task.notes ?? "").components(separatedBy: .newlines).first?.trimmingCharacters(in: .whitespaces) ?? ""
+        let hasDate = showDate && task.dueDay != nil
+        if hasDate || !note.isEmpty || !tags.isEmpty {
+            HStack(spacing: 6) {
+                if showDate, let day = task.dueDay { DueLabel(day: day, today: store.today) }
+                if !note.isEmpty {
+                    if hasDate { Text("·") }
+                    Text(note).lineLimit(1).frame(maxWidth: 280, alignment: .leading)
                 }
-                .font(.system(size: 12))
-                .foregroundStyle(Theme.subtle)
-                .padding(.leading, 29)
+                ForEach(tags) { tag in
+                    if hasDate || !note.isEmpty || tag.id != tags.first?.id { Text("·") }
+                    TagChip(tag: tag)
+                }
             }
+            .txt(.xs)
+            .foregroundStyle(DS.texto3)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 11)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(isSelected ? Color.accentColor.opacity(0.7) : Theme.stroke.opacity(hovering ? 1 : 0.5),
-                              lineWidth: isSelected ? 1.5 : 1)
-        )
-        .shadow(color: .black.opacity(hovering ? 0.07 : 0.025), radius: hovering ? 8 : 2, y: hovering ? 3 : 1)
-        .padding(.leading, CGFloat(depth) * 26)
-        .animation(.easeOut(duration: 0.15), value: hovering)
+    }
+
+    private func open() {
+        if style == .full {
+            withAnimation(DS.curva) { nav.selectedTaskID = task.id }
+        } else {
+            let current = task
+            folhas.abrir("editar tarefa") { EditorRapido(task: current) }
+        }
     }
 
     private func toggle() {
@@ -118,10 +106,10 @@ struct TaskRow: View {
             store.setCompleted(task, false)
             return
         }
-        withAnimation(.easeOut(duration: 0.15)) { checking = true }
+        withAnimation(DS.curvaRapida) { checking = true }
         Task {
-            try? await Task.sleep(for: .milliseconds(450))
-            withAnimation(.easeInOut(duration: 0.25)) { store.setCompleted(task, true) }
+            try? await Task.sleep(for: .milliseconds(420))
+            withAnimation(DS.curva) { store.setCompleted(task, true) }
             checking = false
         }
     }
@@ -129,10 +117,10 @@ struct TaskRow: View {
     @ViewBuilder private var contextMenu: some View {
         Button(task.isCompleted ? "Reabrir" : "Concluir") { store.setCompleted(task, !task.isCompleted) }
         Divider()
-        Button("Hoje") { store.setDue(task, store.today) }
-        Button("Amanhã") { store.setDue(task, Calendar.current.adding(days: 1, to: store.today)) }
-        Button("Próxima semana") { store.setDue(task, Calendar.current.adding(days: 7, to: store.today)) }
-        Button("Sem data") { store.setDue(task, nil) }
+        Button("Para hoje") { store.setDue(task, store.today) }
+        Button("Para amanhã") { store.setDue(task, Calendar.current.adding(days: 1, to: store.today)) }
+        Button("Para a próxima semana") { store.setDue(task, Calendar.current.adding(days: 7, to: store.today)) }
+        Button("Tirar a data") { store.setDue(task, nil) }
         if !store.tags.isEmpty {
             Menu("Etiquetas") {
                 ForEach(store.tags) { tag in

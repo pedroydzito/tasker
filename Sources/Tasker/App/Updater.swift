@@ -310,48 +310,35 @@ struct UpdateBanner: View {
     var body: some View {
         switch updater.state {
         case .available(let release):
-            HStack(spacing: 8) {
-                Image(systemName: "arrow.down.circle.fill").foregroundStyle(Color.accentColor)
-                Text("Nova versão \(release.version) disponível").font(.system(size: 12.5, weight: .medium))
-                Spacer()
-                Button("Atualizar") { updater.installAvailableUpdate() }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-            }
-            .padding(10)
-            .background(Color.accentColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
-        case .installing:
-            HStack(spacing: 8) {
-                ProgressView().controlSize(.small)
-                Text("Atualizando… o Tasker vai reiniciar").font(.system(size: 12.5))
-                Spacer()
-            }
-            .padding(10)
-            .background(Color.accentColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
-        case .installFailed(let version, let newApp, _):
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 8) {
-                    Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
-                    Text("A atualização para \(version) não foi aplicada").font(.system(size: 12.5, weight: .semibold))
-                    Spacer()
-                    Button { updater.dismissFailure() } label: { Image(systemName: "xmark") }
-                        .buttonStyle(.plain).foregroundStyle(.tertiary)
-                }
-                Text("O macOS bloqueou a troca do app. Libere o Tasker em Ajustes do Sistema → Privacidade e Segurança → Gerenciamento de Apps e tente de novo — ou instale manualmente arrastando o app novo para Aplicativos.")
-                    .font(.system(size: 11.5))
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+            Nota(tom: .info, texto: "A versão \(release.version) está pronta para instalar.") {
                 HStack {
-                    Button("Abrir Ajustes") { updater.openAppManagementSettings() }
-                    if let newApp {
-                        Button("Instalar manualmente") { updater.revealNewApp(newApp) }
-                    }
-                    Button("Tentar de novo") { Task { await updater.check(userInitiated: true); updater.installAvailableUpdate() } }
+                    Spacer()
+                    Button("Atualizar agora") { updater.installAvailableUpdate() }.buttonStyle(.primario)
                 }
-                .controlSize(.small)
             }
-            .padding(10)
-            .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+        case .installing:
+            HStack(spacing: DS.e2) {
+                ProgressView().controlSize(.small)
+                Text("Atualizando — o Tasker vai reiniciar.").txt(.xs).foregroundStyle(DS.texto2)
+                Spacer()
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, DS.e3)
+            .background(DS.superficie2, in: RoundedRectangle(cornerRadius: DS.raioM, style: .continuous))
+        case .installFailed(let version, let newApp, _):
+            Nota(tom: .aviso, texto: "A atualização para \(version) não foi aplicada: o macOS bloqueou a troca do app. Libere o Tasker em Ajustes do Sistema → Privacidade e Segurança → Gerenciamento de Apps e tente de novo, ou instale à mão.") {
+                HStack(spacing: DS.e2) {
+                    Button("Abrir Ajustes") { updater.openAppManagementSettings() }.buttonStyle(.superficie)
+                    if let newApp {
+                        Button("Instalar à mão") { updater.revealNewApp(newApp) }.buttonStyle(.superficie)
+                    }
+                    Spacer()
+                    Button("Tentar de novo") {
+                        Task { await updater.check(userInitiated: true); updater.installAvailableUpdate() }
+                    }
+                    .buttonStyle(.primario)
+                }
+            }
         default:
             EmptyView()
         }

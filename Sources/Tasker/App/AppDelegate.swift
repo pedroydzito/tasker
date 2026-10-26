@@ -7,6 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var quickAdd: QuickAddPanelController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        DSFonts.register()
         NSApp.applicationIconImage = AppIcon.make()
         let model = AppModel.shared
         NSApp.appearance = model.prefs.appearance.nsAppearance

@@ -6,64 +6,81 @@ struct AllTasksView: View {
     @AppStorage("allGroupByList") private var groupByList = false
 
     var body: some View {
-        PageScaffold(title: "Todas", subtitle: taskCountText(store.activeCount)) {
-            PillPicker(selection: $groupByList, options: [(false, "Por data"), (true, "Por lista")])
+        PageScaffold(rotulo: taskCountText(store.activeCount), title: "todas") {
+            VStack(alignment: .leading, spacing: DS.e6) {
+                Segmentado(selecao: $groupByList, opcoes: [(false, "por data"), (true, "por lista")])
 
-            if groupByList {
-                ForEach(store.lists) { list in
-                    let items = store.hierarchy(store.tasks(inList: list.id))
-                    if !items.isEmpty {
-                        TaskSection(store.displayName(list.id), count: items.count) {
-                            ForEach(items) { TaskRow(task: $0.task, showList: false, depth: $0.depth) }
+                if groupByList {
+                    ForEach(store.lists) { list in
+                        let items = store.hierarchy(store.tasks(inList: list.id))
+                        if !items.isEmpty {
+                            SecaoTarefas(store.displayName(list.id), contagem: items.count, tom: store.color(forList: list.id)) {
+                                ForEach(items) { TaskRow(task: $0.task, showList: false, depth: $0.depth) }
+                            }
                         }
                     }
+                } else {
+                    grupo("em atraso", store.overdueTasks, tom: DS.acentoTexto)
+                    grupo("hoje", store.todayTasks)
+                    grupo("em breve", store.laterTasks)
+                    grupo("sem data", store.undatedTasks)
                 }
-            } else {
-                group("Em atraso", store.overdueTasks, tint: .red)
-                group("Hoje", store.todayTasks)
-                group("Em breve", store.laterTasks)
-                group("Sem data", store.undatedTasks)
             }
         }
     }
 
     @ViewBuilder
-    private func group(_ title: String, _ items: [TaskItem], tint: Color? = nil) -> some View {
+    private func grupo(_ titulo: String, _ items: [TaskItem], tom: Color = DS.texto3) -> some View {
         if !items.isEmpty {
-            TaskSection(title, count: items.count, tint: tint) {
+            SecaoTarefas(titulo, contagem: items.count, tom: tom) {
                 ForEach(items) { TaskRow(task: $0) }
             }
         }
     }
 }
 
-/// Uma lista do Google Tasks, com subtarefas indentadas e as concluídas recolhidas.
+/// Uma lista do Google Tasks. A foto ganha um anel na cor da lista, para identificar de relance.
 struct ListDetailView: View {
     @Environment(TaskStore.self) private var store
+    @Environment(Folhas.self) private var folhas
     let listID: String
-    @State private var editing = false
 
     var body: some View {
         let items = store.hierarchy(store.tasks(inList: listID))
         let done = store.completedTasks(inList: listID)
-        PageScaffold(title: store.displayName(listID), subtitle: taskCountText(items.count)) {
-            Button { editing = true } label: {
-                ListIconView(listID: listID, size: 52)
+        let cor = store.color(forList: listID)
+        PageScaffold(rotulo: taskCountText(items.count), title: store.displayName(listID)) {
+            Button {
+                folhas.abrir("personalizar lista", largura: 440) { EditorDeLista(listID: listID) }
+            } label: {
+                ListIconView(listID: listID, size: 56)
+                    .padding(4)
+                    .overlay(RoundedRectangle(cornerRadius: 64 * 0.3, style: .continuous).strokeBorder(cor, lineWidth: 2.5))
+                    .overlay(alignment: .bottomTrailing) {
+                        Image(systemName: "pencil")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(.white)
+                            .frame(width: 20, height: 20)
+                            .background(Circle().fill(cor))
+                            .overlay(Circle().strokeBorder(DS.fundo, lineWidth: 2))
+                            .offset(x: 4, y: 4)
+                    }
             }
-            .buttonStyle(PressableStyle(cornerRadius: 16))
+            .buttonStyle(SoAfunda(escala: 0.94))
             .help("Personalizar ícone e cor")
-            .popover(isPresented: $editing) { ListAppearanceEditor(listID: listID) }
         } content: {
-            TaskSection("Tarefas", count: items.count) {
-                if items.isEmpty {
-                    EmptyState(symbol: "checklist", title: "Lista vazia")
-                } else {
-                    ForEach(items) { TaskRow(task: $0.task, showList: false, depth: $0.depth) }
+            VStack(alignment: .leading, spacing: DS.e6) {
+                SecaoTarefas("tarefas", contagem: items.count, tom: cor) {
+                    if items.isEmpty {
+                        EstadoVazio(icone: "checklist", titulo: "lista vazia", descricao: "Use a barra abaixo para criar a primeira tarefa.")
+                    } else {
+                        ForEach(items) { TaskRow(task: $0.task, showList: false, depth: $0.depth) }
+                    }
                 }
-            }
-            if !done.isEmpty {
-                TaskSection("Concluídas", count: done.count, startCollapsed: true) {
-                    ForEach(done.prefix(30)) { TaskRow(task: $0, showList: false) }
+                if !done.isEmpty {
+                    SecaoTarefas("concluídas", contagem: done.count, recolhida: true) {
+                        ForEach(done.prefix(30)) { TaskRow(task: $0, showList: false) }
+                    }
                 }
             }
         }
@@ -78,35 +95,37 @@ struct TagDetailView: View {
     var body: some View {
         if let tag = store.tag(tagID) {
             let items = store.tasks(withTag: tagID)
-            PageScaffold(title: tag.name, subtitle: "Etiqueta local — não aparece no Google Tasks") {
-                HStack(spacing: 14) {
-                    TextField("Nome", text: Binding(
-                        get: { tag.name },
-                        set: { var t = tag; t.name = $0; store.updateTag(t) }
-                    ))
-                    .fieldStyle()
-                    .frame(maxWidth: 220)
-                    ColorSwatches(selection: Binding(
-                        get: { tag.colorHex },
-                        set: { var t = tag; t.colorHex = $0; store.updateTag(t) }
-                    ))
-                }
-                TaskSection("Tarefas", count: items.count) {
-                    if items.isEmpty {
-                        EmptyState(symbol: "tag", title: "Nenhuma tarefa com esta etiqueta",
-                                   subtitle: "Clique com o botão direito numa tarefa → Etiquetas")
-                    } else {
-                        ForEach(items) { TaskRow(task: $0) }
+            PageScaffold(rotulo: "etiqueta · só no tasker", title: "#\(tag.name)") {
+                VStack(alignment: .leading, spacing: DS.e6) {
+                    HStack(spacing: DS.e4) {
+                        TextField("nome", text: Binding(
+                            get: { tag.name },
+                            set: { var t = tag; t.name = $0; store.updateTag(t) }
+                        ))
+                        .campo()
+                        .frame(maxWidth: 240)
+                        AmostrasDeCor(selecao: Binding(
+                            get: { tag.colorHex },
+                            set: { var t = tag; t.colorHex = $0; store.updateTag(t) }
+                        ))
+                    }
+                    SecaoTarefas("tarefas", contagem: items.count) {
+                        if items.isEmpty {
+                            EstadoVazio(icone: "number", titulo: "nenhuma tarefa aqui",
+                                        descricao: "Clique com o botão direito numa tarefa → Etiquetas.")
+                        } else {
+                            ForEach(items) { TaskRow(task: $0) }
+                        }
                     }
                 }
             }
         } else {
-            EmptyState(symbol: "tag", title: "Etiqueta não encontrada")
+            EstadoVazio(icone: "number", titulo: "etiqueta não encontrada")
         }
     }
 }
 
-/// Histórico de concluídas, agrupado por dia de conclusão.
+/// Histórico de concluídas, agrupado por dia, carregando aos poucos.
 struct CompletedView: View {
     @Environment(TaskStore.self) private var store
     @State private var limit = 40
@@ -114,20 +133,21 @@ struct CompletedView: View {
     var body: some View {
         let items = Array(store.completedTasks.prefix(limit))
         let groups = Dictionary(grouping: items) { Calendar.current.startOfDay(for: $0.completedDate ?? .distantPast) }
-        PageScaffold(title: "Concluídas", subtitle: "\(store.completedTasks.count) tarefas") {
-            ForEach(groups.keys.sorted(by: >), id: \.self) { day in
-                TaskSection(day == .distantPast ? "Sem data" : DayLabel.short(day, today: store.today),
-                            count: groups[day]?.count ?? 0) {
-                    ForEach(groups[day] ?? []) { TaskRow(task: $0, showDate: false) }
+        PageScaffold(rotulo: "\(store.completedTasks.count) tarefas até aqui", title: "concluídas") {
+            VStack(alignment: .leading, spacing: DS.e6) {
+                ForEach(groups.keys.sorted(by: >), id: \.self) { day in
+                    SecaoTarefas(day == .distantPast ? "sem data" : DayLabel.short(day, today: store.today).lowercased(),
+                                 contagem: groups[day]?.count ?? 0) {
+                        ForEach(groups[day] ?? []) { TaskRow(task: $0, showDate: false) }
+                    }
                 }
-            }
-            if store.completedTasks.count > limit {
-                // Paginação: carrega o próximo bloco quando chega ao fim da rolagem.
-                ProgressView()
-                    .controlSize(.small)
-                    .frame(maxWidth: .infinity)
-                    .padding(10)
-                    .onAppear { limit += 40 }
+                if store.completedTasks.count > limit {
+                    ProgressView()
+                        .controlSize(.small)
+                        .frame(maxWidth: .infinity)
+                        .padding(DS.e3)
+                        .onAppear { limit += 40 }
+                }
             }
         }
     }

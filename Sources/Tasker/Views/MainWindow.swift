@@ -4,17 +4,21 @@ struct MainWindow: View {
     @Environment(TaskStore.self) private var store
     @Environment(GoogleAuth.self) private var auth
     @Environment(Navigation.self) private var nav
+    @State private var folhas = Folhas()
 
     var body: some View {
         Group {
             if auth.isSignedIn {
                 layout
             } else {
-                OnboardingView().background(Theme.canvas)
+                OnboardingView()
             }
         }
+        .background(DS.fundo)
         .ignoresSafeArea()
-        .frame(minWidth: 880, minHeight: 560)
+        .frame(minWidth: 900, minHeight: 580)
+        .hospedaFolhas(folhas)
+        .tint(DS.acento)
         // Com a janela aberta o app aparece no Dock e no ⌘Tab; fechada, volta a viver só na barra de menu.
         .onAppear {
             NSApp.setActivationPolicy(.regular)
@@ -27,40 +31,36 @@ struct MainWindow: View {
     private var layout: some View {
         let selectedTask = nav.selectedTaskID.flatMap { store.tasks[$0] }
         return HStack(spacing: 0) {
-            Sidebar()
-                .frame(width: 250)
-                .background(GlassBackground(material: .sidebar))
-
-            Rectangle().fill(Theme.stroke).frame(width: 1)
+            Sidebar().frame(width: 256)
+            Rectangle().fill(DS.borda).frame(width: 1)
 
             ZStack(alignment: .bottom) {
                 ZStack {
                     detail
                         .id(nav.selection)
-                        .transition(.opacity)
+                        .transition(.asymmetric(insertion: .opacity.combined(with: .offset(y: 8)), removal: .opacity))
                 }
-                .animation(.easeOut(duration: 0.14), value: nav.selection)
+                .animation(.timingCurve(0.22, 1, 0.36, 1, duration: 0.18), value: nav.selection)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
                 floatingBar
             }
-            .background(Theme.canvas)
 
             if let task = selectedTask {
-                Rectangle().fill(Theme.stroke).frame(width: 1)
-                TaskInspector(task: task) { nav.selectedTaskID = nil }
+                Rectangle().fill(DS.borda).frame(width: 1)
+                TaskInspector(task: task) { withAnimation(DS.curva) { nav.selectedTaskID = nil } }
                     .id(task.id)
                     .frame(width: 400)
                     .transition(.move(edge: .trailing).combined(with: .opacity))
             }
         }
-        .animation(.spring(response: 0.32, dampingFraction: 0.88), value: selectedTask?.id)
+        .animation(DS.curva, value: selectedTask?.id)
     }
 
     @ViewBuilder private var detail: some View {
         switch nav.selection ?? .today {
         case .today: TodayView()
-        case .tomorrow: DayView(title: "Amanhã", day: Calendar.current.adding(days: 1, to: store.today))
+        case .tomorrow: DayView(title: "amanhã", day: Calendar.current.adding(days: 1, to: store.today))
         case .upcoming: UpcomingView()
         case .calendar: CalendarView()
         case .completed: CompletedView()
@@ -71,7 +71,7 @@ struct MainWindow: View {
         }
     }
 
-    /// Barra flutuante de nova tarefa.
+    /// Barra flutuante de nova tarefa: a ação principal é da tela (cria na lista/dia da tela atual).
     @ViewBuilder private var floatingBar: some View {
         let selection = nav.selection ?? .today
         if selection != .settings && selection != .calendar && selection != .completed {
@@ -85,13 +85,13 @@ struct MainWindow: View {
             }
             QuickAddField(defaultDue: context.due, fixedListID: context.list, fixedTagID: context.tag, style: .floating)
                 .id("\(selection)")
-                .padding(4)
-                .background(Theme.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Theme.stroke))
-                .shadow(color: .black.opacity(0.10), radius: 16, y: 6)
+                .padding(DS.e1)
+                .background(DS.superficie, in: RoundedRectangle(cornerRadius: DS.raioG, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: DS.raioG, style: .continuous).strokeBorder(DS.borda))
+                .sombraAlta()
                 .frame(maxWidth: 620)
-                .padding(.horizontal, 30)
-                .padding(.bottom, 18)
+                .padding(.horizontal, DS.e8)
+                .padding(.bottom, DS.e5)
         }
     }
 }

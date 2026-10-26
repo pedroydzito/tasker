@@ -114,6 +114,12 @@ final class Preferences {
         set { withMutation(keyPath: \.listEmojis) { d.set(newValue, forKey: "listEmojis") } }
     }
 
+    /// Ordem das listas escolhida arrastando na barra lateral.
+    var listOrder: [String] {
+        get { access(keyPath: \.listOrder); return d.stringArray(forKey: "listOrder") ?? [] }
+        set { withMutation(keyPath: \.listOrder) { d.set(newValue, forKey: "listOrder") } }
+    }
+
     var hotkeyTipDismissed: Bool {
         get { access(keyPath: \.hotkeyTipDismissed); return d.bool(forKey: "hotkeyTipDismissed") }
         set { withMutation(keyPath: \.hotkeyTipDismissed) { d.set(newValue, forKey: "hotkeyTipDismissed") } }

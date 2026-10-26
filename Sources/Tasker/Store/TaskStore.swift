@@ -93,10 +93,42 @@ final class TaskStore {
         for (i, list) in lists.enumerated() {
             let (prefix, rest) = Self.splitLeadingSymbols(list.title)
             let emoji: String? = emojis[list.id].map { $0.isEmpty ? nil : $0 } ?? (prefix.isEmpty ? nil : prefix)
-            let hex = colors[list.id] ?? Palette.lists[i % Palette.lists.count]
+            let hex = colors[list.id] ?? Self.corDaChave(list.id)
             meta[list.id] = ListMeta(name: rest.isEmpty ? list.title : rest, emoji: emoji, color: Color(hex: hex), order: i)
         }
         listMeta = meta
+    }
+
+    /// Cor estável que sai do próprio id (não muda ao reordenar nem entre aparelhos).
+    /// Passo 3 sobre 10: chaves vizinhas não caem em cores vizinhas.
+    static func corDaChave(_ id: String) -> String {
+        var hash: UInt64 = 5381
+        for byte in id.utf8 { hash = (hash &* 33) &+ UInt64(byte) }
+        return Palette.lists[Int((hash &* 3) % UInt64(Palette.lists.count))]
+    }
+
+    /// Aplica a ordem escolhida pelo usuário; listas novas vão para o fim, na ordem do Google.
+    private func ordered(_ input: [TaskList]) -> [TaskList] {
+        let order = prefs.listOrder
+        guard !order.isEmpty else { return input }
+        let position = Dictionary(uniqueKeysWithValues: order.enumerated().map { ($1, $0) })
+        return input.enumerated().sorted { a, b in
+            let pa = position[a.element.id] ?? (order.count + a.offset)
+            let pb = position[b.element.id] ?? (order.count + b.offset)
+            return pa < pb
+        }.map(\.element)
+    }
+
+    /// Move uma lista para a posição de outra (arrastar na barra lateral).
+    func moveList(_ id: String, to targetID: String) {
+        guard id != targetID, let from = lists.firstIndex(where: { $0.id == id }),
+              let to = lists.firstIndex(where: { $0.id == targetID }) else { return }
+        var reordered = lists
+        let item = reordered.remove(at: from)
+        reordered.insert(item, at: to)
+        prefs.listOrder = reordered.map(\.id)
+        lists = reordered
+        listsChanged()
     }
 
     /// Chamado sempre que `lists` muda.
@@ -273,7 +305,7 @@ final class TaskStore {
     private func syncTasks(full: Bool) async throws {
         let remoteLists = try await api.fetchTaskLists()
         let hadLists = !lists.isEmpty
-        let newLists = remoteLists.map { TaskList(id: $0.id, title: $0.title ?? "Sem título") }
+        let newLists = ordered(remoteLists.map { TaskList(id: $0.id, title: $0.title ?? "Sem título") })
         if newLists != lists {
             lists = newLists
             listsChanged()

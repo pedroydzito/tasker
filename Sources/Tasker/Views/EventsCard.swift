@@ -1,65 +1,64 @@
 import SwiftUI
 
-/// Bloco de eventos do Google Calendar (como no KiteTasks), recolhível.
+/// Eventos do Google Calendar do dia: um cartão com uma linha por evento.
 struct EventsCard: View {
     let events: [CalendarEvent]
+    var compacto = false
     @AppStorage("eventsCollapsed") private var collapsed = false
 
     var body: some View {
         if !events.isEmpty {
-            HStack(alignment: .top, spacing: 4) {
-                VStack(alignment: .leading, spacing: 3) {
-                    ForEach(collapsed ? Array(events.prefix(1)) : events) { EventRow(event: $0) }
-                    if collapsed, events.count > 1 {
-                        Text("+ \(events.count - 1) evento\(events.count > 2 ? "s" : "")")
-                            .font(.system(size: 11.5))
-                            .foregroundStyle(.secondary)
-                            .padding(.leading, 12)
-                            .padding(.vertical, 2)
-                    }
-                }
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(collapsed ? Array(events.prefix(1)) : events) { EventRow(event: $0, compacto: compacto) }
                 if events.count > 1 {
                     Button {
-                        withAnimation(.snappy(duration: 0.2)) { collapsed.toggle() }
+                        withAnimation(DS.curva) { collapsed.toggle() }
                     } label: {
-                        Image(systemName: collapsed ? "chevron.down" : "chevron.up")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(.secondary)
-                            .frame(width: 24, height: 24)
-                            .contentShape(Rectangle())
+                        HStack(spacing: 6) {
+                            Text(collapsed ? "mais \(events.count - 1) evento\(events.count > 2 ? "s" : "")" : "mostrar menos")
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 8.5, weight: .bold))
+                                .rotationEffect(.degrees(collapsed ? 0 : 180))
+                        }
+                        .txt(.xs, .medium)
+                        .foregroundStyle(DS.texto3)
+                        .padding(.horizontal, DS.e3)
+                        .padding(.vertical, 6)
+                        .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(Pressionavel(raio: DS.raioM))
+                    .padding(.leading, DS.e1)
+                    .padding(.bottom, DS.e1)
                 }
             }
-            .padding(5)
-            .background(Theme.eventFill.opacity(0.45), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .padding(DS.e1)
+            .background(DS.superficie, in: RoundedRectangle(cornerRadius: compacto ? DS.raioG : DS.raioCartao, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: compacto ? DS.raioG : DS.raioCartao, style: .continuous).strokeBorder(DS.borda))
         }
     }
 }
 
 struct EventRow: View {
     let event: CalendarEvent
-    @State private var hovering = false
+    var compacto = false
 
     var body: some View {
-        HStack(spacing: 8) {
-            RoundedRectangle(cornerRadius: 1.5)
-                .fill(Color(hex: event.colorHex))
-                .frame(width: 3, height: 15)
-            Text(event.timeLabel).monospacedDigit()
-            Text(event.title).lineLimit(1)
-            Spacer(minLength: 0)
-        }
-        .font(.system(size: 12.5))
-        .padding(.vertical, 5)
-        .padding(.horizontal, 6)
-        .background(Theme.eventFill.opacity(hovering ? 1 : 0.85), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
-        .opacity(event.end < .now ? 0.45 : 1)
-        .contentShape(Rectangle())
-        .onHover { hovering = $0 }
-        .onTapGesture {
+        Button {
             if let url = event.htmlLink.flatMap(URL.init(string:)) { NSWorkspace.shared.open(url) }
+        } label: {
+            HStack(spacing: DS.e3) {
+                Capsule().fill(Color(hex: event.colorHex)).frame(width: 3, height: compacto ? 16 : 20)
+                Text(event.timeLabel).txt(.xs, .medium).monospacedDigit().foregroundStyle(DS.texto3)
+                    .frame(minWidth: 76, alignment: .leading)
+                Text(event.title).txt(compacto ? .sm : .md, .medium).foregroundStyle(DS.texto).lineLimit(1)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, DS.e3)
+            .padding(.vertical, compacto ? 7 : 10)
+            .opacity(event.end < .now ? 0.45 : 1)
+            .contentShape(Rectangle())
         }
+        .buttonStyle(Pressionavel(raio: compacto ? DS.raioM : DS.raioG, escala: 0.995))
         .help("Abrir no Google Calendar")
     }
 }

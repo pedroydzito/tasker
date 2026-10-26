@@ -1,49 +1,45 @@
 import SwiftUI
 
-/// Layout de página das telas da janela principal.
-struct PageScaffold<Header: View, Content: View>: View {
+/// Moldura de página: cabeçalho (sobrancelha + título display) e conteúdo encadeado.
+struct PageScaffold<Leading: View, Content: View>: View {
+    let rotulo: String?
     let title: String
-    var subtitle: String?
-    @ViewBuilder var header: Header
+    @ViewBuilder var leading: Leading
     @ViewBuilder var content: Content
 
     var body: some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 16) {
-                HStack(alignment: .center, spacing: 14) {
-                    header
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(title).font(.system(size: 30, weight: .bold)).tracking(-0.4)
-                        if let subtitle {
-                            Text(subtitle).font(.system(size: 13.5)).foregroundStyle(Theme.subtle)
-                        }
-                    }
+            LazyVStack(alignment: .leading, spacing: DS.e6) {
+                CabecalhoTela(rotulo: rotulo, titulo: title) { leading }
+                    .padding(.bottom, DS.e2)
+                    .encadeado(0)
+                VStack(alignment: .leading, spacing: DS.e3) {
+                    CalendarIssueBanner()
+                    ErrorBanner()
                 }
-                .padding(.bottom, 4)
-                CalendarIssueBanner()
-                ErrorBanner()
-                content
+                content.encadeado(1)
             }
-            .padding(.horizontal, 40)
-            .padding(.top, 46)
+            .padding(.horizontal, 48)
+            .padding(.top, 56)
             .padding(.bottom, 120)
             .frame(maxWidth: 880, alignment: .leading)
             .frame(maxWidth: .infinity)
         }
+        .scrollIndicators(.never)
     }
 }
 
-extension PageScaffold where Header == EmptyView {
-    init(title: String, subtitle: String? = nil, @ViewBuilder content: () -> Content) {
+extension PageScaffold where Leading == EmptyView {
+    init(rotulo: String? = nil, title: String, @ViewBuilder content: () -> Content) {
+        self.rotulo = rotulo
         self.title = title
-        self.subtitle = subtitle
-        self.header = EmptyView()
+        self.leading = EmptyView()
         self.content = content()
     }
 }
 
 func taskCountText(_ count: Int) -> String {
-    count == 0 ? "Nada pendente" : "\(count) tarefa\(count == 1 ? "" : "s") para concluir"
+    count == 0 ? "nada pendente" : "\(count) tarefa\(count == 1 ? "" : "s") para concluir"
 }
 
 struct TodayView: View {
@@ -53,39 +49,37 @@ struct TodayView: View {
         let overdue = store.overdueTasks
         let today = store.todayTasks
         let done = store.completedToday
-        PageScaffold(title: "Hoje",
-                     subtitle: "\(DayLabel.long(store.today).capitalized) · \(taskCountText(overdue.count + today.count))") {
-            EventsCard(events: store.events(on: store.today))
+        PageScaffold(rotulo: "\(DayLabel.long(store.today)) · \(taskCountText(overdue.count + today.count))", title: "hoje") {
+            VStack(alignment: .leading, spacing: DS.e6) {
+                EventsCard(events: store.events(on: store.today))
 
-            if !overdue.isEmpty {
-                TaskSection("Em atraso", count: overdue.count, tint: .red,
-                            accessory: AnyView(Button("Mover para hoje") { store.postponeOverdue() }
-                                .buttonStyle(.pressable)
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundStyle(Color.accentColor))) {
-                    ForEach(overdue) { TaskRow(task: $0) }
+                if !overdue.isEmpty {
+                    SecaoTarefas("em atraso", contagem: overdue.count, tom: DS.acentoTexto,
+                                 acao: ("Mover para hoje", { store.postponeOverdue() })) {
+                        ForEach(overdue) { TaskRow(task: $0) }
+                    }
+                }
+
+                SecaoTarefas("hoje", contagem: today.count) {
+                    if today.isEmpty {
+                        EstadoVazio(icone: "sun.max", titulo: "nada pendente", descricao: "As tarefas com data de hoje aparecem aqui.")
+                    } else {
+                        ForEach(today) { TaskRow(task: $0, showDate: false) }
+                    }
+                }
+
+                if !done.isEmpty {
+                    SecaoTarefas("concluídas hoje", contagem: done.count, recolhida: true) {
+                        ForEach(done) { TaskRow(task: $0, showDate: false) }
+                    }
                 }
             }
-
-            TaskSection("Hoje", count: today.count) {
-                if today.isEmpty {
-                    EmptyState(symbol: "sun.max", title: "Nada pendente para hoje", subtitle: "Aproveite o dia")
-                } else {
-                    ForEach(today) { TaskRow(task: $0, showDate: false) }
-                }
-            }
-            .animation(.easeInOut(duration: 0.2), value: today.map(\.id))
-
-            if !done.isEmpty {
-                TaskSection("Concluídas hoje", count: done.count, startCollapsed: true) {
-                    ForEach(done) { TaskRow(task: $0, showDate: false) }
-                }
-            }
+            .animation(DS.curva, value: today.map(\.id))
         }
     }
 }
 
-/// Tarefas e eventos de um único dia (usado em "Amanhã").
+/// Tarefas e eventos de um único dia (usado em "amanhã").
 struct DayView: View {
     @Environment(TaskStore.self) private var store
     let title: String
@@ -93,13 +87,15 @@ struct DayView: View {
 
     var body: some View {
         let tasks = store.tasks(on: day)
-        PageScaffold(title: title, subtitle: "\(DayLabel.long(day).capitalized) · \(taskCountText(tasks.count))") {
-            EventsCard(events: store.events(on: day))
-            TaskSection(title, count: tasks.count) {
-                if tasks.isEmpty {
-                    EmptyState(symbol: "sunrise", title: "Nenhuma tarefa para \(title.lowercased())")
-                } else {
-                    ForEach(tasks) { TaskRow(task: $0, showDate: false) }
+        PageScaffold(rotulo: "\(DayLabel.long(day)) · \(taskCountText(tasks.count))", title: title) {
+            VStack(alignment: .leading, spacing: DS.e6) {
+                EventsCard(events: store.events(on: day))
+                SecaoTarefas(title, contagem: tasks.count) {
+                    if tasks.isEmpty {
+                        EstadoVazio(icone: "sunrise", titulo: "dia livre", descricao: "Nenhuma tarefa marcada para \(title).")
+                    } else {
+                        ForEach(tasks) { TaskRow(task: $0, showDate: false) }
+                    }
                 }
             }
         }

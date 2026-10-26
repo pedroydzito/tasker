@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Primeiro acesso: credenciais do Google Cloud + login.
+/// Primeira abertura: credenciais do Google Cloud + login, uma camada por vez.
 struct OnboardingView: View {
     @Environment(GoogleAuth.self) private var auth
     @Environment(TaskStore.self) private var store
@@ -11,61 +11,62 @@ struct OnboardingView: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 22) {
-                if let icon = NSApp.applicationIconImage {
-                    Image(nsImage: icon).resizable().frame(width: 84, height: 84)
+            VStack(alignment: .leading, spacing: DS.e6) {
+                VStack(alignment: .leading, spacing: DS.e4) {
+                    Simbolo(tamanho: 56)
+                    Text("bem-vindo ao tasker").display().foregroundStyle(DS.texto)
+                    Text("Suas tarefas do Google Tasks e os eventos do Google Calendar, direto na barra de menu.")
+                        .txt(.lg)
+                        .foregroundStyle(DS.texto2)
                 }
-                VStack(spacing: 6) {
-                    Text("Bem-vindo ao Tasker").font(.system(size: 26, weight: .bold))
-                    Text("Suas tarefas do Google Tasks e eventos do Google Calendar, direto na barra de menu.")
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
+                .encadeado(0)
+
+                VStack(alignment: .leading, spacing: DS.e4) {
+                    Text("1 · credenciais do google").rotulo()
+                    Nota("No Google Cloud Console, ative as APIs Google Tasks e Google Calendar, configure a tela de consentimento e crie um ID do cliente OAuth do tipo “App para computador”. O passo a passo está no README.")
+                    Link("Abrir o Google Cloud Console", destination: URL(string: "https://console.cloud.google.com/apis/credentials")!)
+                        .txt(.sm, .medium)
+                        .foregroundStyle(DS.link)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("client id").rotulo()
+                        TextField("….apps.googleusercontent.com", text: $clientID).campo()
+                    }
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("client secret").rotulo()
+                        SecureField("GOCSPX-…", text: $clientSecret).campo()
+                    }
                 }
+                .cartao()
+                .encadeado(1)
 
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("1. Crie suas credenciais (uma vez só)").font(.headline)
-                    Text("""
-                    No [Google Cloud Console](https://console.cloud.google.com/apis/credentials), ative as APIs **Google Tasks** e **Google Calendar**, \
-                    configure a tela de consentimento e crie um **ID do cliente OAuth** do tipo **App para computador**. \
-                    O passo a passo completo está no README do projeto.
-                    """)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-
-                    TextField("Client ID (….apps.googleusercontent.com)", text: $clientID)
-                        .textFieldStyle(.roundedBorder)
-                    SecureField("Client Secret", text: $clientSecret)
-                        .textFieldStyle(.roundedBorder)
-
-                    Text("2. Conecte sua conta").font(.headline).padding(.top, 8)
-                    HStack {
+                VStack(alignment: .leading, spacing: DS.e4) {
+                    Text("2 · conectar a conta").rotulo()
+                    HStack(spacing: DS.e3) {
                         Button {
                             Task { await signIn() }
                         } label: {
                             Label("Entrar com Google", systemImage: "person.crop.circle.badge.checkmark")
-                                .frame(maxWidth: .infinity)
                         }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.large)
+                        .buttonStyle(Botao(variante: .primario, tamanho: .g, largo: true))
                         .disabled(clientID.isEmpty || clientSecret.isEmpty || auth.isSigningIn)
 
                         if auth.isSigningIn {
-                            ProgressView().controlSize(.small)
-                            Button("Cancelar") { auth.cancelSignIn() }
+                            Button("Cancelar") { auth.cancelSignIn() }.buttonStyle(Botao(variante: .superficie, tamanho: .g))
                         }
                     }
                     if auth.isSigningIn {
-                        Text("Continue o login no navegador…").font(.caption).foregroundStyle(.secondary)
+                        Text("Continue o login no navegador…").txt(.xs).foregroundStyle(DS.texto3)
                     }
                     if let error {
-                        Text(error).font(.caption).foregroundStyle(.red)
+                        Nota(tom: .erro, error)
                     }
                 }
-                .padding(20)
-                .background(Color.primary.opacity(0.03), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .cartao()
+                .encadeado(2)
             }
             .frame(maxWidth: 520)
-            .padding(40)
+            .padding(.horizontal, DS.e8)
+            .padding(.vertical, 72)
             .frame(maxWidth: .infinity)
         }
         .onAppear {
@@ -81,7 +82,7 @@ struct OnboardingView: View {
             try await auth.signIn()
             await store.sync(force: true)
         } catch is CancellationError {
-            // usuário cancelou
+            // a pessoa cancelou
         } catch {
             self.error = error.localizedDescription
         }

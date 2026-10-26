@@ -1,9 +1,9 @@
 import SwiftUI
 
-/// Popover da barra de menu: vidro do macOS, abre instantâneo, com abas internas
-/// (Hoje, Calendário, Listas) e um botão para abrir o app em tela grande.
+/// Menu da barra (base KiteTasks, com o design system): mesmo fundo do app, altura fixa
+/// (abre sempre do mesmo tamanho), abas internas e botão para abrir em tela grande.
 struct MenuBarPopover: View {
-    enum Tab { case today, calendar, lists }
+    enum Tab: Hashable { case today, calendar, lists }
 
     @Environment(TaskStore.self) private var store
     @Environment(GoogleAuth.self) private var auth
@@ -13,20 +13,27 @@ struct MenuBarPopover: View {
     @State private var tab: Tab = .today
     @State private var openListID: String?
     @State private var day = Calendar.current.startOfDay(for: .now)
+    @State private var folhas = Folhas()
+    @Namespace private var trilho
+
+    static let size = CGSize(width: 380, height: 560)
 
     var body: some View {
         VStack(spacing: 0) {
             if auth.isSignedIn {
                 header
-                UpdateBanner().padding(.horizontal, 12).padding(.bottom, 6)
+                UpdateBanner().padding(.horizontal, DS.e4).padding(.bottom, DS.e2)
                 content
+                    .frame(maxHeight: .infinity, alignment: .top)
             } else {
-                signedOut
+                signedOut.frame(maxHeight: .infinity)
             }
-            tabBar
+            navegacao
         }
-        .frame(width: 370)
-        .background(GlassBackground(material: .popover, cornerRadius: 16))
+        .frame(width: Self.size.width, height: Self.size.height)
+        .background(DS.fundo)
+        .hospedaFolhas(folhas)
+        .tint(DS.acento)
         .background(PopoverWindowConfigurator(
             appearance: store.prefs.appearance.resolved,
             onOpen: { Task { await store.sync() } }
@@ -36,43 +43,56 @@ struct MenuBarPopover: View {
     // MARK: Cabeçalho
 
     private var header: some View {
-        HStack(spacing: 6) {
+        HStack(alignment: .bottom, spacing: DS.e2) {
             if tab == .lists, let id = openListID {
-                Button { openListID = nil } label: {
-                    Image(systemName: "chevron.left").font(.system(size: 13, weight: .semibold)).iconButtonLabel(size: 26)
+                BotaoIcone(simbolo: "chevron.left", rotulo: "Voltar às listas") {
+                    withAnimation(DS.curva) { openListID = nil }
                 }
-                .buttonStyle(.pressable)
-                ListIconView(listID: id, size: 22)
-                Text(store.displayName(id)).font(.system(size: 19, weight: .bold)).lineLimit(1)
+                .padding(.bottom, 2)
+                ListIconView(listID: id, size: 30)
+                    .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .strokeBorder(store.color(forList: id), lineWidth: 1.5).padding(-3))
+                    .padding(.leading, 3)
+                    .padding(.bottom, 2)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(taskCountText(store.tasks(inList: id).count)).rotulo()
+                    Text(store.displayName(id)).display(.titulo).foregroundStyle(DS.texto).lineLimit(1)
+                }
             } else {
-                Text(title).font(.system(size: 22, weight: .bold))
-            }
-            if store.isSyncing {
-                ProgressView().controlSize(.mini).padding(.leading, 2)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(rotulo).rotulo()
+                    Text(titulo).display(.titulo).foregroundStyle(DS.texto)
+                }
             }
             Spacer()
-            Button { openApp(destination) } label: {
-                Image(systemName: "arrow.up.left.and.arrow.down.right").iconButtonLabel()
+            HStack(spacing: DS.e1) {
+                BotaoIcone(simbolo: "arrow.up.left.and.arrow.down.right", rotulo: "Abrir em tela grande") {
+                    openApp(destination)
+                }
+                accountMenu
             }
-            .buttonStyle(.pressable)
-            .help("Abrir no app em tela grande")
-            accountMenu
         }
-        .padding(.leading, 18)
-        .padding(.trailing, 12)
-        .padding(.top, 14)
-        .padding(.bottom, 10)
+        .padding(.horizontal, DS.e5)
+        .padding(.top, DS.e5)
+        .padding(.bottom, DS.e4)
     }
 
-    private var title: String {
+    private var titulo: String {
         switch tab {
-        case .today: "Hoje"
-        case .calendar: "Calendário"
-        case .lists: "Listas"
+        case .today: "hoje"
+        case .calendar: "calendário"
+        case .lists: "listas"
         }
     }
 
-    /// Para onde o botão de tela grande leva, conforme a aba atual.
+    private var rotulo: String {
+        switch tab {
+        case .today: "\(DayLabel.long(store.today)) · \(store.badgeCount) pendente\(store.badgeCount == 1 ? "" : "s")"
+        case .calendar: DayLabel.long(day)
+        case .lists: "\(store.lists.count) listas"
+        }
+    }
+
     private var destination: SidebarItem {
         switch tab {
         case .today: .today
@@ -85,56 +105,59 @@ struct MenuBarPopover: View {
         Menu {
             if let email = auth.profile?.email { Text(email) }
             Button("Sincronizar agora") { Task { await store.sync(force: true) } }
-            Button("Ajustes…") { openApp(.settings) }
+            Button("Ajustes") { openApp(.settings) }
             Divider()
-            Button("Encerrar Tasker") { NSApp.terminate(nil) }
+            Button("Encerrar o Tasker") { NSApp.terminate(nil) }
         } label: {
-            Image(nsImage: Avatar.menuImage(auth.avatar, side: 26))
+            Image(nsImage: Avatar.menuImage(auth.avatar, side: 28))
         }
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
         .fixedSize()
     }
 
-    // MARK: Conteúdo por aba
+    // MARK: Conteúdo
 
     @ViewBuilder private var content: some View {
-        switch tab {
-        case .today: todayTab
-        case .calendar: PopoverCalendarView(day: $day)
-        case .lists:
-            if let id = openListID { listTab(id) } else { listsIndex }
+        ZStack(alignment: .top) {
+            switch tab {
+            case .today: todayTab.transition(.opacity)
+            case .calendar: PopoverCalendarView(day: $day).transition(.opacity)
+            case .lists:
+                if let id = openListID {
+                    listTab(id).transition(.asymmetric(insertion: .offset(x: 56).combined(with: .opacity), removal: .opacity))
+                } else {
+                    listsIndex.transition(.asymmetric(insertion: .offset(x: -14).combined(with: .opacity), removal: .opacity))
+                }
+            }
         }
+        .animation(DS.curva, value: tab)
+        .animation(DS.curva, value: openListID)
     }
 
     private var todayTab: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            QuickAddField(defaultDue: store.today).padding(.horizontal, 12)
+        VStack(alignment: .leading, spacing: DS.e3) {
+            QuickAddField(defaultDue: store.today).padding(.horizontal, DS.e4)
             scroll {
-                EventsCard(events: store.events(on: store.today)).padding(.bottom, 2)
+                EventsCard(events: store.events(on: store.today), compacto: true)
                 CalendarIssueBanner()
                 ErrorBanner()
 
                 let overdue = store.overdueTasks
                 if !overdue.isEmpty {
-                    HStack {
-                        SectionHeader(title: "Em atraso", count: overdue.count, tint: .red)
-                        Button("Adiar p/ hoje") { store.postponeOverdue() }
-                            .buttonStyle(.pressable)
-                            .font(.system(size: 11.5, weight: .medium))
-                            .foregroundStyle(Color.accentColor)
-                            .padding(.top, 10)
+                    SecaoTarefas("em atraso", contagem: overdue.count, tom: DS.acentoTexto,
+                                 acao: ("Adiar p/ hoje", { store.postponeOverdue() })) {
+                        ForEach(overdue) { TaskRow(task: $0, style: .compact) }
                     }
-                    .padding(.trailing, 6)
-                    ForEach(overdue) { TaskRow(task: $0, style: .compact) }
                 }
 
                 let today = store.todayTasks
-                SectionHeader(title: "Hoje", count: today.count)
-                if today.isEmpty {
-                    EmptyState(symbol: "checkmark.circle", title: "Tudo feito por hoje")
-                } else {
-                    ForEach(today) { TaskRow(task: $0, style: .compact) }
+                SecaoTarefas("hoje", contagem: today.count) {
+                    if today.isEmpty {
+                        EstadoVazio(icone: "checkmark.circle", titulo: "tudo feito por hoje")
+                    } else {
+                        ForEach(today) { TaskRow(task: $0, style: .compact) }
+                    }
                 }
             }
         }
@@ -142,25 +165,43 @@ struct MenuBarPopover: View {
 
     private var listsIndex: some View {
         scroll {
-            ForEach(store.lists) { list in
-                SidebarRow(title: store.displayName(list.id), count: store.tasks(inList: list.id).count, selected: false) {
-                    ListIconView(listID: list.id, size: 22)
-                } action: {
-                    openListID = list.id
+            VStack(spacing: 0) {
+                ForEach(store.lists) { list in
+                    Button {
+                        withAnimation(DS.curva) { openListID = list.id }
+                    } label: {
+                        HStack(spacing: DS.e3) {
+                            ListIconView(listID: list.id, size: 26)
+                            Text(store.displayName(list.id)).txt(.sm, .medium).foregroundStyle(DS.texto)
+                            Spacer()
+                            let count = store.tasks(inList: list.id).count
+                            if count > 0 { Text("\(count)").txt(.xs, .medium).foregroundStyle(DS.texto3) }
+                            Image(systemName: "chevron.right").font(.system(size: 10, weight: .semibold)).foregroundStyle(DS.texto3)
+                        }
+                        .padding(.horizontal, DS.e3)
+                        .padding(.vertical, 9)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(Pressionavel(raio: DS.raioM))
                 }
             }
+            .padding(DS.e1)
+            .background(DS.superficie, in: RoundedRectangle(cornerRadius: DS.raioCartao, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: DS.raioCartao, style: .continuous).strokeBorder(DS.borda))
         }
     }
 
     private func listTab(_ id: String) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            QuickAddField(fixedListID: id).padding(.horizontal, 12)
+        VStack(alignment: .leading, spacing: DS.e3) {
+            QuickAddField(fixedListID: id).padding(.horizontal, DS.e4)
             scroll {
                 let items = store.tasks(inList: id)
-                if items.isEmpty {
-                    EmptyState(symbol: "checklist", title: "Lista vazia")
-                } else {
-                    ForEach(items) { TaskRow(task: $0, style: .compact) }
+                SecaoTarefas("tarefas", contagem: items.count, tom: store.color(forList: id)) {
+                    if items.isEmpty {
+                        EstadoVazio(icone: "checklist", titulo: "lista vazia")
+                    } else {
+                        ForEach(items) { TaskRow(task: $0, style: .compact) }
+                    }
                 }
             }
         }
@@ -168,64 +209,70 @@ struct MenuBarPopover: View {
 
     private func scroll<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 1) { content() }
-                .padding(.horizontal, 8)
-                .padding(.bottom, 10)
+            LazyVStack(alignment: .leading, spacing: DS.e4) { content() }
+                .padding(.horizontal, DS.e4)
+                .padding(.bottom, DS.e4)
         }
         .scrollIndicators(.never)
-        .frame(minHeight: 120, maxHeight: 440)
-        .fixedSize(horizontal: false, vertical: true)
     }
 
     private var signedOut: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "checkmark.circle").font(.system(size: 34)).foregroundStyle(.secondary)
-            Text("Conecte sua conta Google").font(.headline)
-            Text("Para ver suas tarefas e eventos de hoje.").font(.callout).foregroundStyle(.secondary)
-            Button("Configurar…") { openApp(.today) }.buttonStyle(.primary)
+        VStack(spacing: DS.e3) {
+            Simbolo(tamanho: 44)
+            Text("conecte sua conta").display(.xl).foregroundStyle(DS.texto)
+            Text("Para ver as tarefas e os eventos de hoje.").txt(.sm).foregroundStyle(DS.texto3)
+            Button("Configurar") { openApp(.today) }.buttonStyle(Botao(variante: .primario, tamanho: .m))
         }
-        .padding(30)
-        .frame(maxWidth: .infinity)
+        .padding(DS.e8)
     }
 
-    // MARK: Abas
+    // MARK: Navegação (pílula, rótulo só no ativo)
 
-    private var tabBar: some View {
-        HStack(spacing: 0) {
-            tabButton("sun.max", .today)
-            tabButton("calendar", .calendar)
-            tabButton("list.bullet", .lists)
-            Button { openApp(.settings) } label: {
-                Image(systemName: "gearshape")
-                    .font(.system(size: 15))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 52, height: 30)
-                    .contentShape(Rectangle())
+    private var navegacao: some View {
+        HStack(spacing: DS.e1) {
+            aba(.today, "sun.max", "hoje")
+            aba(.calendar, "calendar", "calendário")
+            aba(.lists, "list.bullet", "listas")
+            Rectangle().fill(DS.borda).frame(width: 1, height: 22).padding(.horizontal, 2)
+            BotaoIcone(simbolo: "gearshape", rotulo: "Abrir ajustes", tamanho: 40, tamanhoIcone: 15) {
+                openApp(.settings)
             }
-            .buttonStyle(.pressable)
-            .frame(maxWidth: .infinity)
-            .help("Ajustes")
         }
-        .padding(.vertical, 7)
-        .overlay(alignment: .top) { Rectangle().fill(Theme.stroke.opacity(0.7)).frame(height: 1) }
+        .padding(6)
+        .background(Capsule().fill(DS.superficie))
+        .overlay(Capsule().strokeBorder(DS.borda))
+        .sombraAlta()
+        .padding(.vertical, DS.e3)
+        .frame(maxWidth: .infinity)
+        .animation(DS.curva, value: tab)
     }
 
-    private func tabButton(_ symbol: String, _ value: Tab) -> some View {
-        let selected = tab == value
+    private func aba(_ valor: Tab, _ simbolo: String, _ rotulo: String) -> some View {
+        let ativa = tab == valor
         return Button {
-            if value == .lists && tab == .lists { openListID = nil }
-            tab = value
+            if valor == .lists && tab == .lists { openListID = nil }
+            tab = valor
         } label: {
-            Image(systemName: selected && symbol == "sun.max" ? "sun.max.fill" : symbol)
-                .font(.system(size: 15, weight: selected ? .semibold : .regular))
-                .foregroundStyle(selected ? Color.accentColor : .secondary)
-                .frame(width: 52, height: 30)
-                .background(RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(selected ? Color.accentColor.opacity(0.12) : .clear))
-                .contentShape(Rectangle())
+            HStack(spacing: DS.e2) {
+                Image(systemName: simbolo)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(ativa ? DS.acento : DS.texto3)
+                if ativa {
+                    Text(rotulo).txt(.sm, .semibold).foregroundStyle(DS.texto)
+                        .transition(.opacity.combined(with: .scale(scale: 0.9, anchor: .leading)))
+                }
+            }
+            .padding(.horizontal, ativa ? DS.e4 : DS.e3)
+            .frame(height: 40)
+            .background {
+                if ativa {
+                    Capsule().fill(DS.superficie2).matchedGeometryEffect(id: "trilho", in: trilho)
+                }
+            }
+            .contentShape(Capsule())
         }
-        .buttonStyle(.pressable)
-        .frame(maxWidth: .infinity)
+        .buttonStyle(SoAfunda(escala: 0.94))
+        .help(rotulo)
     }
 
     private func openApp(_ item: SidebarItem) {
@@ -237,33 +284,33 @@ struct MenuBarPopover: View {
     }
 }
 
-/// Aba de calendário do popover: faixa da semana + agenda do dia escolhido.
+/// Aba de calendário do menu: faixa da semana + agenda do dia escolhido.
 struct PopoverCalendarView: View {
     @Environment(TaskStore.self) private var store
     @Binding var day: Date
     private let cal = Calendar.current
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            weekStrip.padding(.horizontal, 12)
-            QuickAddField(defaultDue: day).padding(.horizontal, 12)
+        VStack(alignment: .leading, spacing: DS.e3) {
+            weekStrip.padding(.horizontal, DS.e4)
+            QuickAddField(defaultDue: day).padding(.horizontal, DS.e4)
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 1) {
+                LazyVStack(alignment: .leading, spacing: DS.e4) {
                     let events = store.events(on: day)
                     let tasks = store.tasks(on: day)
-                    EventsCard(events: events).padding(.bottom, 2)
-                    SectionHeader(title: DayLabel.short(day, today: store.today), count: tasks.count)
+                    EventsCard(events: events, compacto: true)
                     if tasks.isEmpty && events.isEmpty {
-                        EmptyState(symbol: "calendar", title: "Dia livre")
+                        EstadoVazio(icone: "calendar", titulo: "dia livre")
+                    } else if !tasks.isEmpty {
+                        SecaoTarefas(DayLabel.short(day, today: store.today).lowercased(), contagem: tasks.count) {
+                            ForEach(tasks) { TaskRow(task: $0, style: .compact, showDate: false) }
+                        }
                     }
-                    ForEach(tasks) { TaskRow(task: $0, style: .compact, showDate: false) }
                 }
-                .padding(.horizontal, 8)
-                .padding(.bottom, 10)
+                .padding(.horizontal, DS.e4)
+                .padding(.bottom, DS.e4)
             }
             .scrollIndicators(.never)
-            .frame(minHeight: 120, maxHeight: 380)
-            .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -273,42 +320,38 @@ struct PopoverCalendarView: View {
 
     private var weekStrip: some View {
         HStack(spacing: 2) {
-            Button { day = cal.adding(days: -7, to: day) } label: {
-                Image(systemName: "chevron.left").iconButtonLabel(size: 24)
+            BotaoIcone(simbolo: "chevron.left", rotulo: "Voltar uma semana", tamanho: 26, tamanhoIcone: 11) {
+                withAnimation(DS.curva) { day = cal.adding(days: -7, to: day) }
             }
-            .buttonStyle(.pressable)
-
             ForEach(0..<7, id: \.self) { offset in
                 let date = cal.adding(days: offset, to: weekStart)
                 let selected = date == day
                 let isToday = date == store.today
                 let busy = !store.tasks(on: date).isEmpty || !store.events(on: date).isEmpty
-                Button { day = date } label: {
+                Button { withAnimation(DS.curvaRapida) { day = date } } label: {
                     VStack(spacing: 3) {
-                        Text(date.formatted(.dateTime.weekday(.narrow)).uppercased())
-                            .font(.system(size: 9.5, weight: .semibold))
-                            .foregroundStyle(selected ? Color.white.opacity(0.85) : Theme.subtle)
+                        Text(date.formatted(.dateTime.weekday(.narrow)).lowercased())
+                            .txt(.xs, .medium)
+                            .foregroundStyle(selected ? DS.acentoSolidoTexto.opacity(0.85) : DS.texto3)
                         Text("\(cal.component(.day, from: date))")
-                            .font(.system(size: 14, weight: selected || isToday ? .bold : .medium))
-                            .foregroundStyle(selected ? Color.white : (isToday ? Color.accentColor : .primary))
+                            .txt(.md, selected || isToday ? .bold : .medium)
+                            .foregroundStyle(selected ? DS.acentoSolidoTexto : (isToday ? DS.acentoTexto : DS.texto))
                         Circle()
-                            .fill(selected ? Color.white : Color.accentColor)
+                            .fill(selected ? DS.acentoSolidoTexto : DS.acentoTexto)
                             .frame(width: 4, height: 4)
                             .opacity(busy ? 1 : 0)
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 6)
-                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(selected ? Color.accentColor : .clear))
+                    .background(RoundedRectangle(cornerRadius: DS.raioM, style: .continuous)
+                        .fill(selected ? DS.acentoSolido : .clear))
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(.pressable)
+                .buttonStyle(Pressionavel(raio: DS.raioM, escala: 0.94))
             }
-
-            Button { day = cal.adding(days: 7, to: day) } label: {
-                Image(systemName: "chevron.right").iconButtonLabel(size: 24)
+            BotaoIcone(simbolo: "chevron.right", rotulo: "Avançar uma semana", tamanho: 26, tamanhoIcone: 11) {
+                withAnimation(DS.curva) { day = cal.adding(days: 7, to: day) }
             }
-            .buttonStyle(.pressable)
         }
     }
 }

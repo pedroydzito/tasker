@@ -75,9 +75,11 @@ struct QuickAddPanelView: View {
 
     var body: some View {
         QuickAddField(defaultDue: store.today, style: .large, onAdded: onClose)
-            .padding(14)
+            .padding(DS.e2)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .background(DS.superficie, in: RoundedRectangle(cornerRadius: DS.raioCartao, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: DS.raioCartao, style: .continuous).strokeBorder(DS.borda))
+            .tint(DS.acento)
             .onExitCommand(perform: onClose)
     }
 }

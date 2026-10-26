@@ -17,6 +17,8 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN_DIR/Tasker" "$APP/Contents/MacOS/Tasker"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
+mkdir -p "$APP/Contents/Resources/Fonts"
+cp Resources/Fonts/*.ttf Resources/Fonts/*.txt "$APP/Contents/Resources/Fonts/"
 # Ícone: o próprio binário desenha a arte em 1024px; geramos todos os tamanhos do .icns.
 ICON_PNG="build/icon-1024.png"
 if "$BIN_DIR/Tasker" --export-icon "$ICON_PNG"; then
