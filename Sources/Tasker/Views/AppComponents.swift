@@ -24,7 +24,7 @@ struct ListIconView: View {
                     color.opacity(0.16)
                     if let symbol = store.symbol(forList: listID) {
                         Image(systemName: symbol)
-                            .font(.system(size: size * 0.48, weight: .semibold))
+                            .font(.system(size: size * 0.5, weight: .medium))
                             .foregroundStyle(color)
                     } else {
                         Text(String(store.displayName(listID).prefix(1)).uppercased())
@@ -384,32 +384,60 @@ struct EditorDeLista: View {
     }
 }
 
-/// Grade da biblioteca de ícones.
+/// Biblioteca de ícones (contorno): uma linha que rola para o lado, ou "Ver todos" em grade.
 struct GradeDeIcones: View {
     let selecionado: String?
     let cor: Color
     let escolher: (String) -> Void
+    @State private var todos = false
 
     private let colunas = Array(repeating: GridItem(.flexible(), spacing: 6), count: 8)
 
     var body: some View {
-        LazyVGrid(columns: colunas, spacing: 6) {
-            ForEach(Palette.simbolos, id: \.self) { simbolo in
-                let ativo = selecionado == simbolo
-                Button { escolher(simbolo) } label: {
-                    Image(systemName: simbolo)
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(ativo ? cor : DS.texto2)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 34)
-                        .background(RoundedRectangle(cornerRadius: DS.raioP, style: .continuous)
-                            .fill(ativo ? cor.opacity(0.16) : DS.superficie2))
-                        .overlay(RoundedRectangle(cornerRadius: DS.raioP, style: .continuous)
-                            .strokeBorder(ativo ? cor : .clear, lineWidth: 1.5))
+        VStack(alignment: .leading, spacing: DS.e2) {
+            if todos {
+                LazyVGrid(columns: colunas, spacing: 6) {
+                    ForEach(Palette.simbolos, id: \.self) { celula($0) }
                 }
-                .buttonStyle(Pressionavel(raio: DS.raioP, escala: 0.94))
+                .transition(.opacity)
+            } else {
+                ScrollView(.horizontal) {
+                    LazyHStack(spacing: 6) {
+                        // O escolhido vem primeiro, para estar sempre à vista.
+                        ForEach(ordenados, id: \.self) { celula($0).frame(width: 38) }
+                    }
+                    .padding(.vertical, 2)
+                }
+                .scrollIndicators(.never)
+                .frame(height: 40)
             }
+            Button(todos ? "Mostrar menos" : "Ver todos os \(Palette.simbolos.count) ícones") {
+                withAnimation(DS.curva) { todos.toggle() }
+            }
+            .buttonStyle(Botao(variante: .fantasma))
         }
+    }
+
+    private var ordenados: [String] {
+        guard let selecionado, Palette.simbolos.contains(selecionado) else { return Palette.simbolos }
+        return [selecionado] + Palette.simbolos.filter { $0 != selecionado }
+    }
+
+    private func celula(_ simbolo: String) -> some View {
+        let ativo = selecionado == simbolo
+        return Button { escolher(simbolo) } label: {
+            Image(systemName: simbolo)
+                .font(.system(size: 14, weight: .regular))
+                .foregroundStyle(ativo ? cor : DS.texto2)
+                .frame(maxWidth: .infinity)
+                .frame(height: 34)
+                .background(RoundedRectangle(cornerRadius: DS.raioP, style: .continuous)
+                    .fill(ativo ? cor.opacity(0.14) : DS.superficie2))
+                .overlay(RoundedRectangle(cornerRadius: DS.raioP, style: .continuous)
+                    .strokeBorder(ativo ? cor : .clear, lineWidth: 1.5))
+        }
+        .buttonStyle(Pressionavel(raio: DS.raioP, escala: 0.94))
+        .help(simbolo)
     }
 }
 

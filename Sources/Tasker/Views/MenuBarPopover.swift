@@ -34,6 +34,8 @@ struct MenuBarPopover: View {
             navegacao
         }
         .frame(width: Self.largura)
+        // Com uma folha aberta, o menu cresce até a altura máxima para ela caber inteira.
+        .frame(minHeight: folhas.atual != nil ? 540 : nil, alignment: .top)
         .fixedSize(horizontal: false, vertical: true)
         .background(DS.fundo)
         .hospedaFolhas(folhas)

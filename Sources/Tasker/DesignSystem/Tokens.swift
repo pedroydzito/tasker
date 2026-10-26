@@ -113,14 +113,17 @@ enum Palette {
     static let lists = ["#E8553F", "#E08A1E", "#C9A21B", "#3FA35B", "#1FA6A0", "#3B82E0", "#6E5CE6", "#C255C9", "#D9467A", "#7A7468"]
     /// Biblioteca de ícones para as listas (SF Symbols — nada de emoji).
     static let simbolos = [
-        "person.fill", "person.2.fill", "briefcase.fill", "building.2.fill", "house.fill", "cart.fill",
-        "paintbrush.pointed.fill", "paintpalette.fill", "pencil.and.ruler.fill", "camera.fill", "photo.fill", "film.fill",
-        "music.note", "headphones", "gamecontroller.fill", "book.fill", "graduationcap.fill", "lightbulb.fill",
-        "brain.head.profile", "heart.fill", "star.fill", "flame.fill", "bolt.fill", "leaf.fill",
-        "figure.run", "dumbbell.fill", "fork.knife", "cup.and.saucer.fill", "airplane", "car.fill",
-        "creditcard.fill", "banknote.fill", "chart.line.uptrend.xyaxis", "doc.text.fill", "folder.fill", "tray.full.fill",
-        "laptopcomputer", "chevron.left.forwardslash.chevron.right", "globe.americas.fill", "megaphone.fill", "phone.fill", "envelope.fill",
-        "calendar", "clock.fill", "flag.fill", "target", "checklist", "sparkles",
+        "person", "person.2", "person.3", "briefcase", "building.2", "house", "storefront", "cart", "bag",
+        "paintbrush.pointed", "paintpalette", "pencil.and.ruler", "pencil", "scissors", "camera", "photo", "film",
+        "video", "music.note", "headphones", "mic", "gamecontroller", "tv", "book", "books.vertical", "graduationcap",
+        "lightbulb", "brain", "heart", "star", "flame", "bolt", "leaf", "tree", "sun.max", "moon", "cloud",
+        "figure.run", "dumbbell", "bicycle", "fork.knife", "cup.and.saucer", "wineglass", "airplane", "car", "bus",
+        "map", "mappin.and.ellipse", "globe.americas", "creditcard", "banknote", "dollarsign.circle", "chart.bar",
+        "chart.line.uptrend.xyaxis", "chart.pie", "doc.text", "folder", "tray", "archivebox", "paperclip", "link",
+        "laptopcomputer", "desktopcomputer", "iphone", "chevron.left.forwardslash.chevron.right", "terminal",
+        "megaphone", "bubble.left", "phone", "envelope", "paperplane", "calendar", "clock", "alarm", "flag",
+        "bookmark", "tag", "target", "checklist", "list.bullet", "square.grid.2x2", "sparkles", "wand.and.stars",
+        "gift", "pawprint", "stethoscope", "cross.case", "hammer", "wrench.and.screwdriver", "gearshape", "lock",
     ]
 }
 

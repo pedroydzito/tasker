@@ -62,6 +62,7 @@ struct TaskRow: View {
         .animation(DS.curvaRapida, value: hovering)
         .animation(DS.curvaRapida, value: isSelected)
         .onTapGesture(perform: open)
+        .pointerStyle(.link)
         .simultaneousGesture(DragGesture(minimumDistance: 0)
             .onChanged { _ in if !pressed { withAnimation(DS.toque) { pressed = true } } }
             .onEnded { _ in withAnimation(DS.curvaRapida) { pressed = false } })

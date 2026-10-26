@@ -172,7 +172,8 @@ struct Sidebar: View {
             }
             .contentShape(Rectangle())
         }
-        .buttonStyle(Pressionavel(raio: DS.raioM))
+        // Sem encolher no clique: a linha também é a alça de arrastar.
+        .buttonStyle(Pressionavel(raio: DS.raioM, escala: 1))
     }
 
     private func cabecalhoSecao(_ titulo: String, recolhida: Binding<Bool>) -> some View {
@@ -276,22 +277,28 @@ struct SyncStatusButton: View {
 }
 
 /// Pilha de linhas que se reordena segurando e arrastando para cima ou para baixo.
-/// As outras linhas abrem espaço ao vivo; ao soltar, a posição fica salva.
+/// O item segue o mouse 1:1; os outros abrem espaço; ao soltar, a nova ordem é salva.
 struct ListaReordenavel<Row: View>: View {
     let ids: [String]
     let mover: (String, Int) -> Void
     @ViewBuilder let linha: (String) -> Row
 
-    /// Altura de uma linha + espaço entre linhas (as linhas da barra lateral têm 36 + 4).
+    /// Altura de uma linha (36) + espaço entre linhas (4).
     var passo: CGFloat = 40
 
     @State private var arrastando: String?
-    @State private var deslocamento: CGFloat = 0
-    @State private var compensacao: CGFloat = 0
+    @State private var dy: CGFloat = 0
+
+    private var origem: Int? { arrastando.flatMap { ids.firstIndex(of: $0) } }
+
+    private var destino: Int? {
+        guard let origem else { return nil }
+        return max(0, min(ids.count - 1, origem + Int((dy / passo).rounded())))
+    }
 
     var body: some View {
         VStack(spacing: DS.e1) {
-            ForEach(ids, id: \.self) { id in
+            ForEach(Array(ids.enumerated()), id: \.element) { indice, id in
                 let ativo = arrastando == id
                 linha(id)
                     .frame(height: 36)
@@ -299,42 +306,43 @@ struct ListaReordenavel<Row: View>: View {
                         if ativo {
                             RoundedRectangle(cornerRadius: DS.raioM, style: .continuous)
                                 .fill(DS.superficie)
+                                .overlay(RoundedRectangle(cornerRadius: DS.raioM, style: .continuous).strokeBorder(DS.borda))
                                 .shadow(color: .black.opacity(0.12), radius: 10, y: 4)
                         }
                     }
-                    .scaleEffect(ativo ? 1.02 : 1)
-                    .offset(y: ativo ? deslocamento : 0)
+                    .offset(y: deslocamento(indice, id))
                     .zIndex(ativo ? 1 : 0)
+                    .animation(ativo ? nil : DS.curva, value: destino)
                     .simultaneousGesture(
-                        DragGesture(minimumDistance: 6)
-                            .onChanged { g in arrastar(id, g.translation.height) }
+                        DragGesture(minimumDistance: 6, coordinateSpace: .global)
+                            .onChanged { g in
+                                if arrastando == nil { arrastando = id }
+                                if arrastando == id { dy = g.translation.height }
+                            }
                             .onEnded { _ in soltar() }
                     )
             }
         }
     }
 
-    private func arrastar(_ id: String, _ dy: CGFloat) {
-        if arrastando == nil {
-            withAnimation(DS.curvaRapida) { arrastando = id }
-            compensacao = 0
-        }
-        deslocamento = dy - compensacao
-        guard let atual = ids.firstIndex(of: id) else { return }
-        let passos = Int((deslocamento / passo).rounded())
-        guard passos != 0 else { return }
-        let alvo = max(0, min(ids.count - 1, atual + passos))
-        guard alvo != atual else { return }
-        withAnimation(DS.curva) { mover(id, alvo) }
-        compensacao += CGFloat(alvo - atual) * passo
-        deslocamento = dy - compensacao
+    private func deslocamento(_ indice: Int, _ id: String) -> CGFloat {
+        guard let origem, let destino else { return 0 }
+        if id == arrastando { return dy }
+        if origem < destino, indice > origem, indice <= destino { return -passo }
+        if origem > destino, indice >= destino, indice < origem { return passo }
+        return 0
     }
 
     private func soltar() {
-        withAnimation(DS.curva) {
+        guard let id = arrastando else { return }
+        let alvo = destino
+        // Sem animação: o item já está visualmente no lugar novo.
+        var transacao = Transaction()
+        transacao.disablesAnimations = true
+        withTransaction(transacao) {
+            if let alvo { mover(id, alvo) }
             arrastando = nil
-            deslocamento = 0
+            dy = 0
         }
-        compensacao = 0
     }
 }

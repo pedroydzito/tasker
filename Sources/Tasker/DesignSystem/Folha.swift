@@ -32,6 +32,7 @@ struct HospedeDeFolhas: ViewModifier {
     func body(content: Content) -> some View {
         content
             .overlay {
+                GeometryReader { geo in
                 ZStack {
                     if let atual = folhas.atual {
                         DS.veuModal
@@ -39,7 +40,9 @@ struct HospedeDeFolhas: ViewModifier {
                             .onTapGesture { withAnimation(DS.curvaSaida) { folhas.fechar() } }
                             .transition(.opacity)
 
-                        CaixaDaFolha(atual: atual) { withAnimation(DS.curvaSaida) { folhas.fechar() } }
+                        CaixaDaFolha(atual: atual, alturaMaxima: geo.size.height - DS.e4 * 2) {
+                            withAnimation(DS.curvaSaida) { folhas.fechar() }
+                        }
                             .id(atual.id)
                             .transition(.asymmetric(
                                 insertion: .opacity.combined(with: .scale(scale: 0.96)).combined(with: .offset(y: 8)),
@@ -47,7 +50,9 @@ struct HospedeDeFolhas: ViewModifier {
                             ))
                     }
                 }
+                .frame(width: geo.size.width, height: geo.size.height)
                 .animation(DS.curva, value: folhas.atual?.id)
+                }
             }
             .environment(folhas)
     }
@@ -59,7 +64,11 @@ extension View {
 
 private struct CaixaDaFolha: View {
     let atual: Folhas.Atual
+    /// A folha nunca passa da janela: acima disso, o corpo rola.
+    let alturaMaxima: CGFloat
     let fechar: () -> Void
+    @State private var alturaCorpo: CGFloat = 200
+    @State private var alturaCabecalho: CGFloat = 64
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -78,17 +87,22 @@ private struct CaixaDaFolha: View {
             }
             .padding(.horizontal, DS.e5)
             .padding(.vertical, DS.e4)
-
-            Rectangle().fill(DS.borda).frame(height: 1)
+            .overlay(alignment: .bottom) { Rectangle().fill(DS.borda).frame(height: 1) }
+            .background(GeometryReader { g in Color.clear.onAppear { alturaCabecalho = g.size.height } })
 
             ScrollView {
                 atual.conteudo
                     .padding(.horizontal, DS.e5)
                     .padding(.vertical, DS.e4)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(GeometryReader { g in
+                        Color.clear
+                            .onAppear { alturaCorpo = g.size.height }
+                            .onChange(of: g.size.height) { _, h in alturaCorpo = h }
+                    })
             }
-            .scrollIndicators(.never)
-            .fixedSize(horizontal: false, vertical: true)
+            .scrollIndicators(.automatic)
+            .frame(height: max(80, min(alturaCorpo, alturaMaxima - alturaCabecalho)))
         }
         .frame(maxWidth: atual.largura)
         .background(DS.superficie, in: RoundedRectangle(cornerRadius: DS.raioCartao, style: .continuous))

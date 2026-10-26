@@ -19,6 +19,7 @@ struct Veu: ViewModifier {
             .animation(pressionado ? DS.toque : DS.curvaRapida, value: pressionado)
             .animation(DS.curvaRapida, value: hovering)
             .onHover { hovering = $0 }
+            .pointerStyle(.link)
     }
 }
 
@@ -61,6 +62,7 @@ struct Botao: ButtonStyle {
                 .animation(configuration.isPressed ? DS.toque : DS.curvaRapida, value: configuration.isPressed)
                 .animation(DS.curvaRapida, value: hovering)
                 .onHover { hovering = $0 }
+                .pointerStyle(isEnabled ? .link : nil)
         }
 
         private var altura: CGFloat {
@@ -180,6 +182,7 @@ struct SoAfunda: ButtonStyle {
         configuration.label
             .scaleEffect(configuration.isPressed ? escala : 1)
             .animation(configuration.isPressed ? DS.toque : DS.curvaRapida, value: configuration.isPressed)
+            .pointerStyle(.link)
     }
 }
 
