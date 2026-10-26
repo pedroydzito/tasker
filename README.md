@@ -4,9 +4,11 @@ App nativo para macOS (Swift + SwiftUI) que vive na **barra de menu** e mostra s
 
 ## O que ele faz
 
-- **Ícone na barra de menu com contador**: mostra quantas tarefas faltam para hoje e se atualiza na hora quando você cria ou conclui uma tarefa. Dá para escolher entre "ícone + número" e "número no quadrado", e decidir se as atrasadas entram na conta.
+- **Ícone na barra de menu com contador**: ícone de tarefa com um selo mostrando quantas faltam para hoje e se atualiza na hora quando você cria ou conclui uma tarefa. Dá para trocar por "ícone + número ao lado", e decidir se as atrasadas entram na conta.
 - **Popover "Hoje"**: eventos do dia (recolhíveis), tarefas em atraso com botão **Adiar** (manda tudo para hoje), tarefas de hoje e um campo para adicionar.
 - **Janela principal**: Hoje, Amanhã, Próximas (14 dias), Calendário (mês + agenda do dia), Todas (por data ou por lista), Concluídas, cada lista do Google e as etiquetas. Clicar numa tarefa abre o painel de detalhes à direita.
+- **Listas com a sua cara**: emoji ou foto e cor personalizáveis; a lista aparece como uma pílula na cor dela.
+- **Tema**: Sistema, Claro ou Escuro (o menu não escurece só porque a barra está escura).
 - **Etiquetas locais**: ficam só no Tasker e não vão para o Google Tasks. As **listas** continuam sendo as do Google.
 - **Criação rápida com linguagem natural**: `Ligar pro cliente amanhã ~trabalho #urgente`
   - datas: `hoje`, `amanhã`, `depois de amanhã`, `segunda` … `domingo`, `30/10`, `sem data`
@@ -49,6 +51,8 @@ Cada alteração enviada ao GitHub gera um novo release (`v0.1.<número>`) pelo 
 
 - mostra uma **notificação** com o botão **Atualizar** e um aviso no topo do popover;
 - ao clicar, baixa a nova versão, substitui o app, **reinicia e abre já atualizado**.
+
+Se o macOS bloquear a troca do app (proteção **Gerenciamento de Apps**, comum em apps sem assinatura da Apple), o Tasker avisa ao reabrir. Libere em **Ajustes do Sistema → Privacidade e Segurança → Gerenciamento de Apps → Tasker** e clique em **Tentar de novo**, ou use **Instalar manualmente**. O registro de cada tentativa fica em `~/Library/Logs/Tasker-update.log`.
 
 Seus dados não se perdem: login, etiquetas e preferências ficam em `~/Library/Application Support/Tasker` e nas preferências do usuário, fora do app.
 
