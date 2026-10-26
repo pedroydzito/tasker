@@ -111,7 +111,7 @@ enum GestoIcone {
         if r.hasPrefix("voltar") || r.hasPrefix("anterior") { return .voltar }
         if r.hasPrefix("avançar") || r.hasPrefix("próxim") { return .avancar }
         if r.hasPrefix("abrir") { return .expandir }
-        if r.hasPrefix("sincronizar") { return .sincronizar }
+        if r.hasPrefix("Sincronizar") { return .sincronizar }
         return .nenhum
     }
 }
@@ -139,7 +139,7 @@ struct BotaoIcone: View {
     }
 }
 
-/// O ícone cresce 12% no hover; ações nomeadas ganham o próprio gesto.
+/// O ícone só cresce no hover (12%) — nada de girar ou deslizar.
 struct IconeQueReage: View {
     let simbolo: String
     var gesto: GestoIcone = .nenhum
@@ -149,30 +149,9 @@ struct IconeQueReage: View {
     var body: some View {
         Image(systemName: simbolo)
             .font(.system(size: tamanho, weight: .medium))
-            .rotationEffect(.degrees(rotacao))
-            .offset(x: deslize, y: gesto == .expandir && hovering ? -1 : 0)
-            .scaleEffect(hovering ? (gesto == .criar ? 1.06 : 1.12) : 1)
+            .scaleEffect(hovering ? 1.12 : 1)
             .animation(DS.curvaRapida, value: hovering)
             .onHover { hovering = $0 }
-    }
-
-    private var rotacao: Double {
-        guard hovering else { return 0 }
-        switch gesto {
-        case .fechar, .criar: return 12
-        case .apagar: return -8
-        case .sincronizar: return 60
-        default: return 0
-        }
-    }
-
-    private var deslize: CGFloat {
-        guard hovering else { return 0 }
-        switch gesto {
-        case .voltar: return -2
-        case .avancar, .expandir: return 2
-        default: return 0
-        }
     }
 }
 
@@ -352,7 +331,7 @@ struct Nota<Acoes: View>: View {
         switch tom {
         case .info: DS.texto2
         case .aviso: DS.aviso
-        case .erro: DS.acentoTexto
+        case .erro: DS.perigoTexto
         }
     }
 
@@ -430,7 +409,7 @@ struct Pasta<Content: View>: View {
                 HStack(spacing: DS.e3) {
                     Image(systemName: icone)
                         .font(.system(size: 15, weight: .medium))
-                        .foregroundStyle(perigo ? DS.acentoTexto : DS.texto2)
+                        .foregroundStyle(perigo ? DS.perigoTexto : DS.texto2)
                         .frame(width: 22)
                     VStack(alignment: .leading, spacing: 1) {
                         Text(titulo).txt(.sm, .semibold).foregroundStyle(DS.texto)
@@ -499,11 +478,11 @@ struct CabecalhoTela<Leading: View, Trailing: View>: View {
     @ViewBuilder var trailing: Trailing
 
     var body: some View {
-        HStack(alignment: .bottom, spacing: DS.e4) {
+        HStack(alignment: .center, spacing: DS.e4) {
             leading
-            VStack(alignment: .leading, spacing: 10) {
-                if let rotulo { Text(rotulo).rotulo() }
+            VStack(alignment: .leading, spacing: 3) {
                 Text(titulo).display(tamanho).foregroundStyle(DS.texto).lineLimit(2)
+                if let rotulo { Text(rotulo).txt(.sm).foregroundStyle(DS.texto3) }
             }
             Spacer(minLength: DS.e4)
             trailing

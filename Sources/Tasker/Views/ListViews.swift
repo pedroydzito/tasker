@@ -6,9 +6,9 @@ struct AllTasksView: View {
     @AppStorage("allGroupByList") private var groupByList = false
 
     var body: some View {
-        PageScaffold(rotulo: taskCountText(store.activeCount), title: "todas") {
+        PageScaffold(rotulo: taskCountText(store.activeCount), title: "Todas") {
             VStack(alignment: .leading, spacing: DS.e6) {
-                Segmentado(selecao: $groupByList, opcoes: [(false, "por data"), (true, "por lista")])
+                Segmentado(selecao: $groupByList, opcoes: [(false, "Por data"), (true, "Por lista")])
 
                 if groupByList {
                     ForEach(store.lists) { list in
@@ -20,10 +20,10 @@ struct AllTasksView: View {
                         }
                     }
                 } else {
-                    grupo("em atraso", store.overdueTasks, tom: DS.acentoTexto)
-                    grupo("hoje", store.todayTasks)
-                    grupo("em breve", store.laterTasks)
-                    grupo("sem data", store.undatedTasks)
+                    grupo("Em atraso", store.overdueTasks, tom: DS.perigoTexto)
+                    grupo("Hoje", store.todayTasks)
+                    grupo("Em breve", store.laterTasks)
+                    grupo("Sem data", store.undatedTasks)
                 }
             }
         }
@@ -51,7 +51,7 @@ struct ListDetailView: View {
         let cor = store.color(forList: listID)
         PageScaffold(rotulo: taskCountText(items.count), title: store.displayName(listID)) {
             Button {
-                folhas.abrir("personalizar lista", largura: 440) { EditorDeLista(listID: listID) }
+                folhas.abrir("Personalizar lista", largura: 440) { EditorDeLista(listID: listID) }
             } label: {
                 ListIconView(listID: listID, size: 56)
                     .padding(4)
@@ -70,15 +70,15 @@ struct ListDetailView: View {
             .help("Personalizar ícone e cor")
         } content: {
             VStack(alignment: .leading, spacing: DS.e6) {
-                SecaoTarefas("tarefas", contagem: items.count, tom: cor) {
+                SecaoTarefas("Tarefas", contagem: items.count, tom: cor) {
                     if items.isEmpty {
-                        EstadoVazio(icone: "checklist", titulo: "lista vazia", descricao: "Use a barra abaixo para criar a primeira tarefa.")
+                        EstadoVazio(icone: "checklist", titulo: "Lista vazia", descricao: "Use a barra abaixo para criar a primeira tarefa.")
                     } else {
                         ForEach(items) { TaskRow(task: $0.task, showList: false, depth: $0.depth) }
                     }
                 }
                 if !done.isEmpty {
-                    SecaoTarefas("concluídas", contagem: done.count, recolhida: true) {
+                    SecaoTarefas("Concluídas", contagem: done.count, recolhida: true) {
                         ForEach(done.prefix(30)) { TaskRow(task: $0, showList: false) }
                     }
                 }
@@ -95,10 +95,10 @@ struct TagDetailView: View {
     var body: some View {
         if let tag = store.tag(tagID) {
             let items = store.tasks(withTag: tagID)
-            PageScaffold(rotulo: "etiqueta · só no tasker", title: "#\(tag.name)") {
+            PageScaffold(rotulo: "Etiqueta · só no Tasker", title: "#\(tag.name)") {
                 VStack(alignment: .leading, spacing: DS.e6) {
                     HStack(spacing: DS.e4) {
-                        TextField("nome", text: Binding(
+                        TextField("Nome", text: Binding(
                             get: { tag.name },
                             set: { var t = tag; t.name = $0; store.updateTag(t) }
                         ))
@@ -109,9 +109,9 @@ struct TagDetailView: View {
                             set: { var t = tag; t.colorHex = $0; store.updateTag(t) }
                         ))
                     }
-                    SecaoTarefas("tarefas", contagem: items.count) {
+                    SecaoTarefas("Tarefas", contagem: items.count) {
                         if items.isEmpty {
-                            EstadoVazio(icone: "number", titulo: "nenhuma tarefa aqui",
+                            EstadoVazio(icone: "number", titulo: "Nenhuma tarefa aqui",
                                         descricao: "Clique com o botão direito numa tarefa → Etiquetas.")
                         } else {
                             ForEach(items) { TaskRow(task: $0) }
@@ -120,7 +120,7 @@ struct TagDetailView: View {
                 }
             }
         } else {
-            EstadoVazio(icone: "number", titulo: "etiqueta não encontrada")
+            EstadoVazio(icone: "number", titulo: "Etiqueta não encontrada")
         }
     }
 }
@@ -133,10 +133,10 @@ struct CompletedView: View {
     var body: some View {
         let items = Array(store.completedTasks.prefix(limit))
         let groups = Dictionary(grouping: items) { Calendar.current.startOfDay(for: $0.completedDate ?? .distantPast) }
-        PageScaffold(rotulo: "\(store.completedTasks.count) tarefas até aqui", title: "concluídas") {
+        PageScaffold(rotulo: "\(store.completedTasks.count) tarefas até aqui", title: "Concluídas") {
             VStack(alignment: .leading, spacing: DS.e6) {
                 ForEach(groups.keys.sorted(by: >), id: \.self) { day in
-                    SecaoTarefas(day == .distantPast ? "sem data" : DayLabel.short(day, today: store.today).lowercased(),
+                    SecaoTarefas(day == .distantPast ? "Sem data" : DayLabel.short(day, today: store.today),
                                  contagem: groups[day]?.count ?? 0) {
                         ForEach(groups[day] ?? []) { TaskRow(task: $0, showDate: false) }
                     }

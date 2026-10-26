@@ -14,7 +14,7 @@ struct OnboardingView: View {
             VStack(alignment: .leading, spacing: DS.e6) {
                 VStack(alignment: .leading, spacing: DS.e4) {
                     Simbolo(tamanho: 56)
-                    Text("bem-vindo ao tasker").display().foregroundStyle(DS.texto)
+                    Text("Bem-vindo ao Tasker").display().foregroundStyle(DS.texto)
                     Text("Suas tarefas do Google Tasks e os eventos do Google Calendar, direto na barra de menu.")
                         .txt(.lg)
                         .foregroundStyle(DS.texto2)
@@ -22,17 +22,17 @@ struct OnboardingView: View {
                 .encadeado(0)
 
                 VStack(alignment: .leading, spacing: DS.e4) {
-                    Text("1 · credenciais do google").rotulo()
+                    Text("1 · Credenciais do Google").rotulo()
                     Nota("No Google Cloud Console, ative as APIs Google Tasks e Google Calendar, configure a tela de consentimento e crie um ID do cliente OAuth do tipo “App para computador”. O passo a passo está no README.")
                     Link("Abrir o Google Cloud Console", destination: URL(string: "https://console.cloud.google.com/apis/credentials")!)
                         .txt(.sm, .medium)
                         .foregroundStyle(DS.link)
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("client id").rotulo()
+                        Text("Client ID").rotulo()
                         TextField("….apps.googleusercontent.com", text: $clientID).campo()
                     }
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("client secret").rotulo()
+                        Text("Client secret").rotulo()
                         SecureField("GOCSPX-…", text: $clientSecret).campo()
                     }
                 }
@@ -40,7 +40,7 @@ struct OnboardingView: View {
                 .encadeado(1)
 
                 VStack(alignment: .leading, spacing: DS.e4) {
-                    Text("2 · conectar a conta").rotulo()
+                    Text("2 · Conectar a conta").rotulo()
                     HStack(spacing: DS.e3) {
                         Button {
                             Task { await signIn() }

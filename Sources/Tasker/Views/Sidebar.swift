@@ -16,27 +16,27 @@ struct Sidebar: View {
     var body: some View {
         VStack(spacing: 0) {
             marca
-                .padding(.horizontal, DS.e4)
-                .padding(.top, 38) // botões da janela
-                .padding(.bottom, DS.e6)
+                .padding(.horizontal, DS.e3)
+                .padding(.top, 40) // botões da janela
+                .padding(.bottom, DS.e5)
 
             ScrollView {
                 VStack(alignment: .leading, spacing: DS.e1) {
-                    item(.today, "hoje", "sun.max", store.badgeCount)
-                    item(.tomorrow, "amanhã", "sunrise", store.tasks(on: Calendar.current.adding(days: 1, to: store.today)).count)
-                    item(.upcoming, "próximas", "calendar.day.timeline.left")
-                    item(.calendar, "calendário", "calendar")
-                    item(.all, "todas", "tray.full", store.activeCount)
-                    item(.completed, "concluídas", "checkmark.circle")
+                    item(.today, "Hoje", "sun.max", store.badgeCount)
+                    item(.tomorrow, "Amanhã", "sunrise", store.tasks(on: Calendar.current.adding(days: 1, to: store.today)).count)
+                    item(.upcoming, "Próximas", "calendar.day.timeline.left")
+                    item(.calendar, "Calendário", "calendar")
+                    item(.all, "Todas", "tray.full", store.activeCount)
+                    item(.completed, "Concluídas", "checkmark.circle")
 
-                    cabecalhoSecao("listas", recolhida: $listsCollapsed)
+                    cabecalhoSecao("Listas", recolhida: $listsCollapsed)
                     if !listsCollapsed {
                         ForEach(store.lists) { list in linhaLista(list) }
                     }
 
-                    cabecalhoSecao("etiquetas", recolhida: $tagsCollapsed) {
+                    cabecalhoSecao("Etiquetas", recolhida: $tagsCollapsed) {
                         BotaoIcone(simbolo: "plus", rotulo: "Nova etiqueta", tamanho: 22, tamanhoIcone: 10) {
-                            folhas.abrir("nova etiqueta") {
+                            folhas.abrir("Nova etiqueta") {
                                 CriadorDeEtiqueta { tag in nav.selection = .tag(tag.id) }
                             }
                         }
@@ -59,7 +59,7 @@ struct Sidebar: View {
                             }
                         }
                         if store.tags.isEmpty {
-                            Text("digite #etiqueta ao criar uma tarefa")
+                            Text("Digite #etiqueta ao criar uma tarefa")
                                 .txt(.xs)
                                 .foregroundStyle(DS.texto3)
                                 .padding(.horizontal, 10)
@@ -81,8 +81,8 @@ struct Sidebar: View {
 
     private var marca: some View {
         HStack(spacing: 10) {
-            Simbolo(tamanho: 26)
-            Text("tasker").display(.lg).foregroundStyle(DS.texto)
+            Simbolo(tamanho: 24)
+            Text("Tasker").display(.lg).foregroundStyle(DS.texto)
             Spacer()
             Menu {
                 if let email = auth.profile?.email { Text(email) }
@@ -120,7 +120,7 @@ struct Sidebar: View {
         let ativa = nav.selection == .list(list.id)
         return linha(selecionada: ativa, tinta: store.color(forList: list.id), titulo: store.displayName(list.id),
                      contagem: store.tasks(inList: list.id).count) {
-            ListIconView(listID: list.id, size: 20)
+            ListIconView(listID: list.id, size: 22)
         } acao: {
             nav.selection = .list(list.id)
         }
@@ -147,7 +147,7 @@ struct Sidebar: View {
         }
         .contextMenu {
             Button("Personalizar ícone e cor…") {
-                folhas.abrir("personalizar lista", largura: 440) { EditorDeLista(listID: list.id) }
+                folhas.abrir("Personalizar lista", largura: 440) { EditorDeLista(listID: list.id) }
             }
         }
     }
@@ -158,7 +158,7 @@ struct Sidebar: View {
                                     @ViewBuilder icone: () -> Icone, acao: @escaping () -> Void) -> some View {
         Button(action: acao) {
             HStack(spacing: DS.e3) {
-                icone().frame(width: 20, height: 20)
+                icone().frame(width: 24, height: 22)
                 Text(titulo)
                     .txt(.sm, selecionada ? .semibold : .medium)
                     .foregroundStyle(selecionada ? DS.texto : DS.texto2)
@@ -263,7 +263,7 @@ struct SyncStatusButton: View {
                 }
             }
             .txt(.xs, .medium)
-            .foregroundStyle(store.lastError == nil ? DS.texto3 : DS.acentoTexto)
+            .foregroundStyle(store.lastError == nil ? DS.texto3 : DS.perigoTexto)
             .padding(.horizontal, 10)
             .frame(height: 30)
         }
@@ -272,12 +272,12 @@ struct SyncStatusButton: View {
     }
 
     private func texto(agora: Date) -> String {
-        if store.isSyncing { return "sincronizando…" }
-        if store.lastError != nil { return "erro ao sincronizar" }
-        guard let last = store.lastSync else { return "sincronizar" }
+        if store.isSyncing { return "Sincronizando…" }
+        if store.lastError != nil { return "Erro ao sincronizar" }
+        guard let last = store.lastSync else { return "Sincronizar" }
         let s = Int(agora.timeIntervalSince(last))
-        if s < 60 { return "sincronizado agora" }
-        if s < 3600 { return "sincronizado há \(s / 60) min" }
-        return "sincronizado há \(s / 3600) h"
+        if s < 60 { return "Sincronizado agora" }
+        if s < 3600 { return "Sincronizado há \(s / 60) min" }
+        return "Sincronizado há \(s / 3600) h"
     }
 }

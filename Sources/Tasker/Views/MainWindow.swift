@@ -60,7 +60,7 @@ struct MainWindow: View {
     @ViewBuilder private var detail: some View {
         switch nav.selection ?? .today {
         case .today: TodayView()
-        case .tomorrow: DayView(title: "amanhã", day: Calendar.current.adding(days: 1, to: store.today))
+        case .tomorrow: DayView(title: "Amanhã", day: Calendar.current.adding(days: 1, to: store.today))
         case .upcoming: UpcomingView()
         case .calendar: CalendarView()
         case .completed: CompletedView()

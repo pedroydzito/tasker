@@ -46,7 +46,7 @@ struct TaskInspector: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: DS.e6) {
                     VStack(alignment: .leading, spacing: DS.e3) {
-                        TextField("título", text: $title, axis: .vertical)
+                        TextField("Título", text: $title, axis: .vertical)
                             .textFieldStyle(.plain)
                             .display(.titulo)
                             .foregroundStyle(DS.texto)
@@ -54,7 +54,7 @@ struct TaskInspector: View {
                     }
 
                     VStack(alignment: .leading, spacing: DS.e2) {
-                        Text("descrição").rotulo()
+                        Text("Descrição").rotulo()
                         TextEditor(text: $notes)
                             .txt(.md)
                             .scrollContentBackground(.hidden)
@@ -63,7 +63,7 @@ struct TaskInspector: View {
                             .background(DS.superficie2, in: RoundedRectangle(cornerRadius: DS.raioM, style: .continuous))
                     }
 
-                    Label("salvo automaticamente no Google Tasks", systemImage: "checkmark.icloud")
+                    Label("Salvo automaticamente no Google Tasks", systemImage: "checkmark.icloud")
                         .txt(.xs)
                         .foregroundStyle(DS.texto3)
                 }
@@ -100,12 +100,12 @@ struct PropriedadesDaTarefa: View {
 
             Button {
                 let inicial = due
-                folhas.abrir("quando?") {
+                folhas.abrir("Quando?") {
                     SeletorDeData(inicial: inicial) { due = $0 }
                 }
             } label: {
-                Chip(due.map { DayLabel.short($0, today: store.today).lowercased() } ?? "sem data",
-                     cor: due.map { $0 < store.today ? DS.acentoTexto : DS.texto2 }) {
+                Chip(due.map { DayLabel.short($0, today: store.today) } ?? "Sem data",
+                     cor: due.map { $0 < store.today ? DS.perigoTexto : DS.texto2 }) {
                     Image(systemName: "calendar").font(.system(size: 10, weight: .semibold))
                 }
             }
@@ -129,7 +129,7 @@ struct PropriedadesDaTarefa: View {
                 if !store.tags.isEmpty { Divider() }
                 Button("Nova etiqueta…") {
                     let current = task
-                    folhas.abrir("nova etiqueta") {
+                    folhas.abrir("Nova etiqueta") {
                         CriadorDeEtiqueta { tag in store.toggleTag(tag, on: current) }
                     }
                 }
@@ -164,12 +164,12 @@ struct EditorRapido: View {
     var body: some View {
         VStack(alignment: .leading, spacing: DS.e4) {
             VStack(alignment: .leading, spacing: 6) {
-                Text("título").rotulo()
-                TextField("título", text: $title).campo().onSubmit(save)
+                Text("Título").rotulo()
+                TextField("Título", text: $title).campo().onSubmit(save)
             }
             VStack(alignment: .leading, spacing: 6) {
-                Text("descrição").rotulo()
-                TextField("detalhes", text: $notes, axis: .vertical).lineLimit(2...6).campo()
+                Text("Descrição").rotulo()
+                TextField("Detalhes", text: $notes, axis: .vertical).lineLimit(2...6).campo()
             }
             PropriedadesDaTarefa(task: store.tasks[task.id] ?? task, due: $due)
             RodapeFolha {

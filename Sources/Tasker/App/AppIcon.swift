@@ -1,45 +1,33 @@
 import SwiftUI
 
-/// Ícone do app: azulejo azul-violeta no formato do macOS, com um "check" branco
-/// e o selo laranja — o mesmo conceito do ícone da barra de menu.
+/// Ícone do app: o mesmo símbolo de dentro do app (quadrado no azul de acento com o check),
+/// no formato e na grade padrão de ícones do macOS.
 enum AppIcon {
-    private static let blue = Color(hex: "#4C7DFF")
-    private static let violet = Color(hex: "#6B4CF0")
+    private static let topo = Color(hex: "#24A9FF")
+    private static let base = Color(hex: "#0084E8")
 
     @MainActor
     static var artwork: some View {
         ZStack {
-            // Grade padrão de ícones do macOS: 824pt de arte num canvas de 1024.
+            // Grade padrão do macOS: 824pt de arte num canvas de 1024.
             RoundedRectangle(cornerRadius: 185, style: .continuous)
-                .fill(LinearGradient(colors: [blue, violet], startPoint: .topLeading, endPoint: .bottomTrailing))
+                .fill(LinearGradient(colors: [topo, base], startPoint: .top, endPoint: .bottom))
                 .overlay(
                     RoundedRectangle(cornerRadius: 185, style: .continuous)
-                        .fill(LinearGradient(colors: [.white.opacity(0.28), .clear], startPoint: .top, endPoint: .center))
+                        .fill(LinearGradient(colors: [.white.opacity(0.22), .clear], startPoint: .top, endPoint: .center))
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 185, style: .continuous)
-                        .strokeBorder(.white.opacity(0.22), lineWidth: 4)
+                        .strokeBorder(.white.opacity(0.18), lineWidth: 4)
                 )
                 .frame(width: 824, height: 824)
-                .shadow(color: .black.opacity(0.3), radius: 22, y: 12)
+                .shadow(color: .black.opacity(0.25), radius: 20, y: 12)
 
-            // Disco branco com o check.
-            Circle()
-                .fill(.white)
-                .frame(width: 470, height: 470)
-                .shadow(color: Color(hex: "#2A1E8C").opacity(0.35), radius: 26, y: 14)
             Image(systemName: "checkmark")
-                .font(.system(size: 230, weight: .black))
-                .foregroundStyle(LinearGradient(colors: [blue, violet], startPoint: .topLeading, endPoint: .bottomTrailing))
-                .offset(y: 6)
-
-            // Selo laranja (contador).
-            Circle()
-                .fill(LinearGradient(colors: [Color(hex: "#FFA23A"), Color(hex: "#FF6A2C")], startPoint: .top, endPoint: .bottom))
-                .frame(width: 176, height: 176)
-                .overlay(Circle().strokeBorder(.white, lineWidth: 18))
-                .shadow(color: .black.opacity(0.2), radius: 10, y: 5)
-                .offset(x: 182, y: 182)
+                .font(.system(size: 420, weight: .heavy))
+                .foregroundStyle(.white)
+                .shadow(color: Color(hex: "#004F8C").opacity(0.35), radius: 14, y: 8)
+                .offset(y: 8)
         }
         .frame(width: 1024, height: 1024)
     }

@@ -22,6 +22,8 @@ final class TaskStore {
     /// Problema específico do Google Calendar (API desativada, permissão negada...). Não bloqueia as tarefas.
     private(set) var calendarIssue: APIError?
     private(set) var listPhotos: [String: NSImage] = [:]
+    /// Intervalo já sincronizado em `events`.
+    private(set) var eventRange: Range<Date>?
     private(set) var today = Calendar.current.startOfDay(for: .now)
     private(set) var tagDB = TagDatabase.load()
 
@@ -374,9 +376,14 @@ final class TaskStore {
             }
             .sorted { ($0.isPrimary ? 0 : 1, $0.title) < ($1.isPrimary ? 0 : 1, $1.title) }
 
-        let from = Calendar.current.adding(days: -7, to: today)
-        let to = Calendar.current.adding(days: 60, to: today)
+        // Do mês anterior até dois meses à frente (com a grade de semanas), para o
+        // calendário abrir já preenchido, sem esperar a rede.
+        let cal = Calendar.current
+        let month = cal.dateInterval(of: .month, for: today)?.start ?? today
+        let from = cal.adding(days: -7, to: cal.date(byAdding: .month, value: -1, to: month) ?? month)
+        let to = cal.adding(days: 14, to: cal.date(byAdding: .month, value: 3, to: month) ?? month)
         events = await loadEvents(from: from, to: to)
+        eventRange = from..<to
         lastEventSync = .now
     }
 
@@ -562,6 +569,8 @@ final class TaskStore {
         var calendars: [CalendarInfo]
         var events: [CalendarEvent]
         var listMarks: [String: Date]
+        var eventFrom: Date?
+        var eventTo: Date?
     }
 
     private static var cacheURL: URL {
@@ -573,7 +582,8 @@ final class TaskStore {
 
     private func saveCache() {
         let snapshot = Snapshot(email: auth.profile?.email, lists: lists, tasks: taskMap.values.filter { !$0.isLocal },
-                                calendars: calendars, events: events, listMarks: listMarks)
+                                calendars: calendars, events: events, listMarks: listMarks,
+                                eventFrom: eventRange?.lowerBound, eventTo: eventRange?.upperBound)
         guard let data = try? JSONEncoder().encode(snapshot) else { return }
         try? data.write(to: Self.cacheURL, options: .atomic)
     }
@@ -590,6 +600,7 @@ final class TaskStore {
         calendars = snapshot.calendars
         events = snapshot.events
         listMarks = snapshot.listMarks
+        if let from = snapshot.eventFrom, let to = snapshot.eventTo, from < to { eventRange = from..<to }
     }
 }
 

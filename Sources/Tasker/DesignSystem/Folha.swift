@@ -128,7 +128,7 @@ struct CalendarioMes: View {
     var body: some View {
         VStack(spacing: DS.e3) {
             HStack {
-                Text(mes.formatted(.dateTime.month(.wide).year()).lowercased())
+                Text(mes.formatted(.dateTime.month(.wide).year()).primeiraMaiuscula)
                     .display(.lg)
                     .foregroundStyle(DS.texto)
                     .id(mes)
@@ -222,8 +222,8 @@ struct SeletorDeData: View {
     var body: some View {
         VStack(alignment: .leading, spacing: DS.e4) {
             HStack(spacing: DS.e2) {
-                atalho("hoje", 0, "sun.max")
-                atalho("amanhã", 1, "sunrise")
+                atalho("Hoje", 0, "sun.max")
+                atalho("Amanhã", 1, "sunrise")
                 atalho("+1 semana", 7, "calendar.badge.plus")
             }
             CalendarioMes(mes: $mes, selecionado: inicial, hoje: store.today,

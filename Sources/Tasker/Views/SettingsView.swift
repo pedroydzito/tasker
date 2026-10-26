@@ -11,18 +11,18 @@ struct SettingsView: View {
 
     var body: some View {
         @Bindable var prefs = store.prefs
-        PageScaffold(rotulo: "tasker \(updater.currentVersion)", title: "ajustes") {
+        PageScaffold(rotulo: "Tasker \(updater.currentVersion)", title: "Ajustes") {
             VStack(alignment: .leading, spacing: DS.e3) {
                 Pasta(icone: "paintbrush", titulo: "Aparência e barra de menu",
                       subtitulo: "Tema, contador e estilo do ícone", aberta: true) {
                     LinhaAjuste("Tema", "Vale para a janela e para o menu da barra") {
-                        Segmentado(selecao: $prefs.appearance, opcoes: AppAppearance.allCases.map { ($0, $0.title.lowercased()) })
+                        Segmentado(selecao: $prefs.appearance, opcoes: AppAppearance.allCases.map { ($0, $0.title) })
                     }
                     LinhaAjuste("Mostrar contador", "Número de tarefas de hoje no ícone") {
                         Toggle("", isOn: $prefs.showCountInMenuBar).toggleStyle(.chave).labelsHidden()
                     }
                     LinhaAjuste("Estilo do ícone") {
-                        Segmentado(selecao: $prefs.menuBarStyle, opcoes: [(.badge, "selo"), (.iconAndNumber, "número ao lado")])
+                        Segmentado(selecao: $prefs.menuBarStyle, opcoes: [(.badge, "Selo"), (.iconAndNumber, "Número ao lado")])
                     }
                     LinhaAjuste("Contar atrasadas", "Agora: \(store.badgeCount) tarefa\(store.badgeCount == 1 ? "" : "s")") {
                         Toggle("", isOn: $prefs.includeOverdueInCount).toggleStyle(.chave).labelsHidden()
@@ -49,7 +49,7 @@ struct SettingsView: View {
                             Text(store.displayName(list.id)).txt(.sm, .medium).foregroundStyle(DS.texto)
                             Spacer()
                             Button("Personalizar") {
-                                folhas.abrir("personalizar lista", largura: 440) { EditorDeLista(listID: list.id) }
+                                folhas.abrir("Personalizar lista", largura: 440) { EditorDeLista(listID: list.id) }
                             }
                             .buttonStyle(.superficie)
                         }
@@ -91,8 +91,8 @@ struct SettingsView: View {
                         HStack(spacing: DS.e2) {
                             switch updater.state {
                             case .checking: ProgressView().controlSize(.small)
-                            case .upToDate: Text("em dia").txt(.xs, .semibold).foregroundStyle(DS.sucesso)
-                            case .failed(let message): Text(message).txt(.xs).foregroundStyle(DS.acentoTexto).lineLimit(2)
+                            case .upToDate: Text("Em dia").txt(.xs, .semibold).foregroundStyle(DS.sucesso)
+                            case .failed(let message): Text(message).txt(.xs).foregroundStyle(DS.perigoTexto).lineLimit(2)
                             default: EmptyView()
                             }
                             Button("Procurar atualização") { Task { await updater.check(userInitiated: true) } }.buttonStyle(.superficie)
@@ -113,7 +113,7 @@ struct SettingsView: View {
                                 }
                             }
                     }
-                    LinhaAjuste("Adicionar de qualquer lugar") { Tecla("⌥ espaço") }
+                    LinhaAjuste("Adicionar de qualquer lugar") { Tecla("⌥ Espaço") }
                     LinhaAjuste("Criação rápida", "hoje · amanhã · sexta · 30/10 · ~lista · #etiqueta") { EmptyView() }
                 }
 

@@ -16,7 +16,7 @@ struct MenuBarPopover: View {
     @State private var folhas = Folhas()
     @Namespace private var trilho
 
-    static let size = CGSize(width: 380, height: 560)
+    static let size = CGSize(width: 340, height: 540)
 
     var body: some View {
         VStack(spacing: 0) {
@@ -32,10 +32,12 @@ struct MenuBarPopover: View {
         }
         .frame(width: Self.size.width, height: Self.size.height)
         .background(DS.fundo)
+        .clipShape(RoundedRectangle(cornerRadius: DS.raioCartao, style: .continuous))
         .hospedaFolhas(folhas)
         .tint(DS.acento)
         .background(PopoverWindowConfigurator(
             appearance: store.prefs.appearance.resolved,
+            cornerRadius: DS.raioCartao,
             onOpen: { Task { await store.sync() } }
         ))
     }
@@ -43,53 +45,36 @@ struct MenuBarPopover: View {
     // MARK: Cabeçalho
 
     private var header: some View {
-        HStack(alignment: .bottom, spacing: DS.e2) {
+        HStack(alignment: .center, spacing: DS.e2) {
             if tab == .lists, let id = openListID {
                 BotaoIcone(simbolo: "chevron.left", rotulo: "Voltar às listas") {
                     withAnimation(DS.curva) { openListID = nil }
                 }
-                .padding(.bottom, 2)
-                ListIconView(listID: id, size: 30)
+                .padding(.leading, -6)
+                ListIconView(listID: id, size: 26)
                     .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous)
                         .strokeBorder(store.color(forList: id), lineWidth: 1.5).padding(-3))
-                    .padding(.leading, 3)
-                    .padding(.bottom, 2)
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(taskCountText(store.tasks(inList: id).count)).rotulo()
-                    Text(store.displayName(id)).display(.titulo).foregroundStyle(DS.texto).lineLimit(1)
-                }
+                    .padding(.horizontal, 3)
+                Text(store.displayName(id)).display(.titulo).foregroundStyle(DS.texto).lineLimit(1)
             } else {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(rotulo).rotulo()
-                    Text(titulo).display(.titulo).foregroundStyle(DS.texto)
-                }
+                Text(titulo).display(.titulo).foregroundStyle(DS.texto)
             }
             Spacer()
-            HStack(spacing: DS.e1) {
-                BotaoIcone(simbolo: "arrow.up.left.and.arrow.down.right", rotulo: "Abrir em tela grande") {
-                    openApp(destination)
-                }
-                accountMenu
+            BotaoIcone(simbolo: "arrow.up.left.and.arrow.down.right", rotulo: "Abrir em tela grande") {
+                openApp(destination)
             }
+            accountMenu
         }
-        .padding(.horizontal, DS.e5)
-        .padding(.top, DS.e5)
-        .padding(.bottom, DS.e4)
+        .padding(.horizontal, DS.e4)
+        .padding(.top, DS.e4)
+        .padding(.bottom, DS.e3)
     }
 
     private var titulo: String {
         switch tab {
-        case .today: "hoje"
-        case .calendar: "calendário"
-        case .lists: "listas"
-        }
-    }
-
-    private var rotulo: String {
-        switch tab {
-        case .today: "\(DayLabel.long(store.today)) · \(store.badgeCount) pendente\(store.badgeCount == 1 ? "" : "s")"
-        case .calendar: DayLabel.long(day)
-        case .lists: "\(store.lists.count) listas"
+        case .today: "Hoje"
+        case .calendar: "Calendário"
+        case .lists: "Listas"
         }
     }
 
@@ -145,16 +130,16 @@ struct MenuBarPopover: View {
 
                 let overdue = store.overdueTasks
                 if !overdue.isEmpty {
-                    SecaoTarefas("em atraso", contagem: overdue.count, tom: DS.acentoTexto,
+                    SecaoTarefas("Em atraso", contagem: overdue.count, tom: DS.perigoTexto,
                                  acao: ("Adiar p/ hoje", { store.postponeOverdue() })) {
                         ForEach(overdue) { TaskRow(task: $0, style: .compact) }
                     }
                 }
 
                 let today = store.todayTasks
-                SecaoTarefas("hoje", contagem: today.count) {
+                SecaoTarefas("Hoje", contagem: today.count) {
                     if today.isEmpty {
-                        EstadoVazio(icone: "checkmark.circle", titulo: "tudo feito por hoje")
+                        EstadoVazio(icone: "checkmark.circle", titulo: "Tudo feito por hoje")
                     } else {
                         ForEach(today) { TaskRow(task: $0, style: .compact) }
                     }
@@ -196,9 +181,9 @@ struct MenuBarPopover: View {
             QuickAddField(fixedListID: id).padding(.horizontal, DS.e4)
             scroll {
                 let items = store.tasks(inList: id)
-                SecaoTarefas("tarefas", contagem: items.count, tom: store.color(forList: id)) {
+                SecaoTarefas("Tarefas", contagem: items.count, tom: store.color(forList: id)) {
                     if items.isEmpty {
-                        EstadoVazio(icone: "checklist", titulo: "lista vazia")
+                        EstadoVazio(icone: "checklist", titulo: "Lista vazia")
                     } else {
                         ForEach(items) { TaskRow(task: $0, style: .compact) }
                     }
@@ -219,7 +204,7 @@ struct MenuBarPopover: View {
     private var signedOut: some View {
         VStack(spacing: DS.e3) {
             Simbolo(tamanho: 44)
-            Text("conecte sua conta").display(.xl).foregroundStyle(DS.texto)
+            Text("Conecte sua conta").display(.xl).foregroundStyle(DS.texto)
             Text("Para ver as tarefas e os eventos de hoje.").txt(.sm).foregroundStyle(DS.texto3)
             Button("Configurar") { openApp(.today) }.buttonStyle(Botao(variante: .primario, tamanho: .m))
         }
@@ -230,9 +215,9 @@ struct MenuBarPopover: View {
 
     private var navegacao: some View {
         HStack(spacing: DS.e1) {
-            aba(.today, "sun.max", "hoje")
-            aba(.calendar, "calendar", "calendário")
-            aba(.lists, "list.bullet", "listas")
+            aba(.today, "sun.max", "Hoje")
+            aba(.calendar, "calendar", "Calendário")
+            aba(.lists, "list.bullet", "Listas")
             Rectangle().fill(DS.borda).frame(width: 1, height: 22).padding(.horizontal, 2)
             BotaoIcone(simbolo: "gearshape", rotulo: "Abrir ajustes", tamanho: 40, tamanhoIcone: 15) {
                 openApp(.settings)
@@ -300,9 +285,9 @@ struct PopoverCalendarView: View {
                     let tasks = store.tasks(on: day)
                     EventsCard(events: events, compacto: true)
                     if tasks.isEmpty && events.isEmpty {
-                        EstadoVazio(icone: "calendar", titulo: "dia livre")
+                        EstadoVazio(icone: "calendar", titulo: "Dia livre")
                     } else if !tasks.isEmpty {
-                        SecaoTarefas(DayLabel.short(day, today: store.today).lowercased(), contagem: tasks.count) {
+                        SecaoTarefas(DayLabel.short(day, today: store.today), contagem: tasks.count) {
                             ForEach(tasks) { TaskRow(task: $0, style: .compact, showDate: false) }
                         }
                     }
@@ -330,7 +315,7 @@ struct PopoverCalendarView: View {
                 let busy = !store.tasks(on: date).isEmpty || !store.events(on: date).isEmpty
                 Button { withAnimation(DS.curvaRapida) { day = date } } label: {
                     VStack(spacing: 3) {
-                        Text(date.formatted(.dateTime.weekday(.narrow)).lowercased())
+                        Text(date.formatted(.dateTime.weekday(.narrow)).uppercased())
                             .txt(.xs, .medium)
                             .foregroundStyle(selected ? DS.acentoSolidoTexto.opacity(0.85) : DS.texto3)
                         Text("\(cal.component(.day, from: date))")

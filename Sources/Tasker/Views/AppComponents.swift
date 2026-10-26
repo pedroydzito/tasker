@@ -134,9 +134,9 @@ struct DueLabel: View {
         HStack(spacing: DS.e1) {
             Image(systemName: overdue ? "exclamationmark.circle" : "calendar")
                 .font(.system(size: 10, weight: .semibold))
-            Text(DayLabel.short(day, today: today).lowercased())
+            Text(DayLabel.short(day, today: today))
         }
-        .foregroundStyle(overdue ? DS.acentoTexto : (day == today ? DS.texto2 : DS.texto3))
+        .foregroundStyle(overdue ? DS.perigoTexto : (day == today ? DS.texto2 : DS.texto3))
     }
 }
 
@@ -151,7 +151,7 @@ struct TagChip: View {
 
 // MARK: Seção de tarefas
 
-/// Sobrancelha + contagem + ação, e um cartão com as linhas separadas por fio.
+/// Sobrancelha + contagem + ação, e um cartão branco com as linhas separadas por fio.
 struct SecaoTarefas<Content: View>: View {
     let titulo: String
     let contagem: Int
@@ -172,19 +172,19 @@ struct SecaoTarefas<Content: View>: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.e3) {
+        VStack(alignment: .leading, spacing: DS.e2) {
             HStack(spacing: DS.e2) {
                 Button {
                     withAnimation(DS.curva) { fechada.toggle() }
                 } label: {
                     HStack(spacing: 6) {
                         Text("\(titulo) · \(contagem)")
-                            .txt(.xs, .medium)
+                            .txt(.xs, .semibold)
                             .textCase(.uppercase)
-                            .tracking(0.88)
+                            .tracking(0.7)
                             .foregroundStyle(tom)
                         Image(systemName: "chevron.down")
-                            .font(.system(size: 8.5, weight: .bold))
+                            .font(.system(size: 8, weight: .bold))
                             .foregroundStyle(DS.texto3)
                             .rotationEffect(.degrees(fechada ? -90 : 0))
                     }
@@ -200,13 +200,36 @@ struct SecaoTarefas<Content: View>: View {
             .padding(.horizontal, DS.e1)
 
             if !fechada {
-                LazyVStack(spacing: 0) { content }
-                    .padding(DS.e1)
-                    .background(DS.superficie, in: RoundedRectangle(cornerRadius: DS.raioCartao, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: DS.raioCartao, style: .continuous).strokeBorder(DS.borda))
+                CartaoDeLinhas { content }
                     .transition(.opacity.combined(with: .offset(y: -4)))
             }
         }
+    }
+}
+
+/// Cartão branco que separa cada linha por um fio cinza-claro (recuado depois do círculo).
+struct CartaoDeLinhas<Content: View>: View {
+    var recuoDoFio: CGFloat = 46
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Group(subviews: content) { linhas in
+                ForEach(Array(linhas.enumerated()), id: \.element.id) { indice, linha in
+                    if indice > 0 {
+                        Rectangle()
+                            .fill(DS.borda)
+                            .frame(height: 1)
+                            .padding(.leading, recuoDoFio)
+                            .padding(.trailing, DS.e3)
+                    }
+                    linha
+                }
+            }
+        }
+        .padding(DS.e1)
+        .background(DS.superficie, in: RoundedRectangle(cornerRadius: DS.raioCartao, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: DS.raioCartao, style: .continuous).strokeBorder(DS.borda))
     }
 }
 
@@ -255,7 +278,7 @@ struct CalendarIssueBanner: View {
 
 // MARK: Conteúdo das folhas
 
-/// Folha "personalizar lista": ícone (emoji, foto ou inicial) e cor.
+/// Folha "Personalizar lista": ícone (emoji, foto ou inicial) e cor.
 struct EditorDeLista: View {
     @Environment(TaskStore.self) private var store
     let listID: String
@@ -280,7 +303,7 @@ struct EditorDeLista: View {
             .padding(.leading, 4)
 
             VStack(alignment: .leading, spacing: DS.e2) {
-                Text("ícone").rotulo()
+                Text("Ícone").rotulo()
                 LazyVGrid(columns: colunas, spacing: 6) {
                     ForEach(Palette.emojis, id: \.self) { emoji in
                         Button {
@@ -298,7 +321,7 @@ struct EditorDeLista: View {
                     }
                 }
                 HStack(spacing: DS.e2) {
-                    TextField("outro emoji", text: $outro)
+                    TextField("Outro emoji", text: $outro)
                         .campo()
                         .frame(width: 120)
                         .onChange(of: outro) { _, valor in
@@ -322,7 +345,7 @@ struct EditorDeLista: View {
             }
 
             VStack(alignment: .leading, spacing: DS.e2) {
-                Text("cor").rotulo()
+                Text("Cor").rotulo()
                 AmostrasDeCor(selecao: Binding(get: { cor.hexString }, set: { store.setColor(Color(hex: $0), forList: listID) }))
             }
         }
@@ -363,7 +386,7 @@ struct AmostrasDeCor: View {
     }
 }
 
-/// Folha "nova etiqueta".
+/// Folha "Nova etiqueta".
 struct CriadorDeEtiqueta: View {
     @Environment(TaskStore.self) private var store
     @Environment(Folhas.self) private var folhas
@@ -375,11 +398,11 @@ struct CriadorDeEtiqueta: View {
     var body: some View {
         VStack(alignment: .leading, spacing: DS.e4) {
             VStack(alignment: .leading, spacing: 6) {
-                Text("nome").rotulo()
-                TextField("ex.: urgente", text: $nome).campo().focused($foco).onSubmit(criar)
+                Text("Nome").rotulo()
+                TextField("Ex.: urgente", text: $nome).campo().focused($foco).onSubmit(criar)
             }
             VStack(alignment: .leading, spacing: 6) {
-                Text("cor").rotulo()
+                Text("Cor").rotulo()
                 AmostrasDeCor(selecao: $cor)
             }
             Nota("Etiquetas ficam só no Tasker — não vão para o Google Tasks.")
@@ -429,7 +452,7 @@ struct PopoverWindowConfigurator: NSViewRepresentable {
         guard let window = view.window else { return }
         window.appearance = appearance
         coordinator.onOpen = onOpen
-        coordinator.attach(window, cornerRadius: cornerRadius)
+        coordinator.attach(window, from: view, cornerRadius: cornerRadius)
     }
 
     @MainActor
@@ -438,40 +461,76 @@ struct PopoverWindowConfigurator: NSViewRepresentable {
         private weak var window: NSWindow?
         private var token: NSObjectProtocol?
 
-        func attach(_ window: NSWindow, cornerRadius: CGFloat) {
-            guard self.window !== window else { return }
-            self.window = window
+        func attach(_ window: NSWindow, from view: NSView, cornerRadius: CGFloat) {
+            // Reaplica sempre: o sistema pode recriar o fundo ao reabrir o menu.
             window.isOpaque = false
             window.backgroundColor = .clear
             window.hasShadow = true
             window.animationBehavior = .none
+            if let frame = window.contentView?.superview {
+                Self.limparFundo(frame, nossaView: view, raio: cornerRadius)
+            }
             if let content = window.contentView {
                 content.wantsLayer = true
                 content.layer?.cornerRadius = cornerRadius
                 content.layer?.cornerCurve = .continuous
                 content.layer?.masksToBounds = true
-                // Sem vidro: o fundo é o mesmo do app, para ler bem sobre qualquer papel de parede.
-                Self.hideEffectViews(in: content.superview ?? content)
+                content.layer?.backgroundColor = .clear
             }
             window.invalidateShadow()
 
+            guard self.window !== window else { return }
+            self.window = window
             if let token { NotificationCenter.default.removeObserver(token) }
             token = NotificationCenter.default.addObserver(
                 forName: NSWindow.didBecomeKeyNotification, object: window, queue: .main
-            ) { [weak self] _ in
-                MainActor.assumeIsolated { self?.onOpen() }
+            ) { [weak self, weak window, weak view] _ in
+                MainActor.assumeIsolated {
+                    if let window, let view { self?.attach(window, from: view, cornerRadius: cornerRadius) }
+                    self?.onOpen()
+                }
             }
             onOpen()
         }
 
-        private static func hideEffectViews(in view: NSView, depth: Int = 0) {
+        /// Esconde o vidro/fundo do sistema (que tem cantos mais quadrados) e arredonda
+        /// as camadas que contêm o nosso conteúdo, para só sobrar o nosso desenho.
+        private static func limparFundo(_ view: NSView, nossaView: NSView, raio: CGFloat, depth: Int = 0) {
+            let contemNossaView = nossaView.isDescendant(of: view)
             if let effect = view as? NSVisualEffectView {
-                effect.state = .inactive
-                effect.material = .windowBackground
-                effect.isEmphasized = false
+                if contemNossaView {
+                    effect.maskImage = .roundedMask(radius: raio)
+                    effect.material = .windowBackground
+                    effect.state = .inactive
+                    effect.alphaValue = 1
+                } else {
+                    effect.isHidden = true
+                }
             }
-            guard depth < 4 else { return }
-            for sub in view.subviews { hideEffectViews(in: sub, depth: depth + 1) }
+            if contemNossaView {
+                view.wantsLayer = true
+                view.layer?.cornerRadius = raio
+                view.layer?.cornerCurve = .continuous
+                view.layer?.masksToBounds = true
+            }
+            guard depth < 6 else { return }
+            for sub in view.subviews { limparFundo(sub, nossaView: nossaView, raio: raio, depth: depth + 1) }
         }
     }
+}
+
+extension NSImage {
+    /// Máscara esticável com cantos arredondados (para NSVisualEffectView).
+    static func roundedMask(radius: CGFloat) -> NSImage {
+        let side = radius * 2 + 1
+        let image = NSImage(size: NSSize(width: side, height: side), flipped: false) { rect in
+            NSColor.black.setFill()
+            NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius).fill()
+            return true
+        }
+        image.capInsets = NSEdgeInsets(top: radius, left: radius, bottom: radius, right: radius)
+        image.resizingMode = .stretch
+        return image
+    }
+
 }

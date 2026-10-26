@@ -75,11 +75,11 @@ struct QuickAddField: View {
 
     private var placeholder: String {
         let name = store.displayName(listID ?? "")
-        let list = name.isEmpty ? "minhas tarefas" : name
+        let list = name.isEmpty ? "Minhas tarefas" : name
         switch style {
-        case .large: return "nova tarefa — ex.: ligar pro cliente amanhã ~\(list.lowercased()) #urgente"
-        case .floating: return "adicionar tarefa em \(list)  ·  ⌥espaço de qualquer lugar"
-        default: return "adicionar tarefa em \(list)"
+        case .large: return "Nova tarefa — ex.: ligar pro cliente amanhã ~\(list.lowercased()) #urgente"
+        case .floating: return "Adicionar tarefa em \(list)  ·  ⌥Espaço de qualquer lugar"
+        default: return "Adicionar tarefa em \(list)"
         }
     }
 
@@ -107,7 +107,7 @@ struct QuickAddField: View {
     private var chips: some View {
         HStack(spacing: DS.e2) {
             if let listID { ListChip(listID: listID) }
-            Chip(due.map { DayLabel.short($0, today: store.today).lowercased() } ?? "sem data") {
+            Chip(due.map { DayLabel.short($0, today: store.today) } ?? "Sem data") {
                 Image(systemName: "calendar").font(.system(size: 10, weight: .semibold))
             }
             ForEach(parsed.tagNames, id: \.self) { name in
@@ -115,7 +115,7 @@ struct QuickAddField: View {
                     .map { Color(hex: $0.colorHex) } ?? DS.texto2)
             }
             Spacer()
-            Text("↩︎ adicionar").txt(.xs).foregroundStyle(DS.texto3)
+            Text("↩︎ Adicionar").txt(.xs).foregroundStyle(DS.texto3)
         }
     }
 

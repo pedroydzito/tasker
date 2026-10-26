@@ -39,7 +39,7 @@ enum DayLabel {
         case 0: return "Hoje"
         case 1: return "Amanhã"
         case -1: return "Ontem"
-        case 2...6: return day.formatted(.dateTime.weekday(.wide)).capitalized
+        case 2...6: return day.formatted(.dateTime.weekday(.wide)).primeiraMaiuscula
         default:
             let sameYear = cal.component(.year, from: day) == cal.component(.year, from: today)
             return sameYear
@@ -50,6 +50,12 @@ enum DayLabel {
 
     /// "segunda-feira, 26 de out."
     static func long(_ day: Date) -> String {
-        day.formatted(.dateTime.weekday(.wide).day().month(.abbreviated))
+        let text = day.formatted(.dateTime.weekday(.wide).day().month(.abbreviated))
+        return text.prefix(1).uppercased() + text.dropFirst()
     }
+}
+
+extension String {
+    /// "outubro de 2026" → "Outubro de 2026" (só a primeira letra).
+    var primeiraMaiuscula: String { prefix(1).uppercased() + dropFirst() }
 }

@@ -23,8 +23,7 @@ struct TaskRow: View {
 
     var body: some View {
         HStack(spacing: DS.e3) {
-            CheckCircle(color: store.color(forList: task.listID), checked: checked,
-                        size: style == .compact ? 18 : 20, action: toggle)
+            CheckCircle(color: store.color(forList: task.listID), checked: checked, size: 18, action: toggle)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(task.displayTitle)
@@ -42,19 +41,19 @@ struct TaskRow: View {
                     Image(systemName: "text.alignleft").font(.system(size: 10.5)).foregroundStyle(DS.texto3)
                 }
                 if showDate, let day = task.dueDay {
-                    Text(DayLabel.short(day, today: store.today).lowercased())
+                    Text(DayLabel.short(day, today: store.today))
                         .txt(.xs, .medium)
-                        .foregroundStyle(day < store.today ? DS.acentoTexto : DS.texto3)
+                        .foregroundStyle(day < store.today ? DS.perigoTexto : DS.texto3)
                 }
             } else if showList {
                 ListChip(listID: task.listID)
             }
         }
-        .padding(.leading, (style == .compact ? 10 : 14) + CGFloat(depth) * 26)
-        .padding(.trailing, style == .compact ? 10 : 14)
-        .padding(.vertical, style == .compact ? 8 : 11)
+        .padding(.leading, 12 + CGFloat(depth) * 26)
+        .padding(.trailing, 12)
+        .padding(.vertical, style == .compact ? 8 : 9)
         .background(
-            RoundedRectangle(cornerRadius: style == .compact ? DS.raioM : DS.raioG, style: .continuous)
+            RoundedRectangle(cornerRadius: DS.raioM, style: .continuous)
                 .fill(isSelected ? DS.superficie2 : (pressed ? DS.veuAtivo : (hovering ? DS.veuHover : .clear)))
         )
         .scaleEffect(pressed ? 0.995 : 1)
@@ -97,7 +96,7 @@ struct TaskRow: View {
             withAnimation(DS.curva) { nav.selectedTaskID = task.id }
         } else {
             let current = task
-            folhas.abrir("editar tarefa") { EditorRapido(task: current) }
+            folhas.abrir("Editar tarefa") { EditorRapido(task: current) }
         }
     }
 

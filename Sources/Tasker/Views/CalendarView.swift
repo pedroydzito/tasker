@@ -32,9 +32,15 @@ struct CalendarView: View {
                 .background(DS.superficie)
         }
         .task(id: month) {
+            // Meses já sincronizados abrem na hora; só os de fora buscam na rede.
             let days = gridDays
             guard let first = days.first, let last = days.last else { return }
-            monthEvents = await store.loadEvents(from: first, to: cal.adding(days: 1, to: last))
+            let end = cal.adding(days: 1, to: last)
+            if let range = store.eventRange, range.contains(first), range.contains(last) {
+                monthEvents = nil
+                return
+            }
+            monthEvents = await store.loadEvents(from: first, to: end)
         }
     }
 
@@ -43,7 +49,7 @@ struct CalendarView: View {
     }
 
     private var header: some View {
-        CabecalhoTela(rotulo: "calendário", titulo: month.formatted(.dateTime.month(.wide).year()).lowercased())
+        CabecalhoTela(rotulo: "Calendário", titulo: month.formatted(.dateTime.month(.wide).year()).primeiraMaiuscula)
             .overlay(alignment: .bottomTrailing) {
                 HStack(spacing: DS.e1) {
                     Button("Hoje") {
@@ -61,7 +67,6 @@ struct CalendarView: View {
     private func shift(_ value: Int) {
         direcao = CGFloat(value)
         month = cal.date(byAdding: .month, value: value, to: month) ?? month
-        monthEvents = nil
     }
 
     private var weekdayHeader: some View {
@@ -173,14 +178,14 @@ private struct DayAgenda: View {
             VStack(alignment: .leading, spacing: DS.e5) {
                 VStack(alignment: .leading, spacing: 10) {
                     Text(DayLabel.long(day)).rotulo()
-                    Text(DayLabel.short(day, today: store.today).lowercased()).display(.titulo).foregroundStyle(DS.texto)
+                    Text(DayLabel.short(day, today: store.today)).display(.titulo).foregroundStyle(DS.texto)
                 }
                 QuickAddField(defaultDue: day, style: .inline)
                 EventsCard(events: events, compacto: true)
                 if tasks.isEmpty && events.isEmpty {
-                    EstadoVazio(icone: "calendar", titulo: "dia livre")
+                    EstadoVazio(icone: "calendar", titulo: "Dia livre")
                 } else if !tasks.isEmpty {
-                    SecaoTarefas("tarefas", contagem: tasks.count) {
+                    SecaoTarefas("Tarefas", contagem: tasks.count) {
                         ForEach(tasks) { TaskRow(task: $0, style: .compact, showDate: false) }
                     }
                 }

@@ -8,40 +8,41 @@ import SwiftUI
 // MARK: Cor
 
 enum DS {
-    // Superfícies e texto — papel quente no claro, preto de verdade no escuro.
-    static let fundo = cor("#f5f4f0", "#0a0a0a")
-    static let superficie = cor("#fffefb", "#141414")
-    static let superficie2 = cor("#eceae3", "#1c1c1c")
-    static let superficie3 = cor("#e2dfd6", "#262626")
-    static let borda = cor("#e0ddd4", "#242424")
-    static let bordaForte = cor("#cdc9bd", "#363636")
-    static let texto = cor("#16130f", "#fafaf9")
-    static let texto2 = cor("#4a453e", "#b8b5b0")
-    static let texto3 = cor("#6b645b", "#8b8781")
+    // Superfícies e texto — fundo branco-gelo, cartões brancos, divisórias cinza-claras.
+    static let fundo = cor("#F7F7F7", "#151517")
+    static let superficie = cor("#FFFFFF", "#1F1F22")
+    static let superficie2 = cor("#F1F1F3", "#29292D")
+    static let superficie3 = cor("#E4E4E8", "#333338")
+    static let borda = cor("#ECECEF", "#2A2A2F")
+    static let bordaForte = cor("#DADADF", "#3A3A40")
+    static let texto = cor("#18181B", "#F4F4F5")
+    static let texto2 = cor("#52525B", "#B4B4BB")
+    static let texto3 = cor("#7C7C86", "#8E8E97")
 
     // Acento: identidade, não semântica.
-    static let acento = Color(nsColor: NSColor(hex: "#f43a2b"))
+    static let acento = Color(nsColor: NSColor(hex: "#0097FF"))
     static let acentoSolido = acento
     static let acentoSolidoTexto = Color.white
-    static let acentoTexto = cor("#b9190c", "#f55b4f")
-    static let anelFoco = cor("#f43a2b66", "#f43a2b80")
+    static let acentoTexto = cor("#0071C2", "#4DB6FF")
+    static let anelFoco = cor("#0097FF66", "#0097FF80")
 
-    // Papéis.
-    static let perigo = acento
-    static let perigoTenue = cor("#f43a2b1a", "#f43a2b29")
-    static let sucesso = cor("#0f7a52", "#4ade9b")
-    static let sucessoTenue = cor("#0f7a521a", "#4ade9b24")
-    static let aviso = cor("#9a5b12", "#e0a458")
-    static let avisoTenue = cor("#9a5b121a", "#e0a45824")
-    static let link = cor("#1f5fd0", "#7cb2ff")
+    // Papéis. Como o acento não é vermelho, o perigo tem o vermelho próprio.
+    static let perigo = cor("#E5484D", "#F2555A")
+    static let perigoTexto = cor("#CE2C31", "#FF7A7E")
+    static let perigoTenue = cor("#E5484D1a", "#F2555A29")
+    static let sucesso = cor("#0F7A52", "#4ADE9B")
+    static let sucessoTenue = cor("#0F7A521a", "#4ADE9B24")
+    static let aviso = cor("#9A5B12", "#E0A458")
+    static let avisoTenue = cor("#9A5B121a", "#E0A45824")
+    static let link = cor("#0071C2", "#4DB6FF")
 
     // Véu de hover: preto no claro, branco no escuro — a superfície se aproxima do ponteiro.
-    static let veuHover = cor("#0000000e", "#ffffff12")
-    static let veuAtivo = cor("#00000017", "#ffffff1c")
-    static let veuModal = Color.black.opacity(0.4)
+    static let veuHover = cor("#0000000c", "#ffffff12")
+    static let veuAtivo = cor("#00000016", "#ffffff1c")
+    static let veuModal = Color.black.opacity(0.32)
 
     /// Quanto da cor de categoria entra no fundo de um chip tingido.
-    static let chipTinta = 0.10
+    static let chipTinta = 0.12
 
     static func cor(_ claro: String, _ escuro: String) -> Color {
         Color(nsColor: NSColor(name: nil) { appearance in
@@ -51,10 +52,10 @@ enum DS {
 
     // MARK: Raio
 
-    static let raioP: CGFloat = 8       // ladrilho de ícone
-    static let raioM: CGFloat = 12      // botão, campo
-    static let raioG: CGFloat = 16      // painel interno
-    static let raioCartao: CGFloat = 20 // cartão, folha, menu
+    static let raioP: CGFloat = 6       // ladrilho de ícone
+    static let raioM: CGFloat = 10      // botão, campo, linha dentro de cartão
+    static let raioG: CGFloat = 12      // painel interno
+    static let raioCartao: CGFloat = 14 // cartão, folha, menu (= raioM + respiro de 4)
 
     // MARK: Espaço (passos 1–8)
 
@@ -161,13 +162,13 @@ enum Txt {
     var size: CGFloat {
         switch self {
         case .xs: 11
-        case .sm: 13
-        case .md: 15
-        case .lg: 17
-        case .xl: 19
-        case .titulo: 24
-        case .display2: 34
-        case .display: 44
+        case .sm: 12.5
+        case .md: 13.5
+        case .lg: 15
+        case .xl: 17
+        case .titulo: 20
+        case .display2: 24
+        case .display: 28
         }
     }
 
@@ -210,10 +211,10 @@ extension View {
         font(DSFonts.font("Geist", size: step.size, weight: peso.wght, fallback: peso.system))
     }
 
-    /// Título: display (Bricolage), caixa baixa, tracking apertado.
+    /// Título: display (Bricolage), tracking apertado.
     func display(_ step: Txt = .display) -> some View {
         font(DSFonts.font("Bricolage Grotesque", size: step.size, weight: 700, fallback: .bold))
-            .tracking(-0.035 * step.size)
+            .tracking(-0.025 * step.size)
     }
 
     /// Sobrancelha: contexto acima do título.
