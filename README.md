@@ -30,29 +30,37 @@ O app conversa direto com as APIs do Google usando a sua conta, sem nenhum servi
    - Copie o **Client ID** e o **Client Secret**.
 5. Abra o Tasker, cole os dois e clique em **Entrar com Google**. O login acontece no navegador e depois volta para o app.
 
-Os tokens ficam no Keychain do macOS.
+Os tokens ficam em `~/Library/Application Support/Tasker/secrets.json`, legível só pelo seu usuário.
 
-## 2. Compilar e instalar
+## 2. Instalar
 
-Precisa de macOS 15 ou mais novo e do Xcode (ou só das Command Line Tools: `xcode-select --install`).
+1. Baixe o `Tasker.zip` do [último release](https://github.com/pedroydzito/tasker/releases/latest), descompacte e arraste o `Tasker.app` para **Aplicativos**.
+2. Como o app não é assinado com conta de desenvolvedor Apple, rode isto uma vez no Terminal:
+   ```bash
+   xattr -cr /Applications/Tasker.app
+   ```
+3. Abra o Tasker e permita as notificações (é por elas que chegam os avisos de atualização).
+
+> O KiteTasks também usa **⌥Espaço**. Se os dois estiverem abertos, desative o atalho em um deles.
+
+## Atualizações automáticas
+
+Cada alteração enviada ao GitHub gera um novo release (`v0.1.<número>`) pelo GitHub Actions. O Tasker verifica a cada 30 minutos (ou em **Ajustes → Procurar atualizações**) e, quando encontra uma versão nova:
+
+- mostra uma **notificação** com o botão **Atualizar** e um aviso no topo do popover;
+- ao clicar, baixa a nova versão, substitui o app, **reinicia e abre já atualizado**.
+
+Seus dados não se perdem: login, etiquetas e preferências ficam em `~/Library/Application Support/Tasker` e nas preferências do usuário, fora do app.
+
+## Compilar localmente (opcional)
+
+Precisa de macOS 15 ou mais novo e do Xcode (ou das Command Line Tools: `xcode-select --install`).
 
 ```bash
-git clone https://github.com/pedroydzito/tasker.git
-cd tasker
 make install      # compila, copia para /Applications e abre
 ```
 
-Outros comandos: `make app` (só gera `build/Tasker.app`), `make run`, `make clean`.
-
-Também dá para baixar o `Tasker.zip` gerado pelo GitHub Actions (aba **Actions → Build → Artifacts**). Como o app não é assinado com conta de desenvolvedor, depois de descompactar rode:
-
-```bash
-xattr -cr Tasker.app
-```
-
-> Dica: o KiteTasks também usa **⌥Espaço**. Se os dois estiverem abertos, desative o atalho em um deles.
->
-> Depois de recompilar, o macOS pode perguntar se o Tasker pode acessar o Keychain. Escolha **Sempre permitir**.
+Builds locais saem com número de build 0, e o atualizador automático não os substitui (para não sobrescrever o que você está testando).
 
 ## Estrutura do código
 
