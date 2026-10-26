@@ -1,11 +1,12 @@
 import SwiftUI
 
-/// Conteúdo do popover da barra de menu (visual do KiteTasks, mais enxuto).
+/// Popover da barra de menu — base no KiteTasks: título, campo de adicionar, eventos e tarefas de hoje.
 struct MenuBarPopover: View {
     @Environment(TaskStore.self) private var store
     @Environment(GoogleAuth.self) private var auth
     @Environment(Navigation.self) private var nav
     @Environment(\.openWindow) private var openWindow
+    @State private var shown = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -14,49 +15,61 @@ struct MenuBarPopover: View {
             } else {
                 signedOut
             }
-            Divider()
             bottomBar
         }
-        .frame(width: 380)
-        .task { await store.sync() }
+        .frame(width: 370)
+        .background(Theme.surface)
+        // Entrada com mola a cada abertura do menu.
+        .scaleEffect(shown ? 1 : 0.96, anchor: .top)
+        .opacity(shown ? 1 : 0)
+        .offset(y: shown ? 0 : -8)
+        .background(PopoverWindowConfigurator(
+            appearance: store.prefs.appearance.resolved,
+            onOpen: {
+                withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) { shown = true }
+                Task { await store.sync() }
+            },
+            onClose: { shown = false }
+        ))
+        .onAppear {
+            if !shown { withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) { shown = true } }
+        }
     }
 
     private var content: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("Hoje").font(.system(size: 24, weight: .bold))
+            HStack(alignment: .center) {
+                Text("Hoje").font(.system(size: 22, weight: .bold))
                 if store.isSyncing {
-                    ProgressView().controlSize(.small).padding(.leading, 4)
+                    ProgressView().controlSize(.mini).padding(.leading, 2)
                 }
                 Spacer()
                 accountMenu
             }
             .padding(.horizontal, 18)
-            .padding(.top, 16)
+            .padding(.top, 14)
 
-            UpdateBanner()
-                .padding(.horizontal, 14)
+            UpdateBanner().padding(.horizontal, 12)
 
             QuickAddField(defaultDue: store.today)
-                .padding(.horizontal, 14)
+                .padding(.horizontal, 12)
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 2) {
                     EventsCard(events: store.events(on: store.today))
-                        .padding(.bottom, 4)
-
+                        .padding(.bottom, 2)
+                    CalendarIssueBanner()
                     ErrorBanner()
 
                     let overdue = store.overdueTasks
                     if !overdue.isEmpty {
                         HStack {
                             SectionHeader(title: "Em atraso", count: overdue.count, tint: .red)
-                            Button("Adiar") { store.postponeOverdue() }
-                                .buttonStyle(.plain)
+                            Button("Adiar p/ hoje") { store.postponeOverdue() }
+                                .buttonStyle(.pressable)
                                 .font(.system(size: 11.5))
                                 .foregroundStyle(Color.accentColor)
                                 .padding(.top, 10)
-                                .help("Mover todas as tarefas atrasadas para hoje")
                         }
                         .padding(.trailing, 10)
                         ForEach(overdue) { TaskRow(task: $0, style: .compact) }
@@ -67,26 +80,27 @@ struct MenuBarPopover: View {
                     if today.isEmpty {
                         EmptyState(symbol: "checkmark.circle", title: "Tudo feito por hoje")
                     } else {
-                        ForEach(today) { TaskRow(task: $0, style: .compact, showDate: false) }
+                        ForEach(today) { TaskRow(task: $0, style: .compact) }
                     }
                 }
                 .padding(.horizontal, 8)
                 .padding(.bottom, 10)
                 .animation(.easeInOut(duration: 0.2), value: store.todayTasks.map(\.id))
             }
-            .frame(minHeight: 140, maxHeight: 460)
+            .frame(minHeight: 120, maxHeight: 460)
             .fixedSize(horizontal: false, vertical: true)
         }
     }
 
     private var signedOut: some View {
         VStack(spacing: 12) {
-            Image(systemName: "checklist").font(.system(size: 34)).foregroundStyle(.secondary)
+            Image(systemName: "checkmark.circle").font(.system(size: 34)).foregroundStyle(.secondary)
             Text("Conecte sua conta Google").font(.headline)
             Text("Para ver suas tarefas e eventos de hoje.").font(.callout).foregroundStyle(.secondary)
             Button("Configurar…") { open(.today) }.buttonStyle(.borderedProminent)
         }
         .padding(30)
+        .frame(maxWidth: .infinity)
     }
 
     private var accountMenu: some View {
@@ -98,7 +112,7 @@ struct MenuBarPopover: View {
             Button("Ajustes…") { open(.settings) }
             Button("Encerrar Tasker") { NSApp.terminate(nil) }
         } label: {
-            Avatar(profile: auth.profile, size: 28)
+            Image(nsImage: Avatar.menuImage(auth.avatar, side: 26))
         }
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
@@ -113,24 +127,28 @@ struct MenuBarPopover: View {
             barButton("gearshape", "Ajustes", .settings)
         }
         .padding(.vertical, 8)
-        .background(Color.primary.opacity(0.03))
+        .background(Theme.group.opacity(0.6))
+        .overlay(alignment: .top) { Divider() }
     }
 
     private func barButton(_ symbol: String, _ help: String, _ item: SidebarItem) -> some View {
         Button { open(item) } label: {
             Image(systemName: symbol)
-                .font(.system(size: 16))
+                .font(.system(size: 15))
                 .foregroundStyle(item == .today ? Color.accentColor : .secondary)
-                .frame(maxWidth: .infinity, minHeight: 28)
+                .frame(width: 44, height: 30)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
+        .frame(maxWidth: .infinity)
         .help(help)
     }
 
     private func open(_ item: SidebarItem) {
         nav.selection = item
-        openWindow(id: WindowID.main)
+        // Muda a política antes de abrir para a janela já surgir ativa, sem atraso.
+        NSApp.setActivationPolicy(.regular)
         NSApp.activate()
+        openWindow(id: WindowID.main)
     }
 }

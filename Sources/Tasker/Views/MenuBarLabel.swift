@@ -1,45 +1,79 @@
+import AppKit
 import SwiftUI
 
-/// Ícone da barra de menu: símbolo de tarefa + contador do dia.
-/// Renderizado como imagem "template" para se adaptar ao tema claro/escuro da barra.
+/// Ícone da barra de menu: um ícone de tarefa com o número de pendências de hoje
+/// num selo redondo no canto inferior. Desenhado como imagem "template" para
+/// se adaptar à barra clara ou escura.
 struct MenuBarLabel: View {
     let store: TaskStore
 
     var body: some View {
         let count = store.auth.isSignedIn ? store.badgeCount : 0
-        let showCount = store.prefs.showCountInMenuBar && count > 0
-
-        if let image = render(count: count, showCount: showCount, style: store.prefs.menuBarStyle) {
-            Image(nsImage: image)
-        } else {
-            Image(systemName: "checklist")
-        }
+        let show = store.prefs.showCountInMenuBar && count > 0
+        Image(nsImage: Self.icon(count: show ? count : nil, style: store.prefs.menuBarStyle))
     }
 
-    @MainActor
-    private func render(count: Int, showCount: Bool, style: MenuBarStyle) -> NSImage? {
-        let content = Group {
-            if showCount && style == .numberInSquare {
-                Image(systemName: count <= 50 ? "\(count).square" : "square.fill")
-                    .font(.system(size: 15, weight: .medium))
-            } else {
-                HStack(spacing: 3) {
-                    Image(systemName: count == 0 ? "checkmark.circle" : "checklist")
-                        .font(.system(size: 14, weight: .medium))
-                    if showCount {
-                        Text("\(count)")
-                            .font(.system(size: 13, weight: .semibold))
-                            .monospacedDigit()
-                    }
-                }
-            }
-        }
-        .foregroundStyle(.black)
-        .padding(.horizontal, 1)
+    static func icon(count: Int?, style: MenuBarStyle) -> NSImage {
+        let symbolConfig = NSImage.SymbolConfiguration(pointSize: 15, weight: .medium)
+        let symbol = NSImage(systemSymbolName: "checkmark.circle", accessibilityDescription: "Tarefas")?
+            .withSymbolConfiguration(symbolConfig) ?? NSImage()
+        let symbolSize = symbol.size
 
-        let renderer = ImageRenderer(content: content)
-        renderer.scale = NSScreen.main?.backingScaleFactor ?? 2
-        guard let image = renderer.nsImage else { return nil }
+        guard let count else {
+            symbol.isTemplate = true
+            return symbol
+        }
+
+        let text = count > 99 ? "99+" : "\(count)"
+
+        if style == .iconAndNumber {
+            let font = NSFont.monospacedDigitSystemFont(ofSize: 13, weight: .semibold)
+            let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor.black]
+            let textSize = (text as NSString).size(withAttributes: attrs)
+            let size = NSSize(width: symbolSize.width + 3 + textSize.width, height: max(symbolSize.height, textSize.height))
+            let image = NSImage(size: size, flipped: false) { rect in
+                symbol.draw(in: NSRect(x: 0, y: (rect.height - symbolSize.height) / 2,
+                                       width: symbolSize.width, height: symbolSize.height))
+                (text as NSString).draw(at: NSPoint(x: symbolSize.width + 3, y: (rect.height - textSize.height) / 2),
+                                        withAttributes: attrs)
+                return true
+            }
+            image.isTemplate = true
+            return image
+        }
+
+        // Selo: cápsula preenchida no canto inferior direito, com o número "vazado".
+        let font = NSFont.monospacedDigitSystemFont(ofSize: 8.5, weight: .bold)
+        let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor.black]
+        let textSize = (text as NSString).size(withAttributes: attrs)
+        let badgeHeight: CGFloat = 11
+        let badgeWidth = max(badgeHeight, textSize.width + 5)
+        let gap: CGFloat = 1.5
+        let size = NSSize(width: max(symbolSize.width, symbolSize.width * 0.55 + badgeWidth),
+                          height: max(18, symbolSize.height + 2))
+
+        let image = NSImage(size: size, flipped: false) { rect in
+            symbol.draw(in: NSRect(x: 0, y: rect.height - symbolSize.height,
+                                   width: symbolSize.width, height: symbolSize.height))
+            guard let ctx = NSGraphicsContext.current else { return true }
+            let badge = NSRect(x: rect.maxX - badgeWidth, y: 0, width: badgeWidth, height: badgeHeight)
+
+            // Abre um respiro em volta do selo para separá-lo do ícone.
+            ctx.compositingOperation = .clear
+            let ring = badge.insetBy(dx: -gap, dy: -gap)
+            NSBezierPath(roundedRect: ring, xRadius: ring.height / 2, yRadius: ring.height / 2).fill()
+
+            ctx.compositingOperation = .sourceOver
+            NSColor.black.setFill()
+            NSBezierPath(roundedRect: badge, xRadius: badgeHeight / 2, yRadius: badgeHeight / 2).fill()
+
+            ctx.compositingOperation = .destinationOut
+            (text as NSString).draw(at: NSPoint(x: badge.midX - textSize.width / 2,
+                                                y: badge.midY - textSize.height / 2 + 0.3),
+                                    withAttributes: attrs)
+            ctx.compositingOperation = .sourceOver
+            return true
+        }
         image.isTemplate = true
         return image
     }

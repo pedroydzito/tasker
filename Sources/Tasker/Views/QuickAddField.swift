@@ -1,13 +1,14 @@
 import SwiftUI
 
-/// Campo "Adicionar tarefa a <lista>" com seletor de lista e reconhecimento de datas.
+/// Campo de nova tarefa com seletor de lista e reconhecimento de datas, ~lista e #etiqueta.
 struct QuickAddField: View {
-    enum Style { case compact, inline, large }
+    enum Style { case compact, inline, large, floating }
 
     @Environment(TaskStore.self) private var store
     /// Data padrão quando nada é digitado (nil = sem data).
     var defaultDue: Date?
     var fixedListID: String?
+    var fixedTagID: String?
     var style: Style = .compact
     var onAdded: (() -> Void)?
 
@@ -26,39 +27,66 @@ struct QuickAddField: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 9) {
                 Image(systemName: "plus")
-                    .font(.system(size: style == .large ? 17 : 13, weight: .medium))
-                    .foregroundStyle(style == .inline ? Color.accentColor : .secondary)
+                    .font(.system(size: fontSize - 1, weight: .medium))
+                    .foregroundStyle(style == .inline || style == .floating ? Color.accentColor : .secondary)
                 TextField(placeholder, text: $text)
                     .textFieldStyle(.plain)
-                    .font(.system(size: style == .large ? 18 : 14))
+                    .font(.system(size: fontSize))
                     .focused($focused)
                     .onSubmit(submit)
-                if fixedListID == nil {
-                    listMenu
+                if fixedListID == nil { listMenu }
+                if style == .floating {
+                    Button(action: submit) {
+                        Image(systemName: "arrow.up.circle.fill")
+                            .font(.system(size: 22))
+                            .foregroundStyle(text.isEmpty ? Theme.subtle.opacity(0.5) : Color.accentColor)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(text.isEmpty)
                 }
             }
-            .padding(.horizontal, style == .inline ? 10 : 12)
-            .padding(.vertical, style == .large ? 12 : 9)
+            .padding(.horizontal, style == .inline ? 10 : 14)
+            .padding(.vertical, verticalPadding)
             .background {
-                if style != .inline {
-                    RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.primary.opacity(0.05))
+                if style == .compact || style == .large {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.field)
                 }
             }
 
             if !text.isEmpty {
-                chips.padding(.horizontal, 12).transition(.opacity)
+                chips.padding(.horizontal, 14).padding(.bottom, style == .floating ? 4 : 0).transition(.opacity)
             }
         }
         .onAppear { if style == .large { focused = true } }
     }
 
+    private var fontSize: CGFloat {
+        switch style {
+        case .large: 18
+        case .floating: 14.5
+        default: 14
+        }
+    }
+
+    private var verticalPadding: CGFloat {
+        switch style {
+        case .large: 12
+        case .floating: 8
+        default: 9
+        }
+    }
+
     private var placeholder: String {
-        let name = store.list(listID ?? "")?.title ?? "Minhas tarefas"
-        return style == .large ? "Nova tarefa — ex.: Ligar pro cliente amanhã ~\(QuickAddParser.normalizedListName(name).lowercased()) #urgente"
-                               : "Adicionar tarefa a \"\(name)\""
+        let name = store.displayName(listID ?? "")
+        let list = name.isEmpty ? "Minhas tarefas" : name
+        switch style {
+        case .large: return "Nova tarefa — ex.: Ligar pro cliente amanhã ~\(list.lowercased()) #urgente"
+        case .floating: return "Adicionar tarefa a \"\(list)\"…   ⌥Espaço de qualquer lugar"
+        default: return "Adicionar tarefa a \"\(list)\""
+        }
     }
 
     private var listMenu: some View {
@@ -82,28 +110,29 @@ struct QuickAddField: View {
     }
 
     private var chips: some View {
-        HStack(spacing: 6) {
-            if let list = store.list(listID ?? "") {
-                ListBadge(title: list.title, color: store.color(forList: list.id))
-            }
+        HStack(spacing: 8) {
+            if let listID { ListChip(listID: listID) }
             if let due {
-                DueBadge(day: due, today: store.today, filled: true)
+                DueLabel(day: due, today: store.today)
             } else {
-                Text("Sem data").font(.system(size: 11.5)).foregroundStyle(.secondary)
+                Text("Sem data").foregroundStyle(Theme.subtle)
             }
             ForEach(parsed.tagNames, id: \.self) { name in
                 TagChip(name: name, color: store.tags.first { $0.name.lowercased() == name.lowercased() }
                     .map { Color(hex: $0.colorHex) } ?? .secondary)
             }
             Spacer()
-            Text("↩︎ para adicionar").font(.system(size: 11)).foregroundStyle(.tertiary)
+            Text("↩︎ para adicionar").foregroundStyle(.tertiary)
         }
+        .font(.system(size: 11.5))
     }
 
     private func submit() {
         let result = parsed
         guard !result.title.trimmingCharacters(in: .whitespaces).isEmpty else { return }
-        store.addTask(title: result.title, listID: listID, due: due, tagIDs: store.resolveTags(named: result.tagNames))
+        var tagIDs = store.resolveTags(named: result.tagNames)
+        if let fixedTagID, !tagIDs.contains(fixedTagID) { tagIDs.append(fixedTagID) }
+        store.addTask(title: result.title, listID: listID, due: due, tagIDs: tagIDs)
         text = ""
         onAdded?()
     }

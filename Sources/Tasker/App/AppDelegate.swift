@@ -9,6 +9,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.applicationIconImage = AppIcon.make()
         let model = AppModel.shared
+        NSApp.appearance = model.prefs.appearance.nsAppearance
         model.store.start()
         model.updater.start()
 

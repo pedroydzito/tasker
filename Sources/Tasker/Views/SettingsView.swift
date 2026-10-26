@@ -29,7 +29,7 @@ struct SettingsView: View {
 
             Section("Conta") {
                 HStack(spacing: 12) {
-                    Avatar(profile: auth.profile, size: 40)
+                    Avatar(size: 40)
                     VStack(alignment: .leading) {
                         Text(auth.profile?.name ?? "Conta Google").font(.headline)
                         Text(auth.profile?.email ?? "").foregroundStyle(.secondary)
@@ -40,6 +40,17 @@ struct SettingsView: View {
                         store.reset()
                     }
                 }
+            }
+
+            Section("Aparência") {
+                Picker("Tema", selection: $prefs.appearance) {
+                    ForEach(AppAppearance.allCases) { Text($0.title).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .onChange(of: prefs.appearance) { _, value in NSApp.appearance = value.nsAppearance }
+                Text("Vale para a janela e para o menu da barra — mesmo com papel de parede escuro.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section("Barra de menu") {
@@ -59,10 +70,7 @@ struct SettingsView: View {
                     ForEach(store.lists) { Text($0.title).tag($0.id) }
                 }
                 ForEach(store.lists) { list in
-                    ColorPicker(list.title, selection: Binding(
-                        get: { store.color(forList: list.id) },
-                        set: { store.setColor($0, forList: list.id) }
-                    ), supportsOpacity: false)
+                    ListSettingsRow(listID: list.id)
                 }
             }
 
@@ -121,5 +129,23 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         .navigationTitle("Ajustes")
+    }
+}
+
+/// Linha de lista nos Ajustes: prévia da pílula + editor de emoji/foto/cor.
+private struct ListSettingsRow: View {
+    @Environment(TaskStore.self) private var store
+    let listID: String
+    @State private var editing = false
+
+    var body: some View {
+        HStack(spacing: 10) {
+            ListIconView(listID: listID, size: 22)
+            Text(store.displayName(listID))
+            Spacer()
+            ListChip(listID: listID)
+            Button("Personalizar…") { editing = true }
+                .popover(isPresented: $editing) { ListAppearanceEditor(listID: listID) }
+        }
     }
 }

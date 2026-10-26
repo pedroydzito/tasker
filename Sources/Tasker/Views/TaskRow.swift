@@ -19,43 +19,13 @@ struct TaskRow: View {
     private var isSelected: Bool { style == .full && nav.selectedTaskID == task.id }
 
     var body: some View {
-        HStack(spacing: 10) {
-            CheckCircle(color: store.color(forList: task.listID), checked: checked, action: toggle)
-
-            Text(task.displayTitle)
-                .font(.system(size: style == .compact ? 13.5 : 14))
-                .strikethrough(checked, color: .secondary)
-                .foregroundStyle(checked ? .secondary : .primary)
-                .lineLimit(1)
-
-            Spacer(minLength: 8)
-
-            ForEach(store.tags(for: task)) { tag in
-                TagChip(name: tag.name, color: Color(hex: tag.colorHex))
-            }
-            if task.hasNotes {
-                Image(systemName: "text.alignleft")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.tertiary)
-            }
-            if showList, style == .full, let list = store.list(task.listID) {
-                ListBadge(title: list.title, color: store.color(forList: list.id))
-            }
-            if showDate, let day = task.dueDay {
-                DueBadge(day: day, today: store.today, filled: style == .full)
-            }
+        Group {
+            if style == .compact { compactBody } else { cardBody }
         }
-        .padding(.leading, 10 + CGFloat(depth) * 24)
-        .padding(.trailing, 10)
-        .padding(.vertical, style == .compact ? 7 : 9)
-        .background(
-            RoundedRectangle(cornerRadius: 7, style: .continuous)
-                .fill(isSelected ? Color.accentColor.opacity(0.12) : Color.primary.opacity(hovering || editing ? 0.045 : 0))
-        )
         .contentShape(Rectangle())
         .onHover { hovering = $0 }
         .onTapGesture {
-            // Na janela principal abre o painel lateral; no popover da barra de menu, um popover.
+            // Na janela principal abre o painel de detalhes; no popover da barra de menu, um popover.
             if style == .full { nav.selectedTaskID = task.id } else { editing = true }
         }
         .popover(isPresented: $editing, arrowEdge: .trailing) {
@@ -63,6 +33,84 @@ struct TaskRow: View {
         }
         .contextMenu { contextMenu }
         .opacity(task.isLocal ? 0.6 : 1)
+    }
+
+    // MARK: Popover (linha simples, como no KiteTasks)
+
+    private var compactBody: some View {
+        HStack(spacing: 10) {
+            CheckCircle(color: store.color(forList: task.listID), checked: checked, action: toggle)
+            Text(task.displayTitle)
+                .font(.system(size: 13.5))
+                .strikethrough(checked, color: .secondary)
+                .foregroundStyle(checked ? .secondary : .primary)
+                .lineLimit(1)
+            Spacer(minLength: 8)
+            if task.hasNotes {
+                Image(systemName: "text.alignleft").font(.system(size: 11)).foregroundStyle(.tertiary)
+            }
+            if showDate, let day = task.dueDay {
+                Text(DayLabel.short(day, today: store.today))
+                    .font(.system(size: 12))
+                    .foregroundStyle(day < store.today ? Color.red : Theme.subtle)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color.primary.opacity(hovering || editing ? 0.045 : 0))
+        )
+    }
+
+    // MARK: Janela principal (cartão)
+
+    private var cardBody: some View {
+        let tags = store.tags(for: task)
+        let hasMeta = (showDate && task.dueDay != nil) || task.hasNotes || !tags.isEmpty
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 11) {
+                CheckCircle(color: store.color(forList: task.listID), checked: checked, action: toggle)
+                Text(task.displayTitle)
+                    .font(.system(size: 14, weight: .medium))
+                    .strikethrough(checked, color: .secondary)
+                    .foregroundStyle(checked ? .secondary : .primary)
+                    .lineLimit(1)
+                if showList { ListChip(listID: task.listID) }
+                Spacer(minLength: 0)
+            }
+            if hasMeta {
+                HStack(spacing: 14) {
+                    if showDate, let day = task.dueDay {
+                        DueLabel(day: day, today: store.today)
+                    }
+                    if task.hasNotes {
+                        HStack(spacing: 4) {
+                            Image(systemName: "text.alignleft")
+                            Text((task.notes ?? "").components(separatedBy: .newlines).first ?? "")
+                                .lineLimit(1)
+                        }
+                        .frame(maxWidth: 260, alignment: .leading)
+                    }
+                    ForEach(tags) { TagChip(name: $0.name, color: Color(hex: $0.colorHex)) }
+                }
+                .font(.system(size: 12))
+                .foregroundStyle(Theme.subtle)
+                .padding(.leading, 29)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 11)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(isSelected ? Color.accentColor.opacity(0.7) : Theme.stroke.opacity(hovering ? 1 : 0.5),
+                              lineWidth: isSelected ? 1.5 : 1)
+        )
+        .shadow(color: .black.opacity(hovering ? 0.07 : 0.025), radius: hovering ? 8 : 2, y: hovering ? 3 : 1)
+        .padding(.leading, CGFloat(depth) * 26)
+        .animation(.easeOut(duration: 0.15), value: hovering)
     }
 
     private func toggle() {

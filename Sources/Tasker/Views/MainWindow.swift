@@ -13,32 +13,40 @@ struct MainWindow: View {
                 OnboardingView()
             }
         }
-        .frame(minWidth: 820, minHeight: 520)
+        .frame(minWidth: 860, minHeight: 540)
         // Com a janela aberta o app aparece no Dock e no ⌘Tab; fechada, volta a viver só na barra de menu.
-        .onAppear { NSApp.setActivationPolicy(.regular) }
+        .onAppear {
+            NSApp.setActivationPolicy(.regular)
+            NSApp.appearance = store.prefs.appearance.nsAppearance
+        }
         .onDisappear { NSApp.setActivationPolicy(.accessory) }
+        .onChange(of: store.prefs.appearance) { _, value in NSApp.appearance = value.nsAppearance }
     }
 
     private var split: some View {
         NavigationSplitView {
             Sidebar()
-                .navigationSplitViewColumnWidth(min: 210, ideal: 240, max: 320)
+                .navigationSplitViewColumnWidth(min: 220, ideal: 250, max: 320)
         } detail: {
-            VStack(spacing: 0) {
+            ZStack {
                 detail
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                HotkeyTip()
+                    .id(nav.selection)
+                    .transition(.opacity.combined(with: .offset(y: 8)))
             }
-            .inspector(isPresented: Binding(
-                get: { nav.selectedTaskID != nil && store.tasks[nav.selectedTaskID ?? ""] != nil },
-                set: { if !$0 { nav.selectedTaskID = nil } }
-            )) {
-                if let id = nav.selectedTaskID, let task = store.tasks[id] {
-                    TaskEditor(task: task, isInspector: true) { nav.selectedTaskID = nil }
-                        .id(task.id)
-                        .inspectorColumnWidth(min: 280, ideal: 340, max: 460)
+            .animation(.spring(response: 0.28, dampingFraction: 0.9), value: nav.selection)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Theme.canvas)
+                .overlay(alignment: .bottom) { floatingBar }
+                .inspector(isPresented: Binding(
+                    get: { nav.selectedTaskID != nil && store.tasks[nav.selectedTaskID ?? ""] != nil },
+                    set: { if !$0 { nav.selectedTaskID = nil } }
+                )) {
+                    if let id = nav.selectedTaskID, let task = store.tasks[id] {
+                        TaskInspector(task: task) { nav.selectedTaskID = nil }
+                            .id(task.id)
+                            .inspectorColumnWidth(min: 320, ideal: 400, max: 520)
+                    }
                 }
-            }
         }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
@@ -68,28 +76,29 @@ struct MainWindow: View {
         case .settings: SettingsView()
         }
     }
-}
 
-/// Dica do atalho global, como no rodapé do KiteTasks.
-struct HotkeyTip: View {
-    @Environment(TaskStore.self) private var store
-
-    var body: some View {
-        if !store.prefs.hotkeyTipDismissed {
-            HStack(spacing: 8) {
-                Image(systemName: "keyboard").foregroundStyle(.secondary)
-                Text("Pressione **⌥Espaço** para adicionar uma tarefa de qualquer lugar — mesmo fora do Tasker")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Button { store.prefs.hotkeyTipDismissed = true } label: { Image(systemName: "xmark") }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.tertiary)
+    /// Barra flutuante de nova tarefa (como o "Speak or Type task" da referência).
+    @ViewBuilder private var floatingBar: some View {
+        let selection = nav.selection ?? .today
+        if selection != .settings && selection != .calendar && selection != .completed {
+            let tomorrow = Calendar.current.adding(days: 1, to: store.today)
+            let context: (due: Date?, list: String?, tag: String?) = switch selection {
+            case .today: (store.today, nil, nil)
+            case .tomorrow, .upcoming: (tomorrow, nil, nil)
+            case .list(let id): (nil, id, nil)
+            case .tag(let id): (nil, nil, id)
+            default: (nil, nil, nil)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 9)
-            .background(Color.primary.opacity(0.03))
-            .overlay(alignment: .top) { Divider() }
+            QuickAddField(defaultDue: context.due, fixedListID: context.list, fixedTagID: context.tag, style: .floating)
+                .id("\(selection)")
+                .padding(4)
+                .background(Theme.surface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(Theme.stroke))
+                .shadow(color: .black.opacity(0.12), radius: 18, y: 6)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .frame(maxWidth: 640)
+                .padding(.horizontal, 30)
+                .padding(.bottom, 18)
         }
     }
 }

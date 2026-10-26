@@ -4,10 +4,61 @@ struct APIError: LocalizedError {
     let status: Int
     let body: String
 
+    private struct Body: Decodable {
+        struct Detail: Decodable {
+            let reason: String?
+            let metadata: [String: String]?
+        }
+        struct Item: Decodable {
+            let reason: String?
+        }
+        struct Inner: Decodable {
+            let message: String?
+            let details: [Detail]?
+            let errors: [Item]?
+        }
+        let error: Inner
+    }
+
+    private var parsed: Body? { try? JSONDecoder().decode(Body.self, from: Data(body.utf8)) }
+
+    private var reasons: [String] {
+        (parsed?.error.details?.compactMap(\.reason) ?? []) + (parsed?.error.errors?.compactMap(\.reason) ?? [])
+    }
+
+    /// A API não foi ativada no projeto do Google Cloud.
+    var isServiceDisabled: Bool {
+        reasons.contains("SERVICE_DISABLED") || reasons.contains("accessNotConfigured") || body.contains("has not been used in project")
+    }
+
+    /// O usuário desmarcou essa permissão na tela de login do Google.
+    var isScopeInsufficient: Bool {
+        reasons.contains("ACCESS_TOKEN_SCOPE_INSUFFICIENT") || reasons.contains("insufficientPermissions")
+    }
+
+    var serviceTitle: String? {
+        parsed?.error.details?.compactMap { $0.metadata?["serviceTitle"] }.first
+    }
+
+    /// Link direto para ativar a API no Console.
+    var activationURL: URL? {
+        if let url = parsed?.error.details?.compactMap({ $0.metadata?["activationUrl"] }).first { return URL(string: url) }
+        guard let start = body.range(of: "https://console.developers.google.com/apis/api/") else { return nil }
+        let tail = body[start.lowerBound...]
+        let end = tail.firstIndex { $0 == " " || $0 == "\"" || $0 == "\n" } ?? tail.endIndex
+        return URL(string: String(tail[..<end]))
+    }
+
     var errorDescription: String? {
-        if status == 403 { return "Acesso negado pelo Google (403). Verifique se as APIs Tasks e Calendar estão ativadas no Google Cloud." }
+        if isServiceDisabled {
+            return "A \(serviceTitle ?? "API do Google") não está ativada no seu projeto do Google Cloud."
+        }
+        if isScopeInsufficient {
+            return "O Tasker não recebeu todas as permissões. Entre de novo e marque todas as caixas na tela do Google."
+        }
+        if status == 403 { return "Acesso negado pelo Google (403): \(parsed?.error.message ?? "sem detalhes")" }
         if status == 429 { return "Muitas requisições ao Google. Tentando de novo em instantes." }
-        return "Erro do Google (\(status))."
+        return "Erro do Google (\(status)): \(parsed?.error.message ?? "")"
     }
 }
 

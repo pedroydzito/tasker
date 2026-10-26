@@ -18,11 +18,13 @@ struct CalendarView: View {
             }
             .padding(20)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Theme.canvas)
 
             Divider()
 
             DayAgenda(day: selected, events: events(on: selected))
-                .frame(width: 320)
+                .frame(width: 330)
+                .background(Theme.surface)
         }
         .task(id: month) {
             let days = gridDays
@@ -40,14 +42,16 @@ struct CalendarView: View {
             Text(month.formatted(.dateTime.month(.wide).year()).capitalized)
                 .font(.system(size: 22, weight: .bold))
             Spacer()
-            Button("Hoje") {
+            Button {
                 month = cal.dateInterval(of: .month, for: .now)?.start ?? .now
                 selected = store.today
+            } label: {
+                Text("Hoje").font(.system(size: 12.5, weight: .medium)).padding(.horizontal, 10).padding(.vertical, 4)
             }
-            Button { shift(-1) } label: { Image(systemName: "chevron.left") }
-            Button { shift(1) } label: { Image(systemName: "chevron.right") }
+            Button { shift(-1) } label: { Image(systemName: "chevron.left").frame(width: 26, height: 24) }
+            Button { shift(1) } label: { Image(systemName: "chevron.right").frame(width: 26, height: 24) }
         }
-        .buttonStyle(.borderless)
+        .buttonStyle(.pressable)
     }
 
     private func shift(_ value: Int) {
@@ -88,7 +92,7 @@ struct CalendarView: View {
                                 isSelected: day == selected,
                                 events: events(on: day),
                                 tasks: store.tasks(on: day))
-                            .onTapGesture { selected = day }
+                            .onTapGesture { withAnimation(.snappy(duration: 0.18)) { selected = day } }
                     }
                 }
             }
@@ -104,6 +108,7 @@ private struct DayCell: View {
     let isSelected: Bool
     let events: [CalendarEvent]
     let tasks: [TaskItem]
+    @State private var hovering = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
@@ -112,6 +117,7 @@ private struct DayCell: View {
                 .foregroundStyle(isToday ? AnyShapeStyle(Color.white) : (inMonth ? AnyShapeStyle(.primary) : AnyShapeStyle(.tertiary)))
                 .frame(width: 22, height: 22)
                 .background(Circle().fill(isToday ? Color.accentColor : .clear))
+                .padding(.bottom, 1)
 
             ForEach(events.prefix(2)) { event in
                 line(event.title, color: Color(hex: event.colorHex), filled: true)
@@ -128,10 +134,17 @@ private struct DayCell: View {
         .padding(4)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(isSelected ? Color.accentColor.opacity(0.10) : Color.primary.opacity(inMonth ? 0.025 : 0))
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(inMonth ? Theme.surface : Theme.surface.opacity(0.4))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(isSelected ? Color.accentColor : (hovering ? Theme.stroke : .clear),
+                              lineWidth: isSelected ? 1.5 : 1)
         )
         .contentShape(Rectangle())
+        .onHover { hovering = $0 }
+        .animation(.easeOut(duration: 0.12), value: hovering)
     }
 
     private func line(_ text: String, color: Color, filled: Bool) -> some View {
@@ -164,8 +177,8 @@ private struct DayAgenda: View {
                 if tasks.isEmpty && events.isEmpty {
                     EmptyState(symbol: "calendar", title: "Dia livre")
                 }
-                VStack(spacing: 1) {
-                    ForEach(tasks) { TaskRow(task: $0, showDate: false, showList: false) }
+                LazyVStack(spacing: 6) {
+                    ForEach(tasks) { TaskRow(task: $0, showDate: false) }
                 }
             }
             .padding(18)

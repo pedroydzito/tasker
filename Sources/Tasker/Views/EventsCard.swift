@@ -32,7 +32,7 @@ struct EventsCard: View {
                 }
             }
             .padding(5)
-            .background(Color.accentColor.opacity(0.04), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .background(Theme.eventFill.opacity(0.45), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
     }
 }
@@ -53,7 +53,7 @@ struct EventRow: View {
         .font(.system(size: 12.5))
         .padding(.vertical, 5)
         .padding(.horizontal, 6)
-        .background(Color.accentColor.opacity(hovering ? 0.14 : 0.08), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .background(Theme.eventFill.opacity(hovering ? 1 : 0.85), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
         .opacity(event.end < .now ? 0.45 : 1)
         .contentShape(Rectangle())
         .onHover { hovering = $0 }

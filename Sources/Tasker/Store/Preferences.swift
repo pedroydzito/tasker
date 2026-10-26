@@ -1,13 +1,45 @@
-import Foundation
+import AppKit
 import Observation
 
 enum MenuBarStyle: String, CaseIterable, Identifiable {
-    case iconAndNumber, numberInSquare
+    case badge, iconAndNumber
     var id: String { rawValue }
     var title: String {
         switch self {
-        case .iconAndNumber: "Ícone + número"
-        case .numberInSquare: "Número no quadrado"
+        case .badge: "Ícone com selo"
+        case .iconAndNumber: "Ícone + número ao lado"
+        }
+    }
+}
+
+enum AppAppearance: String, CaseIterable, Identifiable {
+    case system, light, dark
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .system: "Sistema"
+        case .light: "Claro"
+        case .dark: "Escuro"
+        }
+    }
+
+    /// Para a janela principal (nil = segue o sistema).
+    var nsAppearance: NSAppearance? {
+        switch self {
+        case .system: nil
+        case .light: NSAppearance(named: .aqua)
+        case .dark: NSAppearance(named: .darkAqua)
+        }
+    }
+
+    /// Para o popover: a barra de menu fica escura com papel de parede escuro, mas o popover
+    /// deve seguir o tema do sistema (ou o escolhido), não a cor da barra.
+    var resolved: NSAppearance? {
+        switch self {
+        case .light: NSAppearance(named: .aqua)
+        case .dark: NSAppearance(named: .darkAqua)
+        case .system:
+            NSAppearance(named: UserDefaults.standard.string(forKey: "AppleInterfaceStyle") == "Dark" ? .darkAqua : .aqua)
         }
     }
 }
@@ -22,7 +54,8 @@ final class Preferences {
             "showCount": true,
             "includeOverdue": true,
             "syncInterval": 30.0,
-            "menuBarStyle": MenuBarStyle.iconAndNumber.rawValue,
+            "menuBarStyle": MenuBarStyle.badge.rawValue,
+            "appearance": AppAppearance.system.rawValue,
         ])
     }
 
@@ -40,7 +73,7 @@ final class Preferences {
     var menuBarStyle: MenuBarStyle {
         get {
             access(keyPath: \.menuBarStyle)
-            return MenuBarStyle(rawValue: d.string(forKey: "menuBarStyle") ?? "") ?? .iconAndNumber
+            return MenuBarStyle(rawValue: d.string(forKey: "menuBarStyle") ?? "") ?? .badge
         }
         set { withMutation(keyPath: \.menuBarStyle) { d.set(newValue.rawValue, forKey: "menuBarStyle") } }
     }
@@ -65,6 +98,20 @@ final class Preferences {
     var calendarVisibility: [String: Bool] {
         get { access(keyPath: \.calendarVisibility); return d.dictionary(forKey: "calendarVisibility") as? [String: Bool] ?? [:] }
         set { withMutation(keyPath: \.calendarVisibility) { d.set(newValue, forKey: "calendarVisibility") } }
+    }
+
+    var appearance: AppAppearance {
+        get {
+            access(keyPath: \.appearance)
+            return AppAppearance(rawValue: d.string(forKey: "appearance") ?? "") ?? .system
+        }
+        set { withMutation(keyPath: \.appearance) { d.set(newValue.rawValue, forKey: "appearance") } }
+    }
+
+    /// Emoji escolhido por lista ("" = sem emoji).
+    var listEmojis: [String: String] {
+        get { access(keyPath: \.listEmojis); return d.dictionary(forKey: "listEmojis") as? [String: String] ?? [:] }
+        set { withMutation(keyPath: \.listEmojis) { d.set(newValue, forKey: "listEmojis") } }
     }
 
     var hotkeyTipDismissed: Bool {

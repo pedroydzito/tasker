@@ -10,15 +10,25 @@ final class TaskStore {
     @ObservationIgnored private let api: GoogleAPI
 
     private(set) var lists: [TaskList] = []
-    private(set) var tasks: [String: TaskItem] = [:]
+    /// Índice pronto (filtros e ordenações), recalculado só quando as tarefas mudam.
+    private(set) var index = TaskIndex()
+    /// Nome, emoji, cor e ordem de cada lista, pré-calculados.
+    private(set) var listMeta: [String: ListMeta] = [:]
     private(set) var calendars: [CalendarInfo] = []
     private(set) var events: [CalendarEvent] = []
     private(set) var isSyncing = false
     private(set) var lastSync: Date?
     var lastError: String?
+    /// Problema específico do Google Calendar (API desativada, permissão negada...). Não bloqueia as tarefas.
+    private(set) var calendarIssue: APIError?
+    private(set) var listPhotos: [String: NSImage] = [:]
     private(set) var today = Calendar.current.startOfDay(for: .now)
     private(set) var tagDB = TagDatabase.load()
 
+    /// Fonte das tarefas. Toda alteração reconstrói o índice uma única vez.
+    @ObservationIgnored private var taskMap: [String: TaskItem] = [:] {
+        didSet { rebuildIndex() }
+    }
     @ObservationIgnored private var timer: Timer?
     @ObservationIgnored private var listMarks: [String: Date] = [:]
     @ObservationIgnored private var lastFullSync = Date.distantPast
@@ -32,49 +42,29 @@ final class TaskStore {
         self.prefs = prefs
     }
 
-    // MARK: Consultas
+    // MARK: Consultas (leituras baratas do índice)
 
-    private var activeTasks: [TaskItem] { tasks.values.filter { !$0.isCompleted } }
-
-    var todayTasks: [TaskItem] {
-        activeTasks.filter { $0.dueDay == today }.sorted(by: order)
-    }
-
-    var overdueTasks: [TaskItem] {
-        activeTasks.filter { ($0.dueDay ?? .distantFuture) < today }.sorted(by: order)
-    }
-
-    var completedToday: [TaskItem] {
-        tasks.values
-            .filter { $0.isCompleted && $0.completedDate.map { Calendar.current.isDate($0, inSameDayAs: today) } == true }
-            .sorted { ($0.completedDate ?? .distantPast) > ($1.completedDate ?? .distantPast) }
-    }
+    var tasks: [String: TaskItem] { index.byID }
+    var todayTasks: [TaskItem] { index.today }
+    var overdueTasks: [TaskItem] { index.overdue }
+    var completedToday: [TaskItem] { index.completedToday }
+    var completedTasks: [TaskItem] { index.completed }
+    var undatedTasks: [TaskItem] { index.undated }
+    var laterTasks: [TaskItem] { index.later }
+    var activeCount: Int { index.activeCount }
 
     /// Número exibido na barra de menu.
     var badgeCount: Int {
-        let end = Calendar.current.adding(days: 1, to: today)
-        return activeTasks.filter { task in
-            guard let due = task.dueDay, due < end else { return false }
-            return prefs.includeOverdueInCount || due >= today
-        }.count
+        index.today.count + (prefs.includeOverdueInCount ? index.overdue.count : 0)
     }
 
-    var completedTasks: [TaskItem] {
-        tasks.values.filter(\.isCompleted).sorted { ($0.completedDate ?? .distantPast) > ($1.completedDate ?? .distantPast) }
-    }
+    func tasks(on day: Date) -> [TaskItem] { index.byDay[day] ?? [] }
+    func tasks(inList listID: String) -> [TaskItem] { index.byList[listID] ?? [] }
+    func completedTasks(inList listID: String) -> [TaskItem] { index.completedByList[listID] ?? [] }
 
-    var activeCount: Int { activeTasks.count }
-
-    func tasks(on day: Date) -> [TaskItem] {
-        activeTasks.filter { $0.dueDay == day }.sorted(by: order)
-    }
-
-    func tasks(inList listID: String) -> [TaskItem] {
-        activeTasks.filter { $0.listID == listID }
-    }
-
-    var undatedTasks: [TaskItem] {
-        activeTasks.filter { $0.due == nil }.sorted(by: order)
+    private func rebuildIndex() {
+        let order = Dictionary(uniqueKeysWithValues: lists.enumerated().map { ($1.id, $0) })
+        index = TaskIndex(map: taskMap, today: today, listOrder: order)
     }
 
     func events(on day: Date) -> [CalendarEvent] {
@@ -88,13 +78,94 @@ final class TaskStore {
     }
 
     func color(forList id: String) -> Color {
-        if let hex = prefs.listColors[id] { return Color(hex: hex) }
-        let index = lists.firstIndex { $0.id == id } ?? abs(id.hashValue)
-        return Color(hex: Palette.lists[index % Palette.lists.count])
+        listMeta[id]?.color ?? .gray
     }
 
     func setColor(_ color: Color, forList id: String) {
         prefs.listColors[id] = color.hexString
+        rebuildListMeta()
+    }
+
+    private func rebuildListMeta() {
+        var meta: [String: ListMeta] = [:]
+        let colors = prefs.listColors
+        let emojis = prefs.listEmojis
+        for (i, list) in lists.enumerated() {
+            let (prefix, rest) = Self.splitLeadingSymbols(list.title)
+            let emoji: String? = emojis[list.id].map { $0.isEmpty ? nil : $0 } ?? (prefix.isEmpty ? nil : prefix)
+            let hex = colors[list.id] ?? Palette.lists[i % Palette.lists.count]
+            meta[list.id] = ListMeta(name: rest.isEmpty ? list.title : rest, emoji: emoji, color: Color(hex: hex), order: i)
+        }
+        listMeta = meta
+    }
+
+    /// Chamado sempre que `lists` muda.
+    private func listsChanged() {
+        rebuildListMeta()
+        rebuildIndex()
+    }
+
+    // MARK: Aparência das listas (emoji / foto)
+
+    /// Nome sem o emoji inicial ("🎨 Taís" → "Taís").
+    func displayName(_ listID: String) -> String {
+        listMeta[listID]?.name ?? ""
+    }
+
+    /// Emoji escolhido no app; sem escolha, usa o emoji que já está no nome da lista no Google.
+    func emoji(forList id: String) -> String? {
+        listMeta[id]?.emoji
+    }
+
+    func setEmoji(_ emoji: String?, forList id: String) {
+        prefs.listEmojis[id] = emoji ?? ""
+        rebuildListMeta()
+    }
+
+    func photo(forList id: String) -> NSImage? { listPhotos[id] }
+
+    func setPhoto(from url: URL, forList id: String) {
+        guard let image = NSImage(contentsOf: url) else { return }
+        let side: CGFloat = 160
+        let square = NSImage(size: NSSize(width: side, height: side), flipped: false) { _ in
+            let s = image.size
+            let scale = max(side / max(s.width, 1), side / max(s.height, 1))
+            let w = s.width * scale, h = s.height * scale
+            image.draw(in: NSRect(x: (side - w) / 2, y: (side - h) / 2, width: w, height: h))
+            return true
+        }
+        guard let tiff = square.tiffRepresentation,
+              let png = NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:]) else { return }
+        try? png.write(to: Self.photoURL(id), options: .atomic)
+        listPhotos[id] = NSImage(data: png)
+    }
+
+    func removePhoto(forList id: String) {
+        try? FileManager.default.removeItem(at: Self.photoURL(id))
+        listPhotos[id] = nil
+    }
+
+    private static func photoURL(_ listID: String) -> URL {
+        let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("Tasker/ListPhotos", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let safe = listID.replacingOccurrences(of: "/", with: "_")
+        return dir.appendingPathComponent("\(safe).png")
+    }
+
+    private func loadPhotos() {
+        for list in lists {
+            if let image = NSImage(contentsOf: Self.photoURL(list.id)) { listPhotos[list.id] = image }
+        }
+    }
+
+    /// Separa símbolos/emojis do começo do texto do restante.
+    static func splitLeadingSymbols(_ text: String) -> (String, String) {
+        let index = text.firstIndex { ch in ch.unicodeScalars.first.map { CharacterSet.alphanumerics.contains($0) } ?? false }
+            ?? text.endIndex
+        let prefix = text[..<index].trimmingCharacters(in: .whitespaces)
+        let rest = text[index...].trimmingCharacters(in: .whitespaces)
+        return (prefix, rest)
     }
 
     func isVisible(_ calendar: CalendarInfo) -> Bool {
@@ -104,18 +175,6 @@ final class TaskStore {
     func setVisible(_ visible: Bool, calendar: CalendarInfo) {
         prefs.calendarVisibility[calendar.id] = visible
         Task { await syncEvents(force: true) }
-    }
-
-    /// Ordem: data, depois ordem das listas, depois posição dentro da lista.
-    private func order(_ a: TaskItem, _ b: TaskItem) -> Bool {
-        let da = a.dueDay ?? .distantFuture, db = b.dueDay ?? .distantFuture
-        if da != db { return da < db }
-        if a.listID != b.listID {
-            let ia = lists.firstIndex { $0.id == a.listID } ?? .max
-            let ib = lists.firstIndex { $0.id == b.listID } ?? .max
-            return ia < ib
-        }
-        return (a.position ?? "") < (b.position ?? "")
     }
 
     /// Tarefas de uma lista com subtarefas logo abaixo da tarefa-mãe.
@@ -137,6 +196,7 @@ final class TaskStore {
 
     func start() {
         loadCache()
+        loadPhotos()
         scheduleTimer()
 
         let ws = NSWorkspace.shared.notificationCenter
@@ -166,14 +226,19 @@ final class TaskStore {
 
     func refreshToday() {
         let now = Calendar.current.startOfDay(for: .now)
-        if now != today { today = now }
+        if now != today {
+            today = now
+            rebuildIndex()
+        }
     }
 
     func reset() {
         lists = []
-        tasks = [:]
+        listsChanged()
+        taskMap = [:]
         calendars = []
         events = []
+        calendarIssue = nil
         listMarks = [:]
         lastSync = nil
         lastEventSync = .distantPast
@@ -193,7 +258,7 @@ final class TaskStore {
             try await syncTasks(full: full)
             if full { lastFullSync = .now }
             if force || Date().timeIntervalSince(lastEventSync) > 90 {
-                try await syncEventsNow()
+                await syncEventsSafely()
             }
             lastSync = .now
             lastError = nil
@@ -207,10 +272,18 @@ final class TaskStore {
 
     private func syncTasks(full: Bool) async throws {
         let remoteLists = try await api.fetchTaskLists()
-        lists = remoteLists.map { TaskList(id: $0.id, title: $0.title ?? "Sem título") }
+        let hadLists = !lists.isEmpty
+        let newLists = remoteLists.map { TaskList(id: $0.id, title: $0.title ?? "Sem título") }
+        if newLists != lists {
+            lists = newLists
+            listsChanged()
+        }
+        if !hadLists { loadPhotos() }
         let listIDs = Set(lists.map(\.id))
-        tasks = tasks.filter { listIDs.contains($0.value.listID) }
 
+        // Junta tudo numa cópia e aplica de uma vez (um único rebuild do índice).
+        var map = taskMap.filter { listIDs.contains($0.value.listID) }
+        var changed = map.count != taskMap.count
         for list in lists {
             let started = Date()
             let since = full ? nil : listMarks[list.id]
@@ -219,27 +292,42 @@ final class TaskStore {
 
             if since == nil {
                 let remoteIDs = Set(remote.map(\.id))
-                tasks = tasks.filter { _, task in
+                let before = map.count
+                map = map.filter { _, task in
                     task.listID != list.id || remoteIDs.contains(task.id) || task.isLocal || pendingIDs.contains(task.id)
                 }
+                if map.count != before { changed = true }
             }
             for g in remote where !pendingIDs.contains(g.id) {
                 if g.deleted == true {
-                    tasks[g.id] = nil
+                    if map.removeValue(forKey: g.id) != nil { changed = true }
                 } else {
-                    tasks[g.id] = TaskItem(g, listID: list.id)
+                    let item = TaskItem(g, listID: list.id)
+                    if map[g.id] != item {
+                        map[g.id] = item
+                        changed = true
+                    }
                 }
             }
             listMarks[list.id] = started
         }
+        if changed { taskMap = map }
     }
 
     func syncEvents(force: Bool = false) async {
+        await syncEventsSafely()
+        saveCache()
+    }
+
+    private func syncEventsSafely() async {
         do {
             try await syncEventsNow()
-            saveCache()
+            calendarIssue = nil
+        } catch let error as APIError {
+            calendarIssue = error
+            lastEventSync = .now
         } catch {
-            lastError = error.localizedDescription
+            lastEventSync = .now
         }
     }
 
@@ -285,7 +373,7 @@ final class TaskStore {
     }
 
     func tasks(withTag tagID: String) -> [TaskItem] {
-        activeTasks.filter { tagDB.assignments[$0.id]?.contains(tagID) == true }.sorted(by: order)
+        index.active.filter { tagDB.assignments[$0.id]?.contains(tagID) == true }
     }
 
     func tag(_ id: String) -> Tag? { tagDB.tags.first { $0.id == id } }
@@ -342,21 +430,21 @@ final class TaskStore {
 
         let tempID = "local-\(UUID().uuidString)"
         let dueString = due.map(TaskItem.dueString)
-        tasks[tempID] = TaskItem(id: tempID, listID: listID, title: title, notes: notes, due: dueString, position: "")
+        taskMap[tempID] = TaskItem(id: tempID, listID: listID, title: title, notes: notes, due: dueString, position: "")
         if !tagIDs.isEmpty { tagDB.assignments[tempID] = tagIDs }
 
         Task {
             do {
                 let created = try await api.insertTask(listID: listID, title: title, notes: notes, due: dueString)
-                tasks[tempID] = nil
-                tasks[created.id] = TaskItem(created, listID: listID)
+                taskMap[tempID] = nil
+                taskMap[created.id] = TaskItem(created, listID: listID)
                 if let tags = tagDB.assignments.removeValue(forKey: tempID) {
                     tagDB.assignments[created.id] = tags
                     tagDB.save()
                 }
                 saveCache()
             } catch {
-                tasks[tempID] = nil
+                taskMap[tempID] = nil
                 tagDB.assignments[tempID] = nil
                 lastError = "Não foi possível criar a tarefa: \(error.localizedDescription)"
             }
@@ -378,16 +466,25 @@ final class TaskStore {
         mutate(task, fields: ["due": due.map { $0 as Any } ?? NSNull()]) { $0.due = due }
     }
 
-    func update(_ task: TaskItem, title: String, notes: String) {
-        mutate(task, fields: ["title": title, "notes": notes]) {
-            $0.title = title
-            $0.notes = notes
+    /// Salva título, notas e data numa única chamada (só envia o que mudou).
+    func save(_ task: TaskItem, title: String, notes: String, due day: Date?) {
+        var fields: [String: Any] = [:]
+        let title = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !title.isEmpty, title != task.title { fields["title"] = title }
+        if notes != (task.notes ?? "") { fields["notes"] = notes }
+        let due = day.map(TaskItem.dueString)
+        if day != task.dueDay { fields["due"] = due.map { $0 as Any } ?? NSNull() }
+        guard !fields.isEmpty else { return }
+        mutate(task, fields: fields) {
+            if let t = fields["title"] as? String { $0.title = t }
+            if fields["notes"] != nil { $0.notes = notes }
+            if fields["due"] != nil { $0.due = due }
         }
     }
 
     func delete(_ task: TaskItem) {
-        guard !task.isLocal, let original = tasks[task.id] else { return }
-        tasks[task.id] = nil
+        guard !task.isLocal, let original = taskMap[task.id] else { return }
+        taskMap[task.id] = nil
         pendingIDs.insert(task.id)
         Task {
             defer { pendingIDs.remove(task.id) }
@@ -397,7 +494,7 @@ final class TaskStore {
                 tagDB.save()
                 saveCache()
             } catch {
-                tasks[task.id] = original
+                taskMap[task.id] = original
                 lastError = "Não foi possível excluir: \(error.localizedDescription)"
             }
         }
@@ -405,20 +502,20 @@ final class TaskStore {
 
     private func mutate(_ task: TaskItem, fields: [String: Any], local: (inout TaskItem) -> Void) {
         guard !task.isLocal else { return }
-        let original = tasks[task.id] ?? task
+        let original = taskMap[task.id] ?? task
         var updated = original
         local(&updated)
-        tasks[task.id] = updated
+        taskMap[task.id] = updated
         pendingIDs.insert(task.id)
 
         Task {
             defer { pendingIDs.remove(task.id) }
             do {
                 let result = try await api.patchTask(listID: task.listID, taskID: task.id, fields: fields)
-                tasks[result.id] = TaskItem(result, listID: task.listID)
+                taskMap[result.id] = TaskItem(result, listID: task.listID)
                 saveCache()
             } catch {
-                tasks[task.id] = original
+                taskMap[task.id] = original
                 lastError = "Não foi possível salvar: \(error.localizedDescription)"
             }
         }
@@ -443,7 +540,7 @@ final class TaskStore {
     }
 
     private func saveCache() {
-        let snapshot = Snapshot(email: auth.profile?.email, lists: lists, tasks: tasks.values.filter { !$0.isLocal },
+        let snapshot = Snapshot(email: auth.profile?.email, lists: lists, tasks: taskMap.values.filter { !$0.isLocal },
                                 calendars: calendars, events: events, listMarks: listMarks)
         guard let data = try? JSONEncoder().encode(snapshot) else { return }
         try? data.write(to: Self.cacheURL, options: .atomic)
@@ -456,10 +553,74 @@ final class TaskStore {
               snapshot.email == auth.profile?.email
         else { return }
         lists = snapshot.lists
-        tasks = Dictionary(snapshot.tasks.map { ($0.id, $0) }, uniquingKeysWith: { $1 })
+        listsChanged()
+        taskMap = Dictionary(snapshot.tasks.map { ($0.id, $0) }, uniquingKeysWith: { $1 })
         calendars = snapshot.calendars
         events = snapshot.events
         listMarks = snapshot.listMarks
+    }
+}
+
+struct ListMeta {
+    var name: String
+    var emoji: String?
+    var color: Color
+    var order: Int
+}
+
+/// Visões pré-calculadas das tarefas. Construída em O(n log n) só quando algo muda,
+/// para que trocar de tela e redesenhar sejam instantâneos.
+struct TaskIndex {
+    var byID: [String: TaskItem] = [:]
+    var active: [TaskItem] = []
+    var activeCount = 0
+    var today: [TaskItem] = []
+    var overdue: [TaskItem] = []
+    var later: [TaskItem] = []
+    var undated: [TaskItem] = []
+    var byDay: [Date: [TaskItem]] = [:]
+    var byList: [String: [TaskItem]] = [:]
+    var completed: [TaskItem] = []
+    var completedToday: [TaskItem] = []
+    var completedByList: [String: [TaskItem]] = [:]
+
+    init() {}
+
+    init(map: [String: TaskItem], today: Date, listOrder: [String: Int]) {
+        byID = map
+        var open: [TaskItem] = []
+        var done: [TaskItem] = []
+        open.reserveCapacity(map.count)
+        for task in map.values {
+            if task.isCompleted { done.append(task) } else { open.append(task) }
+        }
+
+        // Ordem: data, depois ordem das listas, depois posição dentro da lista.
+        open.sort { a, b in
+            let da = a.dueDay ?? .distantFuture, db = b.dueDay ?? .distantFuture
+            if da != db { return da < db }
+            if a.listID != b.listID { return (listOrder[a.listID] ?? .max) < (listOrder[b.listID] ?? .max) }
+            return (a.position ?? "") < (b.position ?? "")
+        }
+        done.sort { ($0.completedDate ?? .distantPast) > ($1.completedDate ?? .distantPast) }
+
+        active = open
+        activeCount = open.count
+        let tomorrow = Calendar.current.adding(days: 1, to: today)
+        for task in open {
+            byList[task.listID, default: []].append(task)
+            guard let due = task.dueDay else {
+                undated.append(task)
+                continue
+            }
+            byDay[due, default: []].append(task)
+            if due < today { overdue.append(task) } else if due < tomorrow { self.today.append(task) } else { later.append(task) }
+        }
+        completed = done
+        for task in done {
+            completedByList[task.listID, default: []].append(task)
+            if let date = task.completedDate, date >= today, date < tomorrow { completedToday.append(task) }
+        }
     }
 }
 

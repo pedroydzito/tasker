@@ -48,6 +48,8 @@ final class GoogleAuth {
     private(set) var profile: Profile?
     private(set) var refreshToken: String?
     private(set) var isSigningIn = false
+    /// Foto da conta (baixada uma vez e guardada em disco).
+    private(set) var avatar: NSImage?
 
     var isSignedIn: Bool { refreshToken != nil }
     var hasCredentials: Bool {
@@ -66,6 +68,26 @@ final class GoogleAuth {
         if let data = UserDefaults.standard.data(forKey: Keys.profile) {
             profile = try? JSONDecoder().decode(Profile.self, from: data)
         }
+        avatar = NSImage(contentsOf: Self.avatarURL)
+        if avatar == nil, refreshToken != nil {
+            Task { await loadAvatar() }
+        }
+    }
+
+    private static var avatarURL: URL {
+        let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("Tasker", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir.appendingPathComponent("avatar.png")
+    }
+
+    private func loadAvatar() async {
+        guard let picture = profile?.picture, let url = URL(string: picture),
+              let response = try? await URLSession.shared.data(from: url),
+              let image = NSImage(data: response.0) else { return }
+        let data = response.0
+        try? data.write(to: Self.avatarURL, options: .atomic)
+        avatar = image
     }
 
     func saveCredentials(clientID: String, clientSecret: String) {
@@ -148,6 +170,8 @@ final class GoogleAuth {
         accessToken = nil
         accessTokenExpiry = .distantPast
         profile = nil
+        avatar = nil
+        try? FileManager.default.removeItem(at: Self.avatarURL)
     }
 
     // MARK: Tokens
@@ -190,6 +214,7 @@ final class GoogleAuth {
         let profile = try JSONDecoder().decode(Profile.self, from: data)
         self.profile = profile
         UserDefaults.standard.set(try? JSONEncoder().encode(profile), forKey: Keys.profile)
+        await loadAvatar()
     }
 
     private struct TokenResponse: Decodable {

@@ -11,11 +11,20 @@ struct TaskItem: Identifiable, Codable, Hashable {
     var title: String
     var notes: String?
     var isCompleted: Bool
-    var due: String?
-    var completed: String?
+    var due: String? { didSet { dueDay = Self.parseDue(due) } }
+    var completed: String? { didSet { completedDate = completed.flatMap(RFC3339.date) } }
     var parent: String?
     var position: String?
     var webViewLink: String?
+
+    /// Datas já convertidas (guardadas para não reconverter texto a cada render/ordenação).
+    /// O Google Tasks guarda só a data (em UTC); tratamos como um dia local.
+    private(set) var dueDay: Date?
+    private(set) var completedDate: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case id, listID, title, notes, isCompleted, due, completed, parent, position, webViewLink
+    }
 
     init(id: String, listID: String, title: String, notes: String? = nil, isCompleted: Bool = false,
          due: String? = nil, completed: String? = nil, parent: String? = nil, position: String? = nil,
@@ -30,6 +39,22 @@ struct TaskItem: Identifiable, Codable, Hashable {
         self.parent = parent
         self.position = position
         self.webViewLink = webViewLink
+        dueDay = Self.parseDue(due)
+        completedDate = completed.flatMap(RFC3339.date)
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(id: try c.decode(String.self, forKey: .id),
+                  listID: try c.decode(String.self, forKey: .listID),
+                  title: try c.decode(String.self, forKey: .title),
+                  notes: try c.decodeIfPresent(String.self, forKey: .notes),
+                  isCompleted: try c.decode(Bool.self, forKey: .isCompleted),
+                  due: try c.decodeIfPresent(String.self, forKey: .due),
+                  completed: try c.decodeIfPresent(String.self, forKey: .completed),
+                  parent: try c.decodeIfPresent(String.self, forKey: .parent),
+                  position: try c.decodeIfPresent(String.self, forKey: .position),
+                  webViewLink: try c.decodeIfPresent(String.self, forKey: .webViewLink))
     }
 
     init(_ g: GTask, listID: String) {
@@ -38,17 +63,16 @@ struct TaskItem: Identifiable, Codable, Hashable {
                   parent: g.parent, position: g.position, webViewLink: g.webViewLink)
     }
 
+    private static func parseDue(_ due: String?) -> Date? {
+        due.flatMap { Calendar.current.day(fromISO: $0) }
+    }
+
     /// Tarefa criada localmente que ainda não voltou do servidor.
     var isLocal: Bool { id.hasPrefix("local-") }
 
     var displayTitle: String { title.isEmpty ? "(sem título)" : title }
 
     var hasNotes: Bool { !(notes ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-
-    /// O Google Tasks guarda só a data (em UTC); tratamos como um dia local.
-    var dueDay: Date? { due.flatMap { Calendar.current.day(fromISO: $0) } }
-
-    var completedDate: Date? { completed.flatMap(RFC3339.date) }
 
     static func dueString(for day: Date) -> String {
         let c = Calendar.current.dateComponents([.year, .month, .day], from: day)

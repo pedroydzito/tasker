@@ -1,64 +1,43 @@
 import SwiftUI
 
-/// Popover de edição: título, notas, data e exclusão.
+/// Popover de edição rápida (usado no popover da barra de menu).
 struct TaskEditor: View {
     @Environment(TaskStore.self) private var store
     let task: TaskItem
-    /// Exibido no painel lateral da janela principal (em vez de popover).
-    var isInspector = false
     let onClose: () -> Void
 
-    @State private var title = ""
-    @State private var notes = ""
-    @State private var hasDue = false
-    @State private var due = Date()
+    @State private var title: String
+    @State private var notes: String
+    @State private var due: Date?
+
+    init(task: TaskItem, onClose: @escaping () -> Void) {
+        self.task = task
+        self.onClose = onClose
+        _title = State(initialValue: task.title)
+        _notes = State(initialValue: task.notes ?? "")
+        _due = State(initialValue: task.dueDay)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 6) {
+                ListIconView(listID: task.listID, size: 14)
+                Text(store.displayName(task.listID)).font(.system(size: 12)).foregroundStyle(Theme.subtle)
+            }
             TextField("Título", text: $title, axis: .vertical)
                 .textFieldStyle(.plain)
-                .font(.system(size: 15, weight: .semibold))
+                .font(.system(size: 16, weight: .semibold))
                 .onSubmit(save)
-
             TextField("Notas", text: $notes, axis: .vertical)
                 .textFieldStyle(.plain)
                 .font(.system(size: 13))
                 .foregroundStyle(.secondary)
                 .lineLimit(3...10)
-
-            Divider()
-
-            HStack(spacing: 6) {
-                Image(systemName: "calendar").foregroundStyle(.secondary)
-                if hasDue {
-                    DatePicker("", selection: $due, displayedComponents: .date)
-                        .labelsHidden()
-                        .datePickerStyle(.field)
-                        .fixedSize()
-                } else {
-                    Text("Sem data").foregroundStyle(.secondary)
-                }
-                Spacer()
-                quickDate("Hoje", 0)
-                quickDate("Amanhã", 1)
-                Button { hasDue = false } label: { Image(systemName: "xmark.circle") }
-                    .buttonStyle(.borderless)
-                    .help("Remover data")
-                    .disabled(!hasDue)
-            }
-            .font(.system(size: 12.5))
-
-            HStack(spacing: 6) {
-                if let list = store.list(task.listID) {
-                    ListBadge(title: list.title, color: store.color(forList: list.id))
-                }
-                ForEach(store.tags(for: task)) { tag in
-                    TagChip(name: tag.name, color: Color(hex: tag.colorHex))
-                }
-                tagMenu
+            HStack {
+                DueChip(due: $due)
+                TagPicker(task: task)
                 Spacer()
             }
-
             HStack {
                 Button(role: .destructive) {
                     store.delete(task)
@@ -66,56 +45,205 @@ struct TaskEditor: View {
                 } label: { Image(systemName: "trash") }
                     .buttonStyle(.borderless)
                     .help("Excluir tarefa")
-                if let link = task.webViewLink.flatMap(URL.init(string:)) {
-                    Button { NSWorkspace.shared.open(link) } label: { Image(systemName: "arrow.up.right.square") }
-                        .buttonStyle(.borderless)
-                        .help("Abrir no Google")
-                }
                 Spacer()
-                Button(isInspector ? "Fechar" : "Cancelar", action: onClose).keyboardShortcut(.cancelAction)
+                Button("Cancelar", action: onClose).keyboardShortcut(.cancelAction)
                 Button("Salvar", action: save).keyboardShortcut(.defaultAction)
             }
         }
         .padding(16)
-        .frame(width: isInspector ? nil : 340)
-        .frame(maxHeight: isInspector ? .infinity : nil, alignment: .top)
-        .onAppear {
-            title = task.title
-            notes = task.notes ?? ""
-            hasDue = task.dueDay != nil
-            due = task.dueDay ?? store.today
+        .frame(width: 340)
+    }
+
+    private func save() {
+        store.save(store.tasks[task.id] ?? task, title: title, notes: notes, due: due)
+        onClose()
+    }
+}
+
+/// Painel de detalhes à direita da janela principal (inspirado na referência do Dribbble).
+/// Tudo salva sozinho no Google Tasks.
+struct TaskInspector: View {
+    @Environment(TaskStore.self) private var store
+    let task: TaskItem
+    let onClose: () -> Void
+
+    @State private var title: String
+    @State private var notes: String
+    @State private var due: Date?
+
+    init(task: TaskItem, onClose: @escaping () -> Void) {
+        self.task = task
+        self.onClose = onClose
+        _title = State(initialValue: task.title)
+        _notes = State(initialValue: task.notes ?? "")
+        _due = State(initialValue: task.dueDay)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            toolbar
+            Divider()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    HStack(spacing: 6) {
+                        ListIconView(listID: task.listID, size: 16)
+                        Text(store.displayName(task.listID)).font(.system(size: 12.5)).foregroundStyle(Theme.subtle)
+                    }
+
+                    TextField("Título", text: $title, axis: .vertical)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 24, weight: .semibold))
+
+                    HStack(spacing: 8) {
+                        ListChip(listID: task.listID)
+                        DueChip(due: $due)
+                        TagPicker(task: task)
+                    }
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Descrição").font(.system(size: 13, weight: .semibold))
+                        TextEditor(text: $notes)
+                            .font(.system(size: 13.5))
+                            .scrollContentBackground(.hidden)
+                            .frame(minHeight: 160)
+                            .padding(10)
+                            .background(Theme.field, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    }
+
+                    Label("Salvo automaticamente no Google Tasks", systemImage: "checkmark.icloud")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.tertiary)
+                }
+                .padding(22)
+            }
+        }
+        .background(Theme.surface)
+        .task(id: "\(title)\u{0}\(notes)\u{0}\(due?.timeIntervalSince1970 ?? 0)") {
+            try? await Task.sleep(for: .milliseconds(700))
+            guard !Task.isCancelled else { return }
+            persist()
+        }
+        .onDisappear(perform: persist)
+    }
+
+    private var toolbar: some View {
+        let current = store.tasks[task.id] ?? task
+        return HStack(spacing: 14) {
+            Button {
+                store.setCompleted(current, !current.isCompleted)
+            } label: {
+                Label(current.isCompleted ? "Reabrir" : "Concluir",
+                      systemImage: current.isCompleted ? "arrow.uturn.backward.circle" : "checkmark.circle")
+            }
+            Spacer()
+            if let link = task.webViewLink.flatMap(URL.init(string:)) {
+                Button { NSWorkspace.shared.open(link) } label: { Image(systemName: "arrow.up.right.square") }
+                    .help("Abrir no Google")
+            }
+            Button {
+                store.delete(current)
+                onClose()
+            } label: { Image(systemName: "trash") }
+                .help("Excluir")
+            Button(action: onClose) { Image(systemName: "xmark") }
+                .help("Fechar")
+        }
+        .buttonStyle(.borderless)
+        .font(.system(size: 13))
+        .padding(.horizontal, 18)
+        .padding(.vertical, 12)
+    }
+
+    private func persist() {
+        guard let current = store.tasks[task.id] else { return }
+        store.save(current, title: title, notes: notes, due: due)
+    }
+}
+
+/// Chip de data com calendário em popover.
+struct DueChip: View {
+    @Environment(TaskStore.self) private var store
+    @Binding var due: Date?
+    @State private var picking = false
+
+    var body: some View {
+        Button { picking = true } label: {
+            HStack(spacing: 5) {
+                Image(systemName: "calendar")
+                Text(due.map { DayLabel.short($0, today: store.today) } ?? "Sem data")
+            }
+            .font(.system(size: 12, weight: .medium))
+            .foregroundStyle(due.map { $0 < store.today ? Color.red : Color.primary } ?? Theme.subtle)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 4)
+            .overlay(Capsule().strokeBorder(Theme.stroke))
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .popover(isPresented: $picking) {
+            VStack(spacing: 10) {
+                HStack {
+                    quick("Hoje", 0)
+                    quick("Amanhã", 1)
+                    quick("+1 semana", 7)
+                    Button("Sem data") { due = nil; picking = false }
+                }
+                .controlSize(.small)
+                DatePicker("", selection: Binding(
+                    get: { due ?? store.today },
+                    set: { due = Calendar.current.startOfDay(for: $0) }
+                ), displayedComponents: .date)
+                .datePickerStyle(.graphical)
+                .labelsHidden()
+            }
+            .padding(12)
         }
     }
 
+    private func quick(_ label: String, _ days: Int) -> some View {
+        Button(label) {
+            due = Calendar.current.adding(days: days, to: store.today)
+            picking = false
+        }
+    }
+}
+
+/// Etiquetas locais da tarefa + menu para adicionar/criar.
+struct TagPicker: View {
+    @Environment(TaskStore.self) private var store
+    let task: TaskItem
     @State private var newTagName = ""
     @State private var addingTag = false
 
-    private var tagMenu: some View {
-        Menu {
-            ForEach(store.tags) { tag in
-                let has = store.tags(for: task).contains(tag)
-                Button { store.toggleTag(tag, on: task) } label: {
-                    if has { Label(tag.name, systemImage: "checkmark") } else { Text(tag.name) }
+    var body: some View {
+        HStack(spacing: 6) {
+            ForEach(store.tags(for: task)) { TagChip(name: $0.name, color: Color(hex: $0.colorHex)) }
+            Menu {
+                ForEach(store.tags) { tag in
+                    let has = store.tags(for: task).contains(tag)
+                    Button { store.toggleTag(tag, on: task) } label: {
+                        if has { Label(tag.name, systemImage: "checkmark") } else { Text(tag.name) }
+                    }
                 }
+                if !store.tags.isEmpty { Divider() }
+                Button("Nova etiqueta…") { addingTag = true }
+            } label: {
+                Image(systemName: "tag").font(.system(size: 11))
             }
-            if !store.tags.isEmpty { Divider() }
-            Button("Nova etiqueta…") { addingTag = true }
-        } label: {
-            Image(systemName: "tag").font(.system(size: 11))
-        }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
-        .fixedSize()
-        .help("Etiquetas (só no Tasker)")
-        .popover(isPresented: $addingTag) {
-            HStack {
-                TextField("Nome da etiqueta", text: $newTagName)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 180)
-                    .onSubmit(createTag)
-                Button("Criar", action: createTag)
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .help("Etiquetas (só no Tasker)")
+            .popover(isPresented: $addingTag) {
+                HStack {
+                    TextField("Nome da etiqueta", text: $newTagName)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 180)
+                        .onSubmit(createTag)
+                    Button("Criar", action: createTag)
+                }
+                .padding(10)
             }
-            .padding(10)
         }
     }
 
@@ -126,28 +254,5 @@ struct TaskEditor: View {
         store.toggleTag(tag, on: task)
         newTagName = ""
         addingTag = false
-    }
-
-    private func quickDate(_ label: String, _ offset: Int) -> some View {
-        Button(label) {
-            due = Calendar.current.adding(days: offset, to: store.today)
-            hasDue = true
-        }
-        .buttonStyle(.bordered)
-        .controlSize(.small)
-    }
-
-    private func save() {
-        let newTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        if newTitle != task.title || notes != (task.notes ?? "") {
-            store.update(task, title: newTitle.isEmpty ? task.title : newTitle, notes: notes)
-        }
-        let newDue = hasDue ? Calendar.current.startOfDay(for: due) : nil
-        if newDue != task.dueDay {
-            // Espera o PATCH anterior não sobrescrever a data.
-            let current = store.tasks[task.id] ?? task
-            store.setDue(current, newDue)
-        }
-        onClose()
     }
 }

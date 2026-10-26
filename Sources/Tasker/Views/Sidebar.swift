@@ -7,6 +7,7 @@ struct Sidebar: View {
 
     @State private var newTag = ""
     @State private var addingTag = false
+    @State private var editingListID: String?
 
     var body: some View {
         @Bindable var nav = nav
@@ -28,16 +29,23 @@ struct Sidebar: View {
                 ForEach(store.lists) { list in
                     Label {
                         HStack {
-                            Text(list.title).lineLimit(1)
+                            Text(store.displayName(list.id)).lineLimit(1)
                             Spacer()
                             count(store.tasks(inList: list.id).count)
                         }
                     } icon: {
-                        Image(systemName: "circle.fill")
-                            .font(.system(size: 8))
-                            .foregroundStyle(store.color(forList: list.id))
+                        ListIconView(listID: list.id, size: 18)
                     }
                     .tag(SidebarItem.list(list.id))
+                    .contextMenu {
+                        Button("Personalizar ícone e cor…") { editingListID = list.id }
+                    }
+                    .popover(isPresented: Binding(
+                        get: { editingListID == list.id },
+                        set: { if !$0 { editingListID = nil } }
+                    ), arrowEdge: .trailing) {
+                        ListAppearanceEditor(listID: list.id)
+                    }
                 }
             }
 
@@ -95,7 +103,7 @@ struct Sidebar: View {
 
     private var account: some View {
         HStack(spacing: 10) {
-            Avatar(profile: auth.profile, size: 34)
+            Avatar(size: 32)
             VStack(alignment: .leading, spacing: 1) {
                 Text(auth.profile?.name ?? "Conta Google").font(.system(size: 13, weight: .semibold)).lineLimit(1)
                 Text(auth.profile?.email ?? "").font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
