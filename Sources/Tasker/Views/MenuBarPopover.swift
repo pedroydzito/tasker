@@ -19,6 +19,7 @@ struct MenuBarPopover: View {
     @AppStorage("menu.alturaConteudo") private var alturaConteudo: Double = 220
 
     static let largura: CGFloat = 340
+    static let altura: CGFloat = 460
     /// Altura máxima da área rolável (o menu inteiro fica em ~540 no máximo).
     private static let alturaMaxima: CGFloat = 360
 
@@ -27,14 +28,14 @@ struct MenuBarPopover: View {
             if store.hasAccount {
                 header
                 UpdateBanner().padding(.horizontal, DS.e4).padding(.bottom, DS.e2)
-                content
+                content.frame(maxHeight: .infinity, alignment: .top)
             } else {
-                signedOut
+                signedOut.frame(maxHeight: .infinity)
             }
             navegacao
         }
-        .frame(width: Self.largura)
-        .fixedSize(horizontal: false, vertical: true)
+        // Tamanho fixo: o menu nunca muda de altura; o conteúdo rola.
+        .frame(width: Self.largura, height: Self.altura)
         .background(DS.fundo)
         .overlay(alignment: .bottom) { ToastDesfazer().padding(.bottom, 70) }
         .hospedaFolhas(folhas)
@@ -204,10 +205,7 @@ struct MenuBarPopover: View {
                 })
         }
         .scrollIndicators(.never)
-        .frame(height: min(max(CGFloat(alturaConteudo), 60), Self.alturaMaxima))
-        .onPreferenceChange(AlturaDoConteudo.self) { altura in
-            if abs(Double(altura) - alturaConteudo) > 0.5 { alturaConteudo = Double(altura) }
-        }
+        .frame(maxHeight: .infinity)
     }
 
     private var signedOut: some View {
@@ -305,7 +303,7 @@ struct PopoverCalendarView: View {
                 .padding(.bottom, DS.e4)
             }
             .scrollIndicators(.never)
-            .frame(height: 300)
+            .frame(maxHeight: .infinity)
         }
     }
 
