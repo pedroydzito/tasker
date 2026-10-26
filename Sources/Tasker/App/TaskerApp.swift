@@ -47,6 +47,6 @@ struct TaskerApp: App {
         .windowStyle(.hiddenTitleBar)
         .windowBackgroundDragBehavior(.enabled)
         .windowResizability(.contentMinSize)
-        .defaultLaunchBehavior(model.auth.isSignedIn ? .suppressed : .presented)
+        .defaultLaunchBehavior(model.store.hasAccount ? .suppressed : .presented)
     }
 }

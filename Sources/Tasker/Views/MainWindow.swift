@@ -8,7 +8,7 @@ struct MainWindow: View {
 
     var body: some View {
         Group {
-            if auth.isSignedIn {
+            if store.hasAccount {
                 layout
             } else {
                 OnboardingView()

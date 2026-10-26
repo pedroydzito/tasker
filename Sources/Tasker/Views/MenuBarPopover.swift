@@ -15,29 +15,31 @@ struct MenuBarPopover: View {
     @State private var day = Calendar.current.startOfDay(for: .now)
     @State private var folhas = Folhas()
     @Namespace private var trilho
+    /// Altura do conteúdo rolável (guardada para o menu já abrir no tamanho certo).
+    @AppStorage("menu.alturaConteudo") private var alturaConteudo: Double = 220
 
-    static let size = CGSize(width: 340, height: 540)
+    static let largura: CGFloat = 340
+    /// Altura máxima da área rolável (o menu inteiro fica em ~540 no máximo).
+    private static let alturaMaxima: CGFloat = 360
 
     var body: some View {
         VStack(spacing: 0) {
-            if auth.isSignedIn {
+            if store.hasAccount {
                 header
                 UpdateBanner().padding(.horizontal, DS.e4).padding(.bottom, DS.e2)
                 content
-                    .frame(maxHeight: .infinity, alignment: .top)
             } else {
-                signedOut.frame(maxHeight: .infinity)
+                signedOut
             }
             navegacao
         }
-        .frame(width: Self.size.width, height: Self.size.height)
+        .frame(width: Self.largura)
+        .fixedSize(horizontal: false, vertical: true)
         .background(DS.fundo)
-        .clipShape(RoundedRectangle(cornerRadius: DS.raioCartao, style: .continuous))
         .hospedaFolhas(folhas)
         .tint(DS.acento)
         .background(PopoverWindowConfigurator(
             appearance: store.prefs.appearance.resolved,
-            cornerRadius: DS.raioCartao,
             onOpen: { Task { await store.sync() } }
         ))
     }
@@ -51,10 +53,7 @@ struct MenuBarPopover: View {
                     withAnimation(DS.curva) { openListID = nil }
                 }
                 .padding(.leading, -6)
-                ListIconView(listID: id, size: 26)
-                    .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous)
-                        .strokeBorder(store.color(forList: id), lineWidth: 1.5).padding(-3))
-                    .padding(.horizontal, 3)
+                ListIconComAnel(listID: id, size: 24, folga: 3, espessura: 1.5)
                 Text(store.displayName(id)).display(.titulo).foregroundStyle(DS.texto).lineLimit(1)
             } else {
                 Text(titulo).display(.titulo).foregroundStyle(DS.texto)
@@ -124,23 +123,26 @@ struct MenuBarPopover: View {
         VStack(alignment: .leading, spacing: DS.e3) {
             QuickAddField(defaultDue: store.today).padding(.horizontal, DS.e4)
             scroll {
-                EventsCard(events: store.events(on: store.today), compacto: true)
+                if store.prefs.showEventsInMenu {
+                    EventsCard(events: store.events(on: store.today), compacto: true)
+                }
                 CalendarIssueBanner()
                 ErrorBanner()
 
-                let overdue = store.overdueTasks
+                let overdue = store.prefs.showOverdueInMenu ? store.overdueTasks : []
+                let today = store.todayTasks
                 if !overdue.isEmpty {
                     SecaoTarefas("Em atraso", contagem: overdue.count, tom: DS.perigoTexto,
                                  acao: ("Adiar p/ hoje", { store.postponeOverdue() })) {
                         ForEach(overdue) { TaskRow(task: $0, style: .compact) }
                     }
                 }
-
-                let today = store.todayTasks
-                SecaoTarefas("Hoje", contagem: today.count) {
-                    if today.isEmpty {
-                        EstadoVazio(icone: "checkmark.circle", titulo: "Tudo feito por hoje")
-                    } else {
+                if today.isEmpty {
+                    if overdue.isEmpty { EstadoVazio(icone: "checkmark.circle", titulo: "Tudo feito por hoje") }
+                } else if overdue.isEmpty {
+                    CartaoDeLinhas(recuoDoFio: 44) { ForEach(today) { TaskRow(task: $0, style: .compact) } }
+                } else {
+                    SecaoTarefas("Hoje", contagem: today.count) {
                         ForEach(today) { TaskRow(task: $0, style: .compact) }
                     }
                 }
@@ -181,24 +183,30 @@ struct MenuBarPopover: View {
             QuickAddField(fixedListID: id).padding(.horizontal, DS.e4)
             scroll {
                 let items = store.tasks(inList: id)
-                SecaoTarefas("Tarefas", contagem: items.count, tom: store.color(forList: id)) {
-                    if items.isEmpty {
-                        EstadoVazio(icone: "checklist", titulo: "Lista vazia")
-                    } else {
-                        ForEach(items) { TaskRow(task: $0, style: .compact) }
-                    }
+                if items.isEmpty {
+                    EstadoVazio(icone: "checklist", titulo: "Lista vazia")
+                } else {
+                    CartaoDeLinhas(recuoDoFio: 44) { ForEach(items) { TaskRow(task: $0, style: .compact) } }
                 }
             }
         }
     }
 
+    /// Área rolável que cresce com o conteúdo, até a altura máxima.
     private func scroll<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: DS.e4) { content() }
+            VStack(alignment: .leading, spacing: DS.e4) { content() }
                 .padding(.horizontal, DS.e4)
-                .padding(.bottom, DS.e4)
+                .padding(.bottom, DS.e2)
+                .background(GeometryReader { geo in
+                    Color.clear.preference(key: AlturaDoConteudo.self, value: geo.size.height)
+                })
         }
         .scrollIndicators(.never)
+        .frame(height: min(max(CGFloat(alturaConteudo), 60), Self.alturaMaxima))
+        .onPreferenceChange(AlturaDoConteudo.self) { altura in
+            if abs(Double(altura) - alturaConteudo) > 0.5 { alturaConteudo = Double(altura) }
+        }
     }
 
     private var signedOut: some View {
@@ -256,7 +264,7 @@ struct MenuBarPopover: View {
             }
             .contentShape(Capsule())
         }
-        .buttonStyle(SoAfunda(escala: 0.94))
+        .buttonStyle(Pressionavel(raio: 999, escala: 0.94))
         .help(rotulo)
     }
 
@@ -287,7 +295,7 @@ struct PopoverCalendarView: View {
                     if tasks.isEmpty && events.isEmpty {
                         EstadoVazio(icone: "calendar", titulo: "Dia livre")
                     } else if !tasks.isEmpty {
-                        SecaoTarefas(DayLabel.short(day, today: store.today), contagem: tasks.count) {
+                        CartaoDeLinhas(recuoDoFio: 44) {
                             ForEach(tasks) { TaskRow(task: $0, style: .compact, showDate: false) }
                         }
                     }
@@ -296,6 +304,7 @@ struct PopoverCalendarView: View {
                 .padding(.bottom, DS.e4)
             }
             .scrollIndicators(.never)
+            .frame(height: 300)
         }
     }
 
@@ -339,4 +348,9 @@ struct PopoverCalendarView: View {
             }
         }
     }
+}
+
+private struct AlturaDoConteudo: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
 }

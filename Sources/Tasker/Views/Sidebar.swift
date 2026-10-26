@@ -11,7 +11,6 @@ struct Sidebar: View {
     @AppStorage("sidebar.listsCollapsed") private var listsCollapsed = false
     @AppStorage("sidebar.tagsCollapsed") private var tagsCollapsed = false
     @Namespace private var trilho
-    @State private var dropTarget: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -29,9 +28,15 @@ struct Sidebar: View {
                     item(.all, "Todas", "tray.full", store.activeCount)
                     item(.completed, "Concluídas", "checkmark.circle")
 
-                    cabecalhoSecao("Listas", recolhida: $listsCollapsed)
+                    cabecalhoSecao("Listas", recolhida: $listsCollapsed) {
+                        BotaoIcone(simbolo: "plus", rotulo: "Nova lista", tamanho: 22, tamanhoIcone: 10) {
+                            folhas.abrir("Nova lista", largura: 420) { NovaLista() }
+                        }
+                    }
                     if !listsCollapsed {
-                        ForEach(store.lists) { list in linhaLista(list) }
+                        ListaReordenavel(ids: store.lists.map(\.id), mover: { id, alvo in store.moveList(id, toIndex: alvo) }) { id in
+                            if let list = store.list(id) { linhaLista(list) }
+                        }
                     }
 
                     cabecalhoSecao("Etiquetas", recolhida: $tagsCollapsed) {
@@ -42,7 +47,8 @@ struct Sidebar: View {
                         }
                     }
                     if !tagsCollapsed {
-                        ForEach(store.tags) { tag in
+                        ListaReordenavel(ids: store.tags.map(\.id), mover: { id, alvo in store.moveTag(id, toIndex: alvo) }) { id in
+                            if let tag = store.tag(id) {
                             linha(selecionada: nav.selection == .tag(tag.id), tinta: nil,
                                   titulo: tag.name, contagem: store.tasks(withTag: tag.id).count) {
                                 Image(systemName: "number")
@@ -56,6 +62,7 @@ struct Sidebar: View {
                                     if nav.selection == .tag(tag.id) { nav.selection = .today }
                                     store.deleteTag(tag)
                                 }
+                            }
                             }
                         }
                         if store.tags.isEmpty {
@@ -85,12 +92,19 @@ struct Sidebar: View {
             Text("Tasker").display(.lg).foregroundStyle(DS.texto)
             Spacer()
             Menu {
-                if let email = auth.profile?.email { Text(email) }
+                if store.prefs.localMode {
+                    Text("Usando só neste Mac")
+                    Button("Conectar Google…") { nav.selection = .settings }
+                } else if let email = auth.profile?.email {
+                    Text(email)
+                }
                 Button("Ajustes") { nav.selection = .settings }
-                Divider()
-                Button("Sair da conta") {
-                    auth.signOut()
-                    store.reset()
+                if !store.prefs.localMode {
+                    Divider()
+                    Button("Sair da conta") {
+                        auth.signOut()
+                        store.reset()
+                    }
                 }
             } label: {
                 Image(nsImage: Avatar.menuImage(auth.avatar, side: 26))
@@ -123,27 +137,6 @@ struct Sidebar: View {
             ListIconView(listID: list.id, size: 22)
         } acao: {
             nav.selection = .list(list.id)
-        }
-        .overlay(alignment: .top) {
-            // Linha-guia de onde a lista vai cair ao soltar.
-            Capsule().fill(DS.acento).frame(height: 2).padding(.horizontal, 6).offset(y: -2)
-                .opacity(dropTarget == list.id ? 1 : 0)
-        }
-        .draggable(list.id) {
-            HStack(spacing: DS.e2) {
-                ListIconView(listID: list.id, size: 18)
-                Text(store.displayName(list.id)).txt(.sm, .medium)
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(DS.superficie, in: RoundedRectangle(cornerRadius: DS.raioM, style: .continuous))
-        }
-        .dropDestination(for: String.self) { items, _ in
-            guard let id = items.first else { return false }
-            withAnimation(DS.curva) { store.moveList(id, to: list.id) }
-            return true
-        } isTargeted: { targeted in
-            if targeted { dropTarget = list.id } else if dropTarget == list.id { dropTarget = nil }
         }
         .contextMenu {
             Button("Personalizar ícone e cor…") {
@@ -279,5 +272,69 @@ struct SyncStatusButton: View {
         if s < 60 { return "Sincronizado agora" }
         if s < 3600 { return "Sincronizado há \(s / 60) min" }
         return "Sincronizado há \(s / 3600) h"
+    }
+}
+
+/// Pilha de linhas que se reordena segurando e arrastando para cima ou para baixo.
+/// As outras linhas abrem espaço ao vivo; ao soltar, a posição fica salva.
+struct ListaReordenavel<Row: View>: View {
+    let ids: [String]
+    let mover: (String, Int) -> Void
+    @ViewBuilder let linha: (String) -> Row
+
+    /// Altura de uma linha + espaço entre linhas (as linhas da barra lateral têm 36 + 4).
+    var passo: CGFloat = 40
+
+    @State private var arrastando: String?
+    @State private var deslocamento: CGFloat = 0
+    @State private var compensacao: CGFloat = 0
+
+    var body: some View {
+        VStack(spacing: DS.e1) {
+            ForEach(ids, id: \.self) { id in
+                let ativo = arrastando == id
+                linha(id)
+                    .frame(height: 36)
+                    .background {
+                        if ativo {
+                            RoundedRectangle(cornerRadius: DS.raioM, style: .continuous)
+                                .fill(DS.superficie)
+                                .shadow(color: .black.opacity(0.12), radius: 10, y: 4)
+                        }
+                    }
+                    .scaleEffect(ativo ? 1.02 : 1)
+                    .offset(y: ativo ? deslocamento : 0)
+                    .zIndex(ativo ? 1 : 0)
+                    .simultaneousGesture(
+                        DragGesture(minimumDistance: 6)
+                            .onChanged { g in arrastar(id, g.translation.height) }
+                            .onEnded { _ in soltar() }
+                    )
+            }
+        }
+    }
+
+    private func arrastar(_ id: String, _ dy: CGFloat) {
+        if arrastando == nil {
+            withAnimation(DS.curvaRapida) { arrastando = id }
+            compensacao = 0
+        }
+        deslocamento = dy - compensacao
+        guard let atual = ids.firstIndex(of: id) else { return }
+        let passos = Int((deslocamento / passo).rounded())
+        guard passos != 0 else { return }
+        let alvo = max(0, min(ids.count - 1, atual + passos))
+        guard alvo != atual else { return }
+        withAnimation(DS.curva) { mover(id, alvo) }
+        compensacao += CGFloat(alvo - atual) * passo
+        deslocamento = dy - compensacao
+    }
+
+    private func soltar() {
+        withAnimation(DS.curva) {
+            arrastando = nil
+            deslocamento = 0
+        }
+        compensacao = 0
     }
 }

@@ -2,12 +2,30 @@ import AppKit
 import Observation
 import SwiftUI
 
-/// Estado central: listas, tarefas e eventos sincronizados com o Google.
+/// Estado central: listas, tarefas e eventos — do Google ou só deste Mac.
 @MainActor @Observable
 final class TaskStore {
     let auth: GoogleAuth
     let prefs: Preferences
     @ObservationIgnored private let api: GoogleAPI
+    @ObservationIgnored private var localBackend: LocalBackend?
+
+    /// Google Tasks, ou o arquivo local no modo sem conta.
+    var backend: TaskBackend {
+        if prefs.localMode {
+            if let localBackend { return localBackend }
+            let local = LocalBackend()
+            localBackend = local
+            return local
+        }
+        return api
+    }
+
+    /// Tem de onde ler tarefas (conta Google ou modo local).
+    var hasAccount: Bool { auth.isSignedIn || prefs.localMode }
+    /// Agenda só existe com o Google conectado.
+    var usesGoogle: Bool { auth.isSignedIn && !prefs.localMode }
+    private var accountKey: String { prefs.localMode ? "local" : (auth.profile?.email ?? "") }
 
     private(set) var lists: [TaskList] = []
     /// Índice pronto (filtros e ordenações), recalculado só quando as tarefas mudam.
@@ -63,6 +81,8 @@ final class TaskStore {
     func tasks(on day: Date) -> [TaskItem] { index.byDay[day] ?? [] }
     func tasks(inList listID: String) -> [TaskItem] { index.byList[listID] ?? [] }
     func completedTasks(inList listID: String) -> [TaskItem] { index.completedByList[listID] ?? [] }
+    /// Concluídas cuja data era este dia (para o calendário mostrar riscadas).
+    func completedTasks(on day: Date) -> [TaskItem] { index.completedByDay[day] ?? [] }
 
     private func rebuildIndex() {
         let order = Dictionary(uniqueKeysWithValues: lists.enumerated().map { ($1.id, $0) })
@@ -91,12 +111,13 @@ final class TaskStore {
     private func rebuildListMeta() {
         var meta: [String: ListMeta] = [:]
         let colors = prefs.listColors
-        let emojis = prefs.listEmojis
+        let symbols = prefs.listSymbols
         for (i, list) in lists.enumerated() {
             let (prefix, rest) = Self.splitLeadingSymbols(list.title)
-            let emoji: String? = emojis[list.id].map { $0.isEmpty ? nil : $0 } ?? (prefix.isEmpty ? nil : prefix)
+            _ = prefix // o emoji do nome no Google é ignorado: o ícone é escolhido no app
+            let symbol: String? = symbols[list.id].flatMap { $0.isEmpty ? nil : $0 }
             let hex = colors[list.id] ?? Self.corDaChave(list.id)
-            meta[list.id] = ListMeta(name: rest.isEmpty ? list.title : rest, emoji: emoji, color: Color(hex: hex), order: i)
+            meta[list.id] = ListMeta(name: rest.isEmpty ? list.title : rest, symbol: symbol, color: Color(hex: hex), order: i)
         }
         listMeta = meta
     }
@@ -119,6 +140,84 @@ final class TaskStore {
             let pb = position[b.element.id] ?? (order.count + b.offset)
             return pa < pb
         }.map(\.element)
+    }
+
+    /// Move uma lista para uma posição (arrastar na barra lateral).
+    func moveList(_ id: String, toIndex target: Int) {
+        guard let from = lists.firstIndex(where: { $0.id == id }) else { return }
+        let to = max(0, min(target, lists.count - 1))
+        guard from != to else { return }
+        var reordered = lists
+        let item = reordered.remove(at: from)
+        reordered.insert(item, at: to)
+        prefs.listOrder = reordered.map(\.id)
+        lists = reordered
+        listsChanged()
+    }
+
+    /// Cria a lista (no Google, aparece lá também) com ícone e cor do app.
+    @discardableResult
+    func createList(title: String, symbol: String?, colorHex: String?) async -> String? {
+        let name = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return nil }
+        do {
+            let created = try await backend.insertList(title: name)
+            if let symbol { prefs.listSymbols[created.id] = symbol }
+            if let colorHex { prefs.listColors[created.id] = colorHex }
+            lists.append(TaskList(id: created.id, title: created.title ?? name))
+            prefs.listOrder = lists.map(\.id)
+            listMarks[created.id] = .now
+            listsChanged()
+            saveCache()
+            return created.id
+        } catch {
+            lastError = "Não consegui criar a lista: \(error.localizedDescription)"
+            return nil
+        }
+    }
+
+    func renameList(_ id: String, to title: String) async {
+        let name = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty, let i = lists.firstIndex(where: { $0.id == id }) else { return }
+        let original = lists[i].title
+        lists[i].title = name
+        listsChanged()
+        do {
+            _ = try await backend.renameList(id: id, title: name)
+            saveCache()
+        } catch {
+            if let j = lists.firstIndex(where: { $0.id == id }) { lists[j].title = original }
+            listsChanged()
+            lastError = "Não consegui renomear a lista: \(error.localizedDescription)"
+        }
+    }
+
+    func deleteList(_ id: String) async {
+        do {
+            try await backend.deleteList(id: id)
+            lists.removeAll { $0.id == id }
+            taskMap = taskMap.filter { $0.value.listID != id }
+            listsChanged()
+            saveCache()
+        } catch {
+            lastError = "Não consegui excluir a lista: \(error.localizedDescription)"
+        }
+    }
+
+    // MARK: Modo de uso
+
+    /// Usar sem conta: troca para o arquivo local.
+    func useLocalMode() {
+        prefs.localMode = true
+        reset()
+        Task { await sync(force: true) }
+    }
+
+    /// Depois de entrar com o Google: sai do modo local.
+    func useGoogleMode() {
+        prefs.localMode = false
+        reset()
+        Task { await sync(force: true) }
     }
 
     /// Move uma lista para a posição de outra (arrastar na barra lateral).
@@ -146,13 +245,13 @@ final class TaskStore {
         listMeta[listID]?.name ?? ""
     }
 
-    /// Emoji escolhido no app; sem escolha, usa o emoji que já está no nome da lista no Google.
-    func emoji(forList id: String) -> String? {
-        listMeta[id]?.emoji
+    /// Ícone escolhido no app (SF Symbol); sem escolha, a lista mostra a inicial.
+    func symbol(forList id: String) -> String? {
+        listMeta[id]?.symbol
     }
 
-    func setEmoji(_ emoji: String?, forList id: String) {
-        prefs.listEmojis[id] = emoji ?? ""
+    func setSymbol(_ symbol: String?, forList id: String) {
+        prefs.listSymbols[id] = symbol ?? ""
         rebuildListMeta()
     }
 
@@ -282,7 +381,7 @@ final class TaskStore {
     // MARK: Sincronização
 
     func sync(force: Bool = false) async {
-        guard auth.isSignedIn, !isSyncing else { return }
+        guard hasAccount, !isSyncing else { return }
         isSyncing = true
         defer { isSyncing = false }
         refreshToday()
@@ -305,7 +404,7 @@ final class TaskStore {
     }
 
     private func syncTasks(full: Bool) async throws {
-        let remoteLists = try await api.fetchTaskLists()
+        let remoteLists = try await backend.fetchTaskLists()
         let hadLists = !lists.isEmpty
         let newLists = ordered(remoteLists.map { TaskList(id: $0.id, title: $0.title ?? "Sem título") })
         if newLists != lists {
@@ -322,7 +421,7 @@ final class TaskStore {
             let started = Date()
             let since = full ? nil : listMarks[list.id]
             // Margem de 2 min para não perder alterações por diferença de relógio.
-            let remote = try await api.fetchTasks(listID: list.id, updatedMin: since?.addingTimeInterval(-120))
+            let remote = try await backend.fetchTasks(listID: list.id, updatedMin: since?.addingTimeInterval(-120))
 
             if since == nil {
                 let remoteIDs = Set(remote.map(\.id))
@@ -354,6 +453,12 @@ final class TaskStore {
     }
 
     private func syncEventsSafely() async {
+        guard usesGoogle else {
+            calendars = []
+            events = []
+            calendarIssue = nil
+            return
+        }
         do {
             try await syncEventsNow()
             calendarIssue = nil
@@ -389,6 +494,7 @@ final class TaskStore {
 
     /// Busca eventos de todos os calendários visíveis em um intervalo (usado também pela tela de calendário).
     func loadEvents(from: Date, to: Date) async -> [CalendarEvent] {
+        guard usesGoogle else { return [] }
         var result: [CalendarEvent] = []
         for calendar in calendars where isVisible(calendar) {
             guard let items = try? await api.fetchEvents(calendarID: calendar.id, from: from, to: to) else { continue }
@@ -404,11 +510,28 @@ final class TaskStore {
 
     // MARK: Etiquetas locais
 
-    var tags: [Tag] { tagDB.tags }
+    var tags: [Tag] {
+        let order = prefs.tagOrder
+        guard !order.isEmpty else { return tagDB.tags }
+        let pos = Dictionary(uniqueKeysWithValues: order.enumerated().map { ($1, $0) })
+        return tagDB.tags.enumerated().sorted {
+            (pos[$0.element.id] ?? order.count + $0.offset) < (pos[$1.element.id] ?? order.count + $1.offset)
+        }.map(\.element)
+    }
+
+    func moveTag(_ id: String, toIndex target: Int) {
+        var ordered = tags
+        guard let from = ordered.firstIndex(where: { $0.id == id }) else { return }
+        let to = max(0, min(target, ordered.count - 1))
+        guard from != to else { return }
+        let item = ordered.remove(at: from)
+        ordered.insert(item, at: to)
+        prefs.tagOrder = ordered.map(\.id)
+    }
 
     func tags(for task: TaskItem) -> [Tag] {
         let ids = tagDB.assignments[task.id] ?? []
-        return tagDB.tags.filter { ids.contains($0.id) }
+        return tags.filter { ids.contains($0.id) }
     }
 
     func tasks(withTag tagID: String) -> [TaskItem] {
@@ -474,7 +597,7 @@ final class TaskStore {
 
         Task {
             do {
-                let created = try await api.insertTask(listID: listID, title: title, notes: notes, due: dueString)
+                let created = try await backend.insertTask(listID: listID, title: title, notes: notes, due: dueString)
                 taskMap[tempID] = nil
                 taskMap[created.id] = TaskItem(created, listID: listID)
                 if let tags = tagDB.assignments.removeValue(forKey: tempID) {
@@ -491,6 +614,7 @@ final class TaskStore {
     }
 
     func setCompleted(_ task: TaskItem, _ done: Bool) {
+        if done && prefs.completionSound { NSSound(named: "Pop")?.play() }
         let fields: [String: Any] = done
             ? ["status": "completed"]
             : ["status": "needsAction", "completed": NSNull()]
@@ -528,7 +652,7 @@ final class TaskStore {
         Task {
             defer { pendingIDs.remove(task.id) }
             do {
-                try await api.deleteTask(listID: task.listID, taskID: task.id)
+                try await backend.deleteTask(listID: task.listID, taskID: task.id)
                 tagDB.assignments[task.id] = nil
                 tagDB.save()
                 saveCache()
@@ -550,7 +674,7 @@ final class TaskStore {
         Task {
             defer { pendingIDs.remove(task.id) }
             do {
-                let result = try await api.patchTask(listID: task.listID, taskID: task.id, fields: fields)
+                let result = try await backend.patchTask(listID: task.listID, taskID: task.id, fields: fields)
                 taskMap[result.id] = TaskItem(result, listID: task.listID)
                 saveCache()
             } catch {
@@ -581,7 +705,7 @@ final class TaskStore {
     }
 
     private func saveCache() {
-        let snapshot = Snapshot(email: auth.profile?.email, lists: lists, tasks: taskMap.values.filter { !$0.isLocal },
+        let snapshot = Snapshot(email: accountKey, lists: lists, tasks: taskMap.values.filter { !$0.isLocal },
                                 calendars: calendars, events: events, listMarks: listMarks,
                                 eventFrom: eventRange?.lowerBound, eventTo: eventRange?.upperBound)
         guard let data = try? JSONEncoder().encode(snapshot) else { return }
@@ -589,10 +713,10 @@ final class TaskStore {
     }
 
     private func loadCache() {
-        guard auth.isSignedIn,
+        guard hasAccount,
               let data = try? Data(contentsOf: Self.cacheURL),
               let snapshot = try? JSONDecoder().decode(Snapshot.self, from: data),
-              snapshot.email == auth.profile?.email
+              snapshot.email == accountKey
         else { return }
         lists = snapshot.lists
         listsChanged()
@@ -606,7 +730,7 @@ final class TaskStore {
 
 struct ListMeta {
     var name: String
-    var emoji: String?
+    var symbol: String?
     var color: Color
     var order: Int
 }
@@ -626,6 +750,7 @@ struct TaskIndex {
     var completed: [TaskItem] = []
     var completedToday: [TaskItem] = []
     var completedByList: [String: [TaskItem]] = [:]
+    var completedByDay: [Date: [TaskItem]] = [:]
 
     init() {}
 
@@ -662,6 +787,7 @@ struct TaskIndex {
         completed = done
         for task in done {
             completedByList[task.listID, default: []].append(task)
+            if let due = task.dueDay { completedByDay[due, default: []].append(task) }
             if let date = task.completedDate, date >= today, date < tomorrow { completedToday.append(task) }
         }
     }

@@ -99,7 +99,7 @@ struct CalendarView: View {
                                 isToday: day == store.today,
                                 isSelected: day == selected,
                                 events: events(on: day),
-                                tasks: store.tasks(on: day)) {
+                                tasks: store.tasks(on: day) + store.completedTasks(on: day)) {
                             withAnimation(DS.curvaRapida) { selected = day }
                         }
                     }
@@ -119,7 +119,23 @@ private struct DayCell: View {
     let tasks: [TaskItem]
     let action: () -> Void
 
+    private enum Item: Identifiable {
+        case evento(CalendarEvent)
+        case tarefa(TaskItem)
+
+        var id: String {
+            switch self {
+            case .evento(let e): "e\(e.id)"
+            case .tarefa(let t): "t\(t.id)"
+            }
+        }
+    }
+
     var body: some View {
+        let itens = events.map(Item.evento) + tasks.map(Item.tarefa)
+        // No máximo 2 itens; com mais, 2 + "+N" — a célula nunca cresce.
+        let visiveis = itens.count <= 2 ? itens : Array(itens.prefix(2))
+        let extra = itens.count - visiveis.count
         Button(action: action) {
             VStack(alignment: .leading, spacing: 3) {
                 Text("\(Calendar.current.component(.day, from: day))")
@@ -129,21 +145,24 @@ private struct DayCell: View {
                     .background(Circle().fill(isToday ? DS.acentoSolido : .clear))
                     .padding(.bottom, 1)
 
-                ForEach(events.prefix(2)) { event in
-                    linha(event.title, cor: Color(hex: event.colorHex), evento: true)
+                ForEach(visiveis) { item in
+                    switch item {
+                    case .evento(let event):
+                        linha(event.title, cor: Color(hex: event.colorHex), evento: true,
+                              passado: event.end < .now, riscado: false)
+                    case .tarefa(let task):
+                        linha(task.displayTitle, cor: store.color(forList: task.listID), evento: false,
+                              passado: task.isCompleted, riscado: task.isCompleted)
+                    }
                 }
-                ForEach(tasks.prefix(max(0, 3 - min(events.count, 2)))) { task in
-                    linha(task.displayTitle, cor: store.color(forList: task.listID), evento: false)
-                }
-                let shown = min(events.count, 2) + min(tasks.count, max(0, 3 - min(events.count, 2)))
-                let extra = events.count + tasks.count - shown
                 if extra > 0 {
-                    Text("+\(extra)").txt(.xs, .medium).foregroundStyle(DS.texto3).padding(.leading, 2)
+                    Text("+\(extra)").txt(.xs, .semibold).foregroundStyle(DS.texto3).padding(.leading, 2)
                 }
                 Spacer(minLength: 0)
             }
             .padding(6)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .frame(height: 84, alignment: .topLeading)
             .background(RoundedRectangle(cornerRadius: DS.raioM, style: .continuous)
                 .fill(inMonth ? DS.superficie : DS.superficie.opacity(0.4)))
             .overlay(RoundedRectangle(cornerRadius: DS.raioM, style: .continuous)
@@ -153,17 +172,18 @@ private struct DayCell: View {
         .buttonStyle(Pressionavel(raio: DS.raioM, escala: 0.98))
     }
 
-    private func linha(_ text: String, cor: Color, evento: Bool) -> some View {
+    private func linha(_ text: String, cor: Color, evento: Bool, passado: Bool, riscado: Bool) -> some View {
         HStack(spacing: 4) {
             if evento {
                 Capsule().fill(cor).frame(width: 2.5, height: 10)
             } else {
                 Circle().strokeBorder(cor, lineWidth: 1.3).frame(width: 7, height: 7)
             }
-            Text(text).lineLimit(1)
+            Text(text).lineLimit(1).strikethrough(riscado, color: DS.texto3)
         }
         .txt(.xs)
         .foregroundStyle(inMonth ? DS.texto2 : DS.texto3)
+        .opacity(passado ? 0.45 : 1)
     }
 }
 
@@ -173,7 +193,7 @@ private struct DayAgenda: View {
     let events: [CalendarEvent]
 
     var body: some View {
-        let tasks = store.tasks(on: day)
+        let tasks = store.tasks(on: day) + store.completedTasks(on: day)
         ScrollView {
             VStack(alignment: .leading, spacing: DS.e5) {
                 VStack(alignment: .leading, spacing: 10) {
@@ -185,7 +205,7 @@ private struct DayAgenda: View {
                 if tasks.isEmpty && events.isEmpty {
                     EstadoVazio(icone: "calendar", titulo: "Dia livre")
                 } else if !tasks.isEmpty {
-                    SecaoTarefas("Tarefas", contagem: tasks.count) {
+                    CartaoDeLinhas(recuoDoFio: 44) {
                         ForEach(tasks) { TaskRow(task: $0, style: .compact, showDate: false) }
                     }
                 }

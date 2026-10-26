@@ -53,9 +53,7 @@ struct ListDetailView: View {
             Button {
                 folhas.abrir("Personalizar lista", largura: 440) { EditorDeLista(listID: listID) }
             } label: {
-                ListIconView(listID: listID, size: 56)
-                    .padding(4)
-                    .overlay(RoundedRectangle(cornerRadius: 64 * 0.3, style: .continuous).strokeBorder(cor, lineWidth: 2.5))
+                ListIconComAnel(listID: listID, size: 52, espessura: 2.5)
                     .overlay(alignment: .bottomTrailing) {
                         Image(systemName: "pencil")
                             .font(.system(size: 9, weight: .bold))

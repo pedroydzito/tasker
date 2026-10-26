@@ -21,7 +21,7 @@ final class QuickAddPanelController {
     }
 
     func show() {
-        guard store.auth.isSignedIn else { return }
+        guard store.hasAccount else { return }
         let panel = self.panel ?? makePanel()
         self.panel = panel
 

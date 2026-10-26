@@ -5,6 +5,7 @@ struct QuickAddField: View {
     enum Style { case compact, inline, large, floating }
 
     @Environment(TaskStore.self) private var store
+    @Environment(Folhas.self) private var folhas: Folhas?
     /// Data padrão quando nada é digitado (nil = sem data).
     var defaultDue: Date?
     var fixedListID: String?
@@ -83,25 +84,41 @@ struct QuickAddField: View {
         }
     }
 
-    private var listMenu: some View {
-        Menu {
-            ForEach(store.lists) { list in
-                Button {
-                    chosenListID = list.id
-                } label: {
-                    if list.id == listID { Label(store.displayName(list.id), systemImage: "checkmark") }
-                    else { Text(store.displayName(list.id)) }
+    /// Escolha da lista: o ícone da lista atual; abre a grade de listas (com ícones, na ordem do app).
+    @ViewBuilder private var listMenu: some View {
+        if let folhas {
+            Button {
+                let atual = listID
+                folhas.abrir("Escolher lista", largura: 320) {
+                    EscolhaDeLista(atual: atual) { chosenListID = $0 }
                 }
+            } label: {
+                botaoDaLista
             }
-        } label: {
-            Image(systemName: "chevron.down")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(DS.texto3)
+            .buttonStyle(Pressionavel(raio: 999, escala: 0.94))
+            .help("Escolher lista")
+        } else {
+            Menu {
+                ForEach(store.lists) { list in
+                    Button(store.displayName(list.id)) { chosenListID = list.id }
+                }
+            } label: {
+                botaoDaLista
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
         }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
-        .fixedSize()
-        .help("Escolher lista")
+    }
+
+    private var botaoDaLista: some View {
+        HStack(spacing: 4) {
+            if let listID { ListIconView(listID: listID, size: 20, redondo: true) }
+            Image(systemName: "chevron.down").font(.system(size: 9, weight: .bold)).foregroundStyle(DS.texto3)
+        }
+        .padding(.horizontal, 6)
+        .frame(height: 28)
+        .contentShape(Capsule())
     }
 
     private var chips: some View {

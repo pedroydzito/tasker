@@ -39,9 +39,11 @@ struct DiaComItens: View {
                 }
             }
             .padding(.horizontal, DS.e1)
-            CartaoDeLinhas {
-                ForEach(events) { EventoNaLista(event: $0) }
-                ForEach(tasks) { TaskRow(task: $0, showDate: false) }
+            EventsCard(events: events)
+            if !tasks.isEmpty {
+                CartaoDeLinhas {
+                    ForEach(tasks) { TaskRow(task: $0, showDate: false) }
+                }
             }
         }
     }

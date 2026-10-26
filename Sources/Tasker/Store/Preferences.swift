@@ -56,6 +56,8 @@ final class Preferences {
             "syncInterval": 30.0,
             "menuBarStyle": MenuBarStyle.badge.rawValue,
             "appearance": AppAppearance.system.rawValue,
+            "showEventsInMenu": true,
+            "showOverdueInMenu": true,
         ])
     }
 
@@ -108,10 +110,40 @@ final class Preferences {
         set { withMutation(keyPath: \.appearance) { d.set(newValue.rawValue, forKey: "appearance") } }
     }
 
-    /// Emoji escolhido por lista ("" = sem emoji).
-    var listEmojis: [String: String] {
-        get { access(keyPath: \.listEmojis); return d.dictionary(forKey: "listEmojis") as? [String: String] ?? [:] }
-        set { withMutation(keyPath: \.listEmojis) { d.set(newValue, forKey: "listEmojis") } }
+    /// Ícone (SF Symbol) escolhido por lista ("" = só a inicial).
+    var listSymbols: [String: String] {
+        get { access(keyPath: \.listSymbols); return d.dictionary(forKey: "listSymbols") as? [String: String] ?? [:] }
+        set { withMutation(keyPath: \.listSymbols) { d.set(newValue, forKey: "listSymbols") } }
+    }
+
+    /// Usar sem conta: tudo fica só neste Mac.
+    var localMode: Bool {
+        get { access(keyPath: \.localMode); return d.bool(forKey: "localMode") }
+        set { withMutation(keyPath: \.localMode) { d.set(newValue, forKey: "localMode") } }
+    }
+
+    /// Som ao concluir uma tarefa.
+    var completionSound: Bool {
+        get { access(keyPath: \.completionSound); return d.bool(forKey: "completionSound") }
+        set { withMutation(keyPath: \.completionSound) { d.set(newValue, forKey: "completionSound") } }
+    }
+
+    /// Mostrar os eventos do dia no menu da barra.
+    var showEventsInMenu: Bool {
+        get { access(keyPath: \.showEventsInMenu); return d.bool(forKey: "showEventsInMenu") }
+        set { withMutation(keyPath: \.showEventsInMenu) { d.set(newValue, forKey: "showEventsInMenu") } }
+    }
+
+    /// Mostrar atrasadas no menu da barra.
+    var showOverdueInMenu: Bool {
+        get { access(keyPath: \.showOverdueInMenu); return d.bool(forKey: "showOverdueInMenu") }
+        set { withMutation(keyPath: \.showOverdueInMenu) { d.set(newValue, forKey: "showOverdueInMenu") } }
+    }
+
+    /// Ordem das etiquetas escolhida arrastando na barra lateral.
+    var tagOrder: [String] {
+        get { access(keyPath: \.tagOrder); return d.stringArray(forKey: "tagOrder") ?? [] }
+        set { withMutation(keyPath: \.tagOrder) { d.set(newValue, forKey: "tagOrder") } }
     }
 
     /// Ordem das listas escolhida arrastando na barra lateral.

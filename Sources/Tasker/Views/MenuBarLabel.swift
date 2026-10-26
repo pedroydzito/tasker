@@ -8,7 +8,7 @@ struct MenuBarLabel: View {
     let store: TaskStore
 
     var body: some View {
-        let count = store.auth.isSignedIn ? store.badgeCount : 0
+        let count = store.hasAccount ? store.badgeCount : 0
         let show = store.prefs.showCountInMenuBar && count > 0
         Image(nsImage: Self.icon(count: show ? count : nil, style: store.prefs.menuBarStyle))
     }

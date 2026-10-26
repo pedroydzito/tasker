@@ -8,9 +8,9 @@ protocol PagedResponse: Decodable {
     var nextPageToken: String? { get }
 }
 
-struct GTaskList: Decodable {
-    let id: String
-    let title: String?
+struct GTaskList: Codable {
+    var id: String
+    var title: String?
 }
 
 struct GTaskListsResponse: PagedResponse {
@@ -18,19 +18,19 @@ struct GTaskListsResponse: PagedResponse {
     let nextPageToken: String?
 }
 
-struct GTask: Decodable {
-    let id: String
-    let title: String?
-    let notes: String?
-    let status: String?
-    let due: String?
-    let completed: String?
-    let updated: String?
-    let parent: String?
-    let position: String?
-    let deleted: Bool?
-    let hidden: Bool?
-    let webViewLink: String?
+struct GTask: Codable {
+    var id: String
+    var title: String?
+    var notes: String?
+    var status: String?
+    var due: String?
+    var completed: String?
+    var updated: String?
+    var parent: String?
+    var position: String?
+    var deleted: Bool?
+    var hidden: Bool?
+    var webViewLink: String?
 }
 
 struct GTasksResponse: PagedResponse {

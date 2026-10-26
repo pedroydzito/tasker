@@ -169,6 +169,20 @@ final class GoogleAPI {
         try await send("DELETE", Self.url(Self.tasksBase, ["lists", listID, "tasks", taskID]))
     }
 
+    func insertList(title: String) async throws -> GTaskList {
+        let data = try await send("POST", Self.url(Self.tasksBase, ["users", "@me", "lists"]), json: ["title": title])
+        return try JSONDecoder().decode(GTaskList.self, from: data)
+    }
+
+    func renameList(id: String, title: String) async throws -> GTaskList {
+        let data = try await send("PATCH", Self.url(Self.tasksBase, ["users", "@me", "lists", id]), json: ["title": title])
+        return try JSONDecoder().decode(GTaskList.self, from: data)
+    }
+
+    func deleteList(id: String) async throws {
+        try await send("DELETE", Self.url(Self.tasksBase, ["users", "@me", "lists", id]))
+    }
+
     // MARK: Google Calendar
 
     private static let calendarBase = "https://www.googleapis.com/calendar/v3"

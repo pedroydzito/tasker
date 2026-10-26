@@ -70,10 +70,12 @@ struct TodayView: View {
                     }
                 }
 
-                SecaoTarefas("Hoje", contagem: today.count) {
-                    if today.isEmpty {
-                        EstadoVazio(icone: "sun.max", titulo: "Nada pendente", descricao: "As tarefas com data de hoje aparecem aqui.")
-                    } else {
+                if today.isEmpty {
+                    EstadoVazio(icone: "sun.max", titulo: "Nada pendente", descricao: "As tarefas com data de hoje aparecem aqui.")
+                } else if overdue.isEmpty {
+                    CartaoDeLinhas { ForEach(today) { TaskRow(task: $0, showDate: false) } }
+                } else {
+                    SecaoTarefas("Hoje", contagem: today.count) {
                         ForEach(today) { TaskRow(task: $0, showDate: false) }
                     }
                 }
@@ -102,9 +104,13 @@ struct DayView: View {
             if empty {
                 EstadoVazio(icone: "sunrise", titulo: "Dia livre", descricao: "Nada marcado para \(title.lowercased()).")
             } else {
-                CartaoDeLinhas {
-                    ForEach(store.events(on: day)) { EventoNaLista(event: $0) }
-                    ForEach(tasks) { TaskRow(task: $0, showDate: false) }
+                VStack(alignment: .leading, spacing: DS.e4) {
+                    EventsCard(events: store.events(on: day))
+                    if !tasks.isEmpty {
+                        CartaoDeLinhas {
+                            ForEach(tasks) { TaskRow(task: $0, showDate: false) }
+                        }
+                    }
                 }
             }
         }

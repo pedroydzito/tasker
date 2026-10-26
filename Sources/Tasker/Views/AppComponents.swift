@@ -4,12 +4,15 @@ import SwiftUI
 
 // MARK: Lista: ladrilho e chip
 
-/// Ladrilho da lista: foto, emoji ou inicial sobre a cor da lista. Nunca fica vazio.
+/// Ladrilho da lista: foto, ícone ou inicial sobre a cor da lista. Nunca fica vazio.
 struct ListIconView: View {
     @Environment(TaskStore.self) private var store
     let listID: String
     var size: CGFloat = 20
     var redondo = false
+
+    /// Raio do ladrilho para um tamanho (use para desenhar anéis em volta com o mesmo desenho).
+    static func raio(_ size: CGFloat) -> CGFloat { size * 0.3 }
 
     var body: some View {
         let color = store.color(forList: listID)
@@ -19,8 +22,10 @@ struct ListIconView: View {
             } else {
                 ZStack {
                     color.opacity(0.16)
-                    if let emoji = store.emoji(forList: listID) {
-                        Text(emoji).font(.system(size: size * 0.58))
+                    if let symbol = store.symbol(forList: listID) {
+                        Image(systemName: symbol)
+                            .font(.system(size: size * 0.48, weight: .semibold))
+                            .foregroundStyle(color)
                     } else {
                         Text(String(store.displayName(listID).prefix(1)).uppercased())
                             .font(.system(size: size * 0.46, weight: .bold, design: .rounded))
@@ -30,11 +35,29 @@ struct ListIconView: View {
             }
         }
         .frame(width: size, height: size)
-        .clipShape(RoundedRectangle(cornerRadius: redondo ? size / 2 : size * 0.3, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: redondo ? size / 2 : Self.raio(size), style: .continuous))
     }
 }
 
-/// Chip da lista: pílula tingida na cor da lista, com a foto/emoji redondo antes do nome.
+/// Ladrilho com anel na cor da lista; o anel segue o mesmo desenho do ladrilho (raio + folga).
+struct ListIconComAnel: View {
+    @Environment(TaskStore.self) private var store
+    let listID: String
+    var size: CGFloat = 56
+    var folga: CGFloat = 4
+    var espessura: CGFloat = 2
+
+    var body: some View {
+        ListIconView(listID: listID, size: size)
+            .padding(folga)
+            .overlay(
+                RoundedRectangle(cornerRadius: ListIconView.raio(size) + folga, style: .continuous)
+                    .strokeBorder(store.color(forList: listID), lineWidth: espessura)
+            )
+    }
+}
+
+/// Chip da lista: pílula tingida na cor da lista, com a foto/ícone redondo antes do nome.
 struct ListChip: View {
     @Environment(TaskStore.self) private var store
     let listID: String
@@ -278,69 +301,46 @@ struct CalendarIssueBanner: View {
 
 // MARK: Conteúdo das folhas
 
-/// Folha "Personalizar lista": ícone (emoji, foto ou inicial) e cor.
+/// Folha "Personalizar lista": nome, ícone (biblioteca, foto ou inicial) e cor.
 struct EditorDeLista: View {
     @Environment(TaskStore.self) private var store
+    @Environment(Folhas.self) private var folhas
     let listID: String
-    @State private var outro = ""
+    @State private var nome = ""
+    @State private var confirmarExclusao = false
 
     private let colunas = Array(repeating: GridItem(.flexible(), spacing: 6), count: 8)
 
     var body: some View {
-        let atual = store.emoji(forList: listID)
+        let atual = store.symbol(forList: listID)
         let temFoto = store.photo(forList: listID) != nil
         let cor = store.color(forList: listID)
         VStack(alignment: .leading, spacing: DS.e5) {
             HStack(spacing: DS.e4) {
-                ListIconView(listID: listID, size: 56)
-                    .overlay(RoundedRectangle(cornerRadius: 56 * 0.3, style: .continuous)
-                        .strokeBorder(cor, lineWidth: 2).padding(-4))
-                VStack(alignment: .leading, spacing: DS.e2) {
-                    Text(store.displayName(listID)).display(.xl).foregroundStyle(DS.texto)
-                    ListChip(listID: listID)
+                ListIconComAnel(listID: listID, size: 52)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Nome").rotulo()
+                    TextField("Nome da lista", text: $nome)
+                        .campo()
+                        .onSubmit { Task { await store.renameList(listID, to: nome) } }
                 }
             }
-            .padding(.leading, 4)
 
             VStack(alignment: .leading, spacing: DS.e2) {
                 Text("Ícone").rotulo()
-                LazyVGrid(columns: colunas, spacing: 6) {
-                    ForEach(Palette.emojis, id: \.self) { emoji in
-                        Button {
-                            store.removePhoto(forList: listID)
-                            store.setEmoji(emoji, forList: listID)
-                        } label: {
-                            Text(emoji)
-                                .font(.system(size: 18))
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 36)
-                                .background(RoundedRectangle(cornerRadius: DS.raioP, style: .continuous)
-                                    .fill(atual == emoji && !temFoto ? cor.opacity(0.18) : DS.superficie2))
-                        }
-                        .buttonStyle(Pressionavel(raio: DS.raioP, escala: 0.94))
-                    }
+                GradeDeIcones(selecionado: temFoto ? nil : atual, cor: cor) { simbolo in
+                    store.removePhoto(forList: listID)
+                    store.setSymbol(simbolo, forList: listID)
                 }
                 HStack(spacing: DS.e2) {
-                    TextField("Outro emoji", text: $outro)
-                        .campo()
-                        .frame(width: 120)
-                        .onChange(of: outro) { _, valor in
-                            guard let first = valor.first else { return }
-                            store.removePhoto(forList: listID)
-                            store.setEmoji(String(first), forList: listID)
-                            if valor.count > 1 { outro = String(first) }
-                        }
-                    BotaoIcone(simbolo: "face.smiling", rotulo: "Abrir emojis do macOS") {
-                        NSApp.orderFrontCharacterPalette(nil)
-                    }
-                    Spacer()
                     Button { escolherFoto() } label: { Label("Usar foto", systemImage: "photo") }
                         .buttonStyle(.superficie)
-                    Button("Inicial") {
+                    Button("Só a inicial") {
                         store.removePhoto(forList: listID)
-                        store.setEmoji(nil, forList: listID)
+                        store.setSymbol(nil, forList: listID)
                     }
                     .buttonStyle(.superficie)
+                    Spacer()
                 }
             }
 
@@ -348,7 +348,29 @@ struct EditorDeLista: View {
                 Text("Cor").rotulo()
                 AmostrasDeCor(selecao: Binding(get: { cor.hexString }, set: { store.setColor(Color(hex: $0), forList: listID) }))
             }
+
+            RodapeFolha {
+                if confirmarExclusao {
+                    Text("Excluir a lista e as tarefas dela?").txt(.xs).foregroundStyle(DS.perigoTexto)
+                    Spacer()
+                    Button("Cancelar") { confirmarExclusao = false }.buttonStyle(.superficie)
+                    Button("Excluir lista") {
+                        Task { await store.deleteList(listID) }
+                        folhas.fechar()
+                    }
+                    .buttonStyle(.perigo)
+                } else {
+                    Button("Excluir lista") { confirmarExclusao = true }.buttonStyle(Botao(variante: .fantasma))
+                    Spacer()
+                    Button("Concluir") {
+                        if nome != (store.list(listID)?.title ?? "") { Task { await store.renameList(listID, to: nome) } }
+                        folhas.fechar()
+                    }
+                    .buttonStyle(.primario)
+                }
+            }
         }
+        .onAppear { nome = store.list(listID)?.title ?? "" }
     }
 
     private func escolherFoto() {
@@ -362,26 +384,244 @@ struct EditorDeLista: View {
     }
 }
 
-struct AmostrasDeCor: View {
-    @Binding var selecao: String
+/// Grade da biblioteca de ícones.
+struct GradeDeIcones: View {
+    let selecionado: String?
+    let cor: Color
+    let escolher: (String) -> Void
+
+    private let colunas = Array(repeating: GridItem(.flexible(), spacing: 6), count: 8)
 
     var body: some View {
-        HStack(spacing: DS.e2) {
-            ForEach(Palette.lists, id: \.self) { hex in
-                let ativa = hex.uppercased() == selecao.uppercased()
-                Button { selecao = hex } label: {
-                    Circle()
-                        .fill(Color(hex: hex))
-                        .frame(width: 22, height: 22)
-                        .overlay(Circle().strokeBorder(Color(hex: hex), lineWidth: 2).padding(-4).opacity(ativa ? 1 : 0))
-                        .padding(4)
+        LazyVGrid(columns: colunas, spacing: 6) {
+            ForEach(Palette.simbolos, id: \.self) { simbolo in
+                let ativo = selecionado == simbolo
+                Button { escolher(simbolo) } label: {
+                    Image(systemName: simbolo)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(ativo ? cor : DS.texto2)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 34)
+                        .background(RoundedRectangle(cornerRadius: DS.raioP, style: .continuous)
+                            .fill(ativo ? cor.opacity(0.16) : DS.superficie2))
+                        .overlay(RoundedRectangle(cornerRadius: DS.raioP, style: .continuous)
+                            .strokeBorder(ativo ? cor : .clear, lineWidth: 1.5))
                 }
-                .buttonStyle(SoAfunda(escala: 0.9))
+                .buttonStyle(Pressionavel(raio: DS.raioP, escala: 0.94))
             }
-            ColorPicker("", selection: Binding(get: { Color(hex: selecao) }, set: { selecao = $0.hexString }),
-                        supportsOpacity: false)
-                .labelsHidden()
+        }
+    }
+}
+
+/// Folha "Nova lista": nome, ícone e cor. No Google, a lista aparece no Google Tasks também.
+struct NovaLista: View {
+    @Environment(TaskStore.self) private var store
+    @Environment(Folhas.self) private var folhas
+    @Environment(Navigation.self) private var nav
+    @State private var nome = ""
+    @State private var simbolo: String?
+    @State private var cor = Palette.lists[5]
+    @State private var criando = false
+    @FocusState private var foco: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DS.e5) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Nome").rotulo()
+                TextField("Ex.: Clientes", text: $nome).campo().focused($foco).onSubmit(criar)
+            }
+            VStack(alignment: .leading, spacing: DS.e2) {
+                Text("Ícone").rotulo()
+                GradeDeIcones(selecionado: simbolo, cor: Color(hex: cor)) { s in
+                    simbolo = simbolo == s ? nil : s
+                }
+            }
+            VStack(alignment: .leading, spacing: DS.e2) {
+                Text("Cor").rotulo()
+                AmostrasDeCor(selecao: $cor)
+            }
+            if !store.prefs.localMode {
+                Nota("A lista também é criada no Google Tasks. O ícone e a cor ficam só no Tasker.")
+            }
+            RodapeFolha {
+                Spacer()
+                Button("Cancelar") { folhas.fechar() }.buttonStyle(.superficie)
+                Button(criando ? "Criando…" : "Criar lista", action: criar)
+                    .buttonStyle(.primario)
+                    .disabled(nome.trimmingCharacters(in: .whitespaces).isEmpty || criando)
+            }
+        }
+        .onAppear { foco = true }
+    }
+
+    private func criar() {
+        guard !criando, !nome.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+        criando = true
+        Task {
+            if let id = await store.createList(title: nome, symbol: simbolo, colorHex: cor) {
+                nav.selection = .list(id)
+            }
+            withAnimation(DS.curvaSaida) { folhas.fechar() }
+        }
+    }
+}
+
+/// Amostras de cor + seletor próprio (hex colável, matiz, saturação e brilho).
+struct AmostrasDeCor: View {
+    @Binding var selecao: String
+    @State private var personalizada = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DS.e3) {
+            HStack(spacing: 6) {
+                ForEach(Palette.lists, id: \.self) { hex in
+                    let ativa = hex.uppercased() == selecao.uppercased()
+                    Button { selecao = hex } label: {
+                        Circle()
+                            .fill(Color(hex: hex))
+                            .frame(width: 22, height: 22)
+                            .overlay(Circle().strokeBorder(Color(hex: hex), lineWidth: 2).padding(-4).opacity(ativa ? 1 : 0))
+                            .padding(4)
+                    }
+                    .buttonStyle(SoAfunda(escala: 0.9))
+                }
+                Button {
+                    withAnimation(DS.curva) { personalizada.toggle() }
+                } label: {
+                    Image(systemName: personalizada ? "chevron.up" : "plus")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(DS.texto2)
+                        .frame(width: 26, height: 26)
+                        .background(Circle().fill(DS.superficie2))
+                }
+                .buttonStyle(PressionavelCirculo())
                 .help("Outra cor")
+            }
+            if personalizada {
+                SeletorDeCor(hex: $selecao)
+                    .transition(.opacity.combined(with: .offset(y: -4)))
+            }
+        }
+    }
+}
+
+/// Seletor de cor no visual do app: prévia, código hex (pode colar) e três trilhos.
+struct SeletorDeCor: View {
+    @Binding var hex: String
+    @State private var texto = ""
+    @State private var h: Double = 0
+    @State private var s: Double = 0.7
+    @State private var b: Double = 0.9
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DS.e3) {
+            HStack(spacing: DS.e3) {
+                RoundedRectangle(cornerRadius: DS.raioM, style: .continuous)
+                    .fill(Color(hue: h, saturation: s, brightness: b))
+                    .frame(width: 40, height: 36)
+                    .overlay(RoundedRectangle(cornerRadius: DS.raioM, style: .continuous).strokeBorder(DS.borda))
+                HStack(spacing: 2) {
+                    Text("#").txt(.md, .medium).foregroundStyle(DS.texto3)
+                    TextField("0097FF", text: $texto)
+                        .textFieldStyle(.plain)
+                        .txt(.md, .medium)
+                        .monospaced()
+                        .onSubmit(aplicarTexto)
+                        .onChange(of: texto) { _, novo in
+                            let limpo = novo.replacingOccurrences(of: "#", with: "").trimmingCharacters(in: .whitespaces)
+                            if limpo.count == 6, limpo.allSatisfy(\.isHexDigit) { aplicarTexto() }
+                        }
+                }
+                .padding(.horizontal, DS.e3)
+                .frame(height: 36)
+                .background(DS.superficie2, in: RoundedRectangle(cornerRadius: DS.raioM, style: .continuous))
+            }
+            trilho("Matiz", valor: $h,
+                   cores: stride(from: 0.0, through: 1.0, by: 1.0 / 6).map { Color(hue: $0, saturation: 0.9, brightness: 0.95) })
+            trilho("Saturação", valor: $s, cores: [Color(hue: h, saturation: 0, brightness: b), Color(hue: h, saturation: 1, brightness: b)])
+            trilho("Brilho", valor: $b, cores: [.black, Color(hue: h, saturation: s, brightness: 1)])
+        }
+        .onAppear(perform: carregar)
+    }
+
+    private func trilho(_ rotulo: String, valor: Binding<Double>, cores: [Color]) -> some View {
+        GeometryReader { geo in
+            ZStack(alignment: .leading) {
+                Capsule().fill(LinearGradient(colors: cores, startPoint: .leading, endPoint: .trailing))
+                Circle()
+                    .fill(.white)
+                    .frame(width: 18, height: 18)
+                    .shadow(color: .black.opacity(0.25), radius: 2, y: 1)
+                    .offset(x: max(0, min(geo.size.width - 18, CGFloat(valor.wrappedValue) * (geo.size.width - 18))))
+            }
+            .contentShape(Rectangle())
+            .gesture(DragGesture(minimumDistance: 0).onChanged { g in
+                valor.wrappedValue = max(0, min(1, Double((g.location.x - 9) / max(1, geo.size.width - 18))))
+                publicar()
+            })
+        }
+        .frame(height: 18)
+        .help(rotulo)
+    }
+
+    private func carregar() {
+        let ns = NSColor(hex: hex).usingColorSpace(.sRGB) ?? .systemBlue
+        h = Double(ns.hueComponent)
+        s = Double(ns.saturationComponent)
+        b = Double(ns.brightnessComponent)
+        texto = hex.replacingOccurrences(of: "#", with: "").uppercased()
+    }
+
+    private func publicar() {
+        let novo = Color(hue: h, saturation: s, brightness: b).hexString
+        hex = novo
+        texto = String(novo.dropFirst())
+    }
+
+    private func aplicarTexto() {
+        let limpo = texto.replacingOccurrences(of: "#", with: "").trimmingCharacters(in: .whitespaces)
+        guard limpo.count == 6, limpo.allSatisfy(\.isHexDigit) else { return }
+        let novo = "#" + limpo.uppercased()
+        guard novo.uppercased() != hex.uppercased() else { return }
+        hex = novo
+        let ns = NSColor(hex: novo).usingColorSpace(.sRGB) ?? .systemBlue
+        h = Double(ns.hueComponent)
+        s = Double(ns.saturationComponent)
+        b = Double(ns.brightnessComponent)
+    }
+}
+
+/// Folha "Escolher lista": as listas, com ícones, na mesma ordem da barra lateral.
+struct EscolhaDeLista: View {
+    @Environment(TaskStore.self) private var store
+    @Environment(Folhas.self) private var folhas
+    let atual: String?
+    let escolher: (String) -> Void
+
+    var body: some View {
+        VStack(spacing: 2) {
+            ForEach(store.lists) { list in
+                let ativa = list.id == atual
+                Button {
+                    escolher(list.id)
+                    withAnimation(DS.curvaSaida) { folhas.fechar() }
+                } label: {
+                    HStack(spacing: DS.e3) {
+                        ListIconView(listID: list.id, size: 26)
+                        Text(store.displayName(list.id)).txt(.sm, ativa ? .semibold : .medium).foregroundStyle(DS.texto)
+                        Spacer()
+                        if ativa {
+                            Image(systemName: "checkmark").font(.system(size: 12, weight: .bold)).foregroundStyle(DS.acento)
+                        }
+                    }
+                    .padding(.horizontal, DS.e2)
+                    .padding(.vertical, 7)
+                    .background(RoundedRectangle(cornerRadius: DS.raioM, style: .continuous)
+                        .fill(ativa ? store.color(forList: list.id).opacity(0.12) : .clear))
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(Pressionavel(raio: DS.raioM))
+            }
         }
     }
 }
@@ -462,59 +702,18 @@ struct PopoverWindowConfigurator: NSViewRepresentable {
         private var token: NSObjectProtocol?
 
         func attach(_ window: NSWindow, from view: NSView, cornerRadius: CGFloat) {
-            // Reaplica sempre: o sistema pode recriar o fundo ao reabrir o menu.
-            window.isOpaque = false
-            window.backgroundColor = .clear
-            window.hasShadow = true
+            // Os cantos são os do próprio sistema: o nosso fundo cobre a janela inteira,
+            // sem desenhar um segundo arredondamento por cima (era o que criava a borda dupla).
             window.animationBehavior = .none
-            if let frame = window.contentView?.superview {
-                Self.limparFundo(frame, nossaView: view, raio: cornerRadius)
-            }
-            if let content = window.contentView {
-                content.wantsLayer = true
-                content.layer?.cornerRadius = cornerRadius
-                content.layer?.cornerCurve = .continuous
-                content.layer?.masksToBounds = true
-                content.layer?.backgroundColor = .clear
-            }
-            window.invalidateShadow()
-
             guard self.window !== window else { return }
             self.window = window
             if let token { NotificationCenter.default.removeObserver(token) }
             token = NotificationCenter.default.addObserver(
                 forName: NSWindow.didBecomeKeyNotification, object: window, queue: .main
-            ) { [weak self, weak window, weak view] _ in
-                MainActor.assumeIsolated {
-                    if let window, let view { self?.attach(window, from: view, cornerRadius: cornerRadius) }
-                    self?.onOpen()
-                }
+            ) { [weak self] _ in
+                MainActor.assumeIsolated { self?.onOpen() }
             }
             onOpen()
-        }
-
-        /// Esconde o vidro/fundo do sistema (que tem cantos mais quadrados) e arredonda
-        /// as camadas que contêm o nosso conteúdo, para só sobrar o nosso desenho.
-        private static func limparFundo(_ view: NSView, nossaView: NSView, raio: CGFloat, depth: Int = 0) {
-            let contemNossaView = nossaView.isDescendant(of: view)
-            if let effect = view as? NSVisualEffectView {
-                if contemNossaView {
-                    effect.maskImage = .roundedMask(radius: raio)
-                    effect.material = .windowBackground
-                    effect.state = .inactive
-                    effect.alphaValue = 1
-                } else {
-                    effect.isHidden = true
-                }
-            }
-            if contemNossaView {
-                view.wantsLayer = true
-                view.layer?.cornerRadius = raio
-                view.layer?.cornerCurve = .continuous
-                view.layer?.masksToBounds = true
-            }
-            guard depth < 6 else { return }
-            for sub in view.subviews { limparFundo(sub, nossaView: nossaView, raio: raio, depth: depth + 1) }
         }
     }
 }

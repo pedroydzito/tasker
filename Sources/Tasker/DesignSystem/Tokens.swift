@@ -111,8 +111,17 @@ extension Color {
 /// Paleta de cores das listas (cor de categoria) e emojis sugeridos.
 enum Palette {
     static let lists = ["#E8553F", "#E08A1E", "#C9A21B", "#3FA35B", "#1FA6A0", "#3B82E0", "#6E5CE6", "#C255C9", "#D9467A", "#7A7468"]
-    static let emojis = ["🎨", "💼", "🏠", "📚", "💪", "🎬", "🛒", "✈️", "💡", "🧠", "📈", "🧾",
-                         "🎵", "❤️", "⭐️", "🔥", "🧑‍💻", "📷", "🗂️", "🌱", "🍽️", "🎯", "📞", "🚀"]
+    /// Biblioteca de ícones para as listas (SF Symbols — nada de emoji).
+    static let simbolos = [
+        "person.fill", "person.2.fill", "briefcase.fill", "building.2.fill", "house.fill", "cart.fill",
+        "paintbrush.pointed.fill", "paintpalette.fill", "pencil.and.ruler.fill", "camera.fill", "photo.fill", "film.fill",
+        "music.note", "headphones", "gamecontroller.fill", "book.fill", "graduationcap.fill", "lightbulb.fill",
+        "brain.head.profile", "heart.fill", "star.fill", "flame.fill", "bolt.fill", "leaf.fill",
+        "figure.run", "dumbbell.fill", "fork.knife", "cup.and.saucer.fill", "airplane", "car.fill",
+        "creditcard.fill", "banknote.fill", "chart.line.uptrend.xyaxis", "doc.text.fill", "folder.fill", "tray.full.fill",
+        "laptopcomputer", "chevron.left.forwardslash.chevron.right", "globe.americas.fill", "megaphone.fill", "phone.fill", "envelope.fill",
+        "calendar", "clock.fill", "flag.fill", "target", "checklist", "sparkles",
+    ]
 }
 
 // MARK: Tipografia
