@@ -8,6 +8,8 @@
     <string>Tasker</string>
     <key>CFBundleIdentifier</key>
     <string>com.pedrolima.tasker</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
     <key>CFBundleExecutable</key>
     <string>Tasker</string>
     <key>CFBundlePackageType</key>

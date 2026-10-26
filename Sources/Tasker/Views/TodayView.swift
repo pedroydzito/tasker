@@ -13,7 +13,7 @@ struct PageScaffold<Header: View, Content: View>: View {
                 HStack(alignment: .center, spacing: 14) {
                     header
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(title).font(.system(size: 28, weight: .bold))
+                        Text(title).font(.system(size: 30, weight: .bold)).tracking(-0.4)
                         if let subtitle {
                             Text(subtitle).font(.system(size: 13.5)).foregroundStyle(Theme.subtle)
                         }
@@ -24,8 +24,8 @@ struct PageScaffold<Header: View, Content: View>: View {
                 ErrorBanner()
                 content
             }
-            .padding(.horizontal, 36)
-            .padding(.top, 26)
+            .padding(.horizontal, 40)
+            .padding(.top, 46)
             .padding(.bottom, 120)
             .frame(maxWidth: 880, alignment: .leading)
             .frame(maxWidth: .infinity)

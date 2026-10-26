@@ -8,12 +8,13 @@ struct MainWindow: View {
     var body: some View {
         Group {
             if auth.isSignedIn {
-                split
+                layout
             } else {
-                OnboardingView()
+                OnboardingView().background(Theme.canvas)
             }
         }
-        .frame(minWidth: 860, minHeight: 540)
+        .ignoresSafeArea()
+        .frame(minWidth: 880, minHeight: 560)
         // Com a janela aberta o app aparece no Dock e no ⌘Tab; fechada, volta a viver só na barra de menu.
         .onAppear {
             NSApp.setActivationPolicy(.regular)
@@ -23,44 +24,37 @@ struct MainWindow: View {
         .onChange(of: store.prefs.appearance) { _, value in NSApp.appearance = value.nsAppearance }
     }
 
-    private var split: some View {
-        NavigationSplitView {
+    private var layout: some View {
+        let selectedTask = nav.selectedTaskID.flatMap { store.tasks[$0] }
+        return HStack(spacing: 0) {
             Sidebar()
-                .navigationSplitViewColumnWidth(min: 220, ideal: 250, max: 320)
-        } detail: {
-            ZStack {
-                detail
-                    .id(nav.selection)
-                    .transition(.opacity.combined(with: .offset(y: 8)))
-            }
-            .animation(.spring(response: 0.28, dampingFraction: 0.9), value: nav.selection)
+                .frame(width: 250)
+                .background(GlassBackground(material: .sidebar))
+
+            Rectangle().fill(Theme.stroke).frame(width: 1)
+
+            ZStack(alignment: .bottom) {
+                ZStack {
+                    detail
+                        .id(nav.selection)
+                        .transition(.opacity)
+                }
+                .animation(.easeOut(duration: 0.14), value: nav.selection)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Theme.canvas)
-                .overlay(alignment: .bottom) { floatingBar }
-                .inspector(isPresented: Binding(
-                    get: { nav.selectedTaskID != nil && store.tasks[nav.selectedTaskID ?? ""] != nil },
-                    set: { if !$0 { nav.selectedTaskID = nil } }
-                )) {
-                    if let id = nav.selectedTaskID, let task = store.tasks[id] {
-                        TaskInspector(task: task) { nav.selectedTaskID = nil }
-                            .id(task.id)
-                            .inspectorColumnWidth(min: 320, ideal: 400, max: 520)
-                    }
-                }
-        }
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Button {
-                    Task { await store.sync(force: true) }
-                } label: {
-                    Image(systemName: "arrow.clockwise")
-                        .rotationEffect(.degrees(store.isSyncing ? 360 : 0))
-                        .animation(store.isSyncing ? .linear(duration: 1).repeatForever(autoreverses: false) : .default,
-                                   value: store.isSyncing)
-                }
-                .help("Sincronizar agora")
+
+                floatingBar
+            }
+            .background(Theme.canvas)
+
+            if let task = selectedTask {
+                Rectangle().fill(Theme.stroke).frame(width: 1)
+                TaskInspector(task: task) { nav.selectedTaskID = nil }
+                    .id(task.id)
+                    .frame(width: 400)
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
             }
         }
+        .animation(.spring(response: 0.32, dampingFraction: 0.88), value: selectedTask?.id)
     }
 
     @ViewBuilder private var detail: some View {
@@ -77,7 +71,7 @@ struct MainWindow: View {
         }
     }
 
-    /// Barra flutuante de nova tarefa (como o "Speak or Type task" da referência).
+    /// Barra flutuante de nova tarefa.
     @ViewBuilder private var floatingBar: some View {
         let selection = nav.selection ?? .today
         if selection != .settings && selection != .calendar && selection != .completed {
@@ -92,11 +86,10 @@ struct MainWindow: View {
             QuickAddField(defaultDue: context.due, fixedListID: context.list, fixedTagID: context.tag, style: .floating)
                 .id("\(selection)")
                 .padding(4)
-                .background(Theme.surface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(Theme.stroke))
-                .shadow(color: .black.opacity(0.12), radius: 18, y: 6)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-                .frame(maxWidth: 640)
+                .background(Theme.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Theme.stroke))
+                .shadow(color: .black.opacity(0.10), radius: 16, y: 6)
+                .frame(maxWidth: 620)
                 .padding(.horizontal, 30)
                 .padding(.bottom, 18)
         }

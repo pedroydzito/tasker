@@ -17,6 +17,22 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN_DIR/Tasker" "$APP/Contents/MacOS/Tasker"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
+# Ícone: o próprio binário desenha a arte em 1024px; geramos todos os tamanhos do .icns.
+ICON_PNG="build/icon-1024.png"
+if "$BIN_DIR/Tasker" --export-icon "$ICON_PNG"; then
+    ICONSET="build/AppIcon.iconset"
+    rm -rf "$ICONSET"
+    mkdir -p "$ICONSET"
+    for size in 16 32 128 256 512; do
+        sips -z $size $size "$ICON_PNG" --out "$ICONSET/icon_${size}x${size}.png" >/dev/null
+        double=$((size * 2))
+        sips -z $double $double "$ICON_PNG" --out "$ICONSET/icon_${size}x${size}@2x.png" >/dev/null
+    done
+    iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/AppIcon.icns"
+    echo "✓ ícone gerado"
+else
+    echo "⚠︎ não foi possível gerar o ícone; seguindo sem .icns"
+fi
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$APP/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" "$APP/Contents/Info.plist"
 codesign --force --sign - "$APP"

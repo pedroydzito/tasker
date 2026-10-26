@@ -4,7 +4,22 @@ enum WindowID {
     static let main = "main"
 }
 
+/// Ponto de entrada: `--export-icon <png>` só gera o ícone (usado no build); senão abre o app.
 @main
+enum Entry {
+    static func main() {
+        let args = CommandLine.arguments
+        if let index = args.firstIndex(of: "--export-icon"), index + 1 < args.count {
+            let ok = MainActor.assumeIsolated {
+                _ = NSApplication.shared
+                return AppIcon.export(to: args[index + 1])
+            }
+            exit(ok ? 0 : 1)
+        }
+        TaskerApp.main()
+    }
+}
+
 struct TaskerApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     private let model = AppModel.shared
@@ -28,8 +43,10 @@ struct TaskerApp: App {
                 .environment(model.nav)
                 .environment(model.updater)
         }
-        .defaultSize(width: 1040, height: 700)
-        .windowToolbarStyle(.unified(showsTitle: false))
+        .defaultSize(width: 1080, height: 720)
+        .windowStyle(.hiddenTitleBar)
+        .windowBackgroundDragBehavior(.enabled)
+        .windowResizability(.contentMinSize)
         .defaultLaunchBehavior(model.auth.isSignedIn ? .suppressed : .presented)
     }
 }

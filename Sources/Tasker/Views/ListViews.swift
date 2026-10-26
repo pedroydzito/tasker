@@ -48,11 +48,9 @@ struct ListDetailView: View {
         let done = store.completedTasks(inList: listID)
         PageScaffold(title: store.displayName(listID), subtitle: taskCountText(items.count)) {
             Button { editing = true } label: {
-                ListIconView(listID: listID, size: 44)
-                    .padding(6)
-                    .background(store.color(forList: listID).opacity(0.16), in: Circle())
+                ListIconView(listID: listID, size: 52)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(PressableStyle(cornerRadius: 16))
             .help("Personalizar ícone e cor")
             .popover(isPresented: $editing) { ListAppearanceEditor(listID: listID) }
         } content: {
@@ -81,17 +79,17 @@ struct TagDetailView: View {
         if let tag = store.tag(tagID) {
             let items = store.tasks(withTag: tagID)
             PageScaffold(title: tag.name, subtitle: "Etiqueta local — não aparece no Google Tasks") {
-                HStack(spacing: 10) {
+                HStack(spacing: 14) {
                     TextField("Nome", text: Binding(
                         get: { tag.name },
                         set: { var t = tag; t.name = $0; store.updateTag(t) }
                     ))
-                    .textFieldStyle(.roundedBorder)
+                    .fieldStyle()
                     .frame(maxWidth: 220)
-                    ColorPicker("Cor", selection: Binding(
-                        get: { Color(hex: tag.colorHex) },
-                        set: { var t = tag; t.colorHex = $0.hexString; store.updateTag(t) }
-                    ), supportsOpacity: false)
+                    ColorSwatches(selection: Binding(
+                        get: { tag.colorHex },
+                        set: { var t = tag; t.colorHex = $0; store.updateTag(t) }
+                    ))
                 }
                 TaskSection("Tarefas", count: items.count) {
                     if items.isEmpty {

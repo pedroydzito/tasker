@@ -16,7 +16,9 @@ struct CalendarView: View {
                 weekdayHeader
                 grid
             }
-            .padding(20)
+            .padding(.horizontal, 24)
+            .padding(.top, 44)
+            .padding(.bottom, 20)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Theme.canvas)
 
@@ -182,6 +184,7 @@ private struct DayAgenda: View {
                 }
             }
             .padding(18)
+            .padding(.top, 26)
         }
     }
 }

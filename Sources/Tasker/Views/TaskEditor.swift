@@ -42,12 +42,12 @@ struct TaskEditor: View {
                 Button(role: .destructive) {
                     store.delete(task)
                     onClose()
-                } label: { Image(systemName: "trash") }
-                    .buttonStyle(.borderless)
+                } label: { Image(systemName: "trash").iconButtonLabel() }
+                    .buttonStyle(.pressable)
                     .help("Excluir tarefa")
                 Spacer()
-                Button("Cancelar", action: onClose).keyboardShortcut(.cancelAction)
-                Button("Salvar", action: save).keyboardShortcut(.defaultAction)
+                Button("Cancelar", action: onClose).keyboardShortcut(.cancelAction).buttonStyle(.soft)
+                Button("Salvar", action: save).keyboardShortcut(.defaultAction).buttonStyle(.primary)
             }
         }
         .padding(16)
@@ -82,7 +82,7 @@ struct TaskInspector: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             toolbar
-            Divider()
+            Rectangle().fill(Theme.stroke).frame(height: 1)
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     HStack(spacing: 6) {
@@ -128,30 +128,34 @@ struct TaskInspector: View {
 
     private var toolbar: some View {
         let current = store.tasks[task.id] ?? task
-        return HStack(spacing: 14) {
+        return HStack(spacing: 4) {
             Button {
                 store.setCompleted(current, !current.isCompleted)
             } label: {
                 Label(current.isCompleted ? "Reabrir" : "Concluir",
-                      systemImage: current.isCompleted ? "arrow.uturn.backward.circle" : "checkmark.circle")
+                      systemImage: current.isCompleted ? "arrow.uturn.backward" : "checkmark")
             }
+            .buttonStyle(.soft)
             Spacer()
             if let link = task.webViewLink.flatMap(URL.init(string:)) {
-                Button { NSWorkspace.shared.open(link) } label: { Image(systemName: "arrow.up.right.square") }
+                Button { NSWorkspace.shared.open(link) } label: { Image(systemName: "arrow.up.right.square").iconButtonLabel() }
+                    .buttonStyle(.pressable)
                     .help("Abrir no Google")
             }
             Button {
                 store.delete(current)
                 onClose()
-            } label: { Image(systemName: "trash") }
+            } label: { Image(systemName: "trash").iconButtonLabel() }
+                .buttonStyle(.pressable)
                 .help("Excluir")
-            Button(action: onClose) { Image(systemName: "xmark") }
+            Button(action: onClose) { Image(systemName: "xmark").iconButtonLabel() }
+                .buttonStyle(.pressable)
+                .keyboardShortcut(.cancelAction)
                 .help("Fechar")
         }
-        .buttonStyle(.borderless)
-        .font(.system(size: 13))
-        .padding(.horizontal, 18)
-        .padding(.vertical, 12)
+        .padding(.horizontal, 16)
+        .padding(.top, 14)
+        .padding(.bottom, 10)
     }
 
     private func persist() {
@@ -186,9 +190,8 @@ struct DueChip: View {
                     quick("Hoje", 0)
                     quick("Amanhã", 1)
                     quick("+1 semana", 7)
-                    Button("Sem data") { due = nil; picking = false }
+                    Button("Sem data") { due = nil; picking = false }.buttonStyle(.soft)
                 }
-                .controlSize(.small)
                 DatePicker("", selection: Binding(
                     get: { due ?? store.today },
                     set: { due = Calendar.current.startOfDay(for: $0) }
@@ -205,6 +208,7 @@ struct DueChip: View {
             due = Calendar.current.adding(days: days, to: store.today)
             picking = false
         }
+        .buttonStyle(.soft)
     }
 }
 
@@ -212,7 +216,6 @@ struct DueChip: View {
 struct TagPicker: View {
     @Environment(TaskStore.self) private var store
     let task: TaskItem
-    @State private var newTagName = ""
     @State private var addingTag = false
 
     var body: some View {
@@ -235,24 +238,12 @@ struct TagPicker: View {
             .fixedSize()
             .help("Etiquetas (só no Tasker)")
             .popover(isPresented: $addingTag) {
-                HStack {
-                    TextField("Nome da etiqueta", text: $newTagName)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 180)
-                        .onSubmit(createTag)
-                    Button("Criar", action: createTag)
+                TagCreator { tag in
+                    store.toggleTag(tag, on: task)
+                    addingTag = false
                 }
-                .padding(10)
             }
         }
     }
 
-    private func createTag() {
-        let name = newTagName.trimmingCharacters(in: .whitespaces)
-        guard !name.isEmpty else { return }
-        let tag = store.createTag(name: name)
-        store.toggleTag(tag, on: task)
-        newTagName = ""
-        addingTag = false
-    }
 }
