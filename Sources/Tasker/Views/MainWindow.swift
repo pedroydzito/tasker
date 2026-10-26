@@ -7,8 +7,6 @@ struct MainWindow: View {
     @State private var folhas = Folhas()
     @AppStorage("larguraBarraLateral") private var larguraBarra: Double = 256
     @AppStorage("larguraDetalhes") private var larguraDetalhes: Double = 400
-    @AppStorage("larguraBarraLateral") private var larguraBarra: Double = 256
-    @AppStorage("larguraDetalhes") private var larguraDetalhes: Double = 400
 
     var body: some View {
         Group {
