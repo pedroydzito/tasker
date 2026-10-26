@@ -47,14 +47,11 @@ struct SettingsView: View {
                     }
                 }
 
-                Pasta(icone: "paintbrush", titulo: "Aparência", subtitulo: "Tema claro, escuro ou do sistema") {
+                Pasta(icone: "paintbrush", titulo: "Aparência e barra de menu",
+                      subtitulo: "Tema, contador e o que aparece no menu") {
                     LinhaAjuste("Tema", "Vale para a janela e para o menu da barra") {
                         Segmentado(selecao: $prefs.appearance, opcoes: AppAppearance.allCases.map { ($0, $0.title) })
                     }
-                }
-
-                Pasta(icone: "menubar.rectangle", titulo: "Barra de menu",
-                      subtitulo: "Contador, ícone e o que aparece no menu") {
                     LinhaAjuste("Mostrar contador", "Número de tarefas de hoje no ícone") {
                         Toggle("", isOn: $prefs.showCountInMenuBar).toggleStyle(.chave).labelsHidden()
                     }
@@ -72,8 +69,8 @@ struct SettingsView: View {
                     }
                 }
 
-                Pasta(icone: "checklist", titulo: "Tarefas e listas",
-                      subtitulo: "Lista padrão, som e aparência de cada lista") {
+                Pasta(icone: "checklist", titulo: "Tarefas",
+                      subtitulo: "Lista padrão e som ao concluir") {
                     LinhaAjuste("Lista padrão", "Para onde vão as tarefas novas") {
                         Menu {
                             ForEach(store.lists) { list in
@@ -89,30 +86,11 @@ struct SettingsView: View {
                     LinhaAjuste("Som ao concluir") {
                         Toggle("", isOn: $prefs.completionSound).toggleStyle(.chave).labelsHidden()
                     }
-                    ForEach(store.lists) { list in
-                        HStack(spacing: DS.e3) {
-                            ListIconView(listID: list.id, size: 28)
-                            Text(store.displayName(list.id)).txt(.sm, .medium).foregroundStyle(DS.texto)
-                            Spacer()
-                            Button("Personalizar") {
-                                folhas.abrir("Personalizar lista", largura: 440) { EditorDeLista(listID: list.id) }
-                            }
-                            .buttonStyle(.superficie)
-                        }
-                    }
-                    HStack {
-                        Button {
-                            folhas.abrir("Nova lista", largura: 420) { NovaLista() }
-                        } label: { Label("Nova lista", systemImage: "plus") }
-                        .buttonStyle(.superficie)
-                        Spacer()
-                    }
-                    Nota("Segure e arraste as listas na barra lateral para mudar a ordem.")
                 }
 
                 if store.usesGoogle {
-                    Pasta(icone: "calendar", titulo: "Calendários",
-                          subtitulo: "Quais agendas do Google aparecem no Tasker") {
+                    Pasta(icone: "calendar", titulo: "Agenda e sincronização",
+                          subtitulo: "Quais agendas aparecem e de quanto em quanto tempo sincronizar") {
                         if store.calendars.isEmpty {
                             Nota("Nenhuma agenda carregada ainda.")
                         }
@@ -126,10 +104,7 @@ struct SettingsView: View {
                                 .labelsHidden()
                             }
                         }
-                    }
 
-                    Pasta(icone: "arrow.triangle.2.circlepath", titulo: "Sincronização",
-                          subtitulo: "De quanto em quanto tempo buscar mudanças") {
                         LinhaAjuste("Verificar mudanças a cada") {
                             Segmentado(selecao: $prefs.syncInterval,
                                        opcoes: [(15.0, "15 s"), (30.0, "30 s"), (60.0, "1 min"), (300.0, "5 min")])
@@ -158,7 +133,8 @@ struct SettingsView: View {
                     }
                 }
 
-                Pasta(icone: "gearshape", titulo: "Geral", subtitulo: "Abrir ao iniciar, atalho e criação rápida") {
+                Pasta(icone: "gearshape", titulo: "Geral e atualizações",
+                      subtitulo: "Abrir ao iniciar, atalho e versão \(updater.currentVersion)") {
                     LinhaAjuste("Abrir ao iniciar o Mac") {
                         Toggle("", isOn: $launchAtLogin).toggleStyle(.chave).labelsHidden()
                             .onChange(of: launchAtLogin) { _, enabled in
@@ -172,10 +148,7 @@ struct SettingsView: View {
                     }
                     LinhaAjuste("Adicionar de qualquer lugar") { Tecla("⌥ Espaço") }
                     LinhaAjuste("Criação rápida", "hoje · amanhã · sexta · 30/10 · ~lista · #etiqueta") { EmptyView() }
-                }
 
-                Pasta(icone: "arrow.down.circle", titulo: "Atualizações",
-                      subtitulo: "Versão \(updater.currentVersion) · procura sozinho a cada 30 min") {
                     UpdateBanner()
                     LinhaAjuste("Versão \(updater.currentVersion)", "Build \(updater.currentBuild)") {
                         HStack(spacing: DS.e2) {

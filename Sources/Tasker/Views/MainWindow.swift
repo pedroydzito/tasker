@@ -28,6 +28,10 @@ struct MainWindow: View {
         }
         .onDisappear { NSApp.setActivationPolicy(.accessory) }
         .onChange(of: store.prefs.appearance) { _, value in NSApp.appearance = value.nsAppearance }
+        // Trocar de tela fecha o painel de detalhes da tarefa.
+        .onChange(of: nav.selection) { _, _ in
+            if nav.selectedTaskID != nil { withAnimation(DS.curva) { nav.selectedTaskID = nil } }
+        }
     }
 
     private var layout: some View {

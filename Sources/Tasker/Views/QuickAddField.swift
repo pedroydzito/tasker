@@ -12,10 +12,16 @@ struct QuickAddField: View {
     var fixedTagID: String?
     var style: Style = .compact
     var onAdded: (() -> Void)?
+    /// ESC sem nada aberto: fecha quem hospeda o campo (ex.: painel do ⌥Espaço).
+    var onEscape: (() -> Void)?
 
     @State private var text = ""
     @State private var chosenListID: String?
     @State private var dropdownAberto = false
+    @State private var dataAberta = false
+    /// Data escolhida no seletor (vale mais que o padrão; o texto digitado vale mais que ela).
+    @State private var dataEscolhida: Date??
+    @State private var horario: String?
     @FocusState private var focused: Bool
 
     private var parsed: QuickAddParser.Result {
@@ -25,6 +31,7 @@ struct QuickAddField: View {
     private var listID: String? { parsed.listID ?? chosenListID ?? fixedListID ?? store.defaultList?.id }
     private var due: Date? {
         if let explicit = parsed.due { return explicit }
+        if let dataEscolhida { return dataEscolhida }
         return defaultDue
     }
 
@@ -43,7 +50,14 @@ struct QuickAddField: View {
                     .focused($focused)
                     .onSubmit(submit)
                     .onExitCommand {
-                        if dropdownAberto { withAnimation(DS.curva) { dropdownAberto = false } } else { text = "" }
+                        if dropdownAberto {
+                            withAnimation(DS.curva) { dropdownAberto = false }
+                        } else if let onEscape {
+                            text = ""
+                            onEscape()
+                        } else {
+                            text = ""
+                        }
                     }
                 if style == .floating || style == .large {
                     Button(action: submit) {
@@ -72,6 +86,17 @@ struct QuickAddField: View {
                 chips.padding(.horizontal, DS.e3).padding(.bottom, style == .floating ? 4 : 0)
                     .transition(.opacity.combined(with: .offset(y: -4)))
             }
+            if dataAberta && !text.isEmpty {
+                SeletorDeDataEmbutido(due: Binding(get: { due }, set: { dataEscolhida = .some($0) }),
+                                      horario: $horario) {
+                    withAnimation(DS.curva) { dataAberta = false }
+                    focused = true
+                }
+                .frame(maxWidth: 320)
+                .padding(.horizontal, DS.e1)
+                .padding(.bottom, DS.e1)
+                .transition(.opacity.combined(with: .offset(y: -6)))
+            }
             if dropdownAberto && !text.isEmpty {
                 DropdownDeListas(atual: listID) { id in
                     chosenListID = id
@@ -85,7 +110,13 @@ struct QuickAddField: View {
         }
         .animation(DS.curva, value: text.isEmpty)
         .animation(DS.curva, value: dropdownAberto)
-        .onChange(of: text) { _, novo in if novo.isEmpty { dropdownAberto = false } }
+        .animation(DS.curva, value: dataAberta)
+        .onChange(of: text) { _, novo in
+            if novo.isEmpty {
+                dropdownAberto = false
+                dataAberta = false
+            }
+        }
         .onAppear {
             if style == .large {
                 // Abre já pronto para digitar.
@@ -106,7 +137,7 @@ struct QuickAddField: View {
         HStack(spacing: DS.e2) {
             if let listID {
                 Button {
-                    withAnimation(DS.curva) { dropdownAberto.toggle() }
+                    withAnimation(DS.curva) { dropdownAberto.toggle(); dataAberta = false }
                 } label: {
                     HStack(spacing: 3) {
                         ListChip(listID: listID, comSeta: true, aberta: dropdownAberto)
@@ -115,9 +146,15 @@ struct QuickAddField: View {
                 .buttonStyle(SoAfunda(escala: 0.95))
                 .help("Trocar a lista")
             }
-            Chip(due.map { DayLabel.short($0, today: store.today) } ?? "Sem data") {
-                Image(systemName: "calendar").font(.system(size: 10, weight: .semibold))
+            Button {
+                withAnimation(DS.curva) { dataAberta.toggle(); dropdownAberto = false }
+            } label: {
+                Chip((due.map { DayLabel.short($0, today: store.today) } ?? "Sem data") + (horario.map { " · \($0)" } ?? "")) {
+                    Image(systemName: "calendar").font(.system(size: 10, weight: .semibold))
+                }
             }
+            .buttonStyle(SoAfunda(escala: 0.95))
+            .help("Trocar a data")
             ForEach(parsed.tagNames, id: \.self) { name in
                 Chip("#\(name)", cor: store.tags.first { $0.name.lowercased() == name.lowercased() }
                     .map { Color(hex: $0.colorHex) } ?? DS.texto2)
@@ -132,10 +169,13 @@ struct QuickAddField: View {
         guard !result.title.trimmingCharacters(in: .whitespaces).isEmpty else { return }
         var tagIDs = store.resolveTags(named: result.tagNames)
         if let fixedTagID, !tagIDs.contains(fixedTagID) { tagIDs.append(fixedTagID) }
-        store.addTask(title: result.title, listID: listID, due: due, tagIDs: tagIDs)
+        store.addTask(title: result.title, listID: listID, due: due, tagIDs: tagIDs, horario: due == nil ? nil : horario)
         text = ""
         chosenListID = nil
         dropdownAberto = false
+        dataAberta = false
+        dataEscolhida = nil
+        horario = nil
         onAdded?()
     }
 }
@@ -202,7 +242,7 @@ struct DropdownDeListas: View {
                     HStack(spacing: DS.e2) {
                         Image(systemName: "plus").font(.system(size: 11, weight: .semibold)).foregroundStyle(DS.acento)
                             .frame(width: 22)
-                        Text("Nova lista").txt(.sm, .medium).foregroundStyle(DS.acentoTexto)
+                        Text("Nova lista").txt(.sm, .medium).foregroundStyle(DS.acento)
                         Spacer()
                     }
                     .padding(.horizontal, DS.e2)

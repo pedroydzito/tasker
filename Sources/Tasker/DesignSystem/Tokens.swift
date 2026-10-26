@@ -34,7 +34,7 @@ enum DS {
     static let sucessoTenue = cor("#0F7A521a", "#4ADE9B24")
     static let aviso = cor("#9A5B12", "#E0A458")
     static let avisoTenue = cor("#9A5B121a", "#E0A45824")
-    static let link = cor("#0071C2", "#4DB6FF")
+    static let link = Color(nsColor: NSColor(hex: "#0097FF"))
 
     // Véu de hover: preto no claro, branco no escuro — a superfície se aproxima do ponteiro.
     static let veuHover = cor("#0000000c", "#ffffff12")

@@ -7,6 +7,7 @@ struct CalendarView: View {
     @State private var selected = Calendar.current.startOfDay(for: .now)
     @State private var monthEvents: [CalendarEvent]?
     @State private var direcao: CGFloat = 1
+    @AppStorage("larguraAgendaCalendario") private var larguraAgenda: Double = 340
 
     private let cal = Calendar.current
 
@@ -30,10 +31,10 @@ struct CalendarView: View {
             .indicadorDeRolagem()
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            Rectangle().fill(DS.borda).frame(width: 1)
+            Divisoria(largura: $larguraAgenda, minimo: 280, maximo: 520, sentido: -1)
 
             DayAgenda(day: selected, events: events(on: selected))
-                .frame(width: 340)
+                .frame(width: larguraAgenda)
                 .background(DS.superficie)
         }
         .task(id: month) {

@@ -139,6 +139,12 @@ struct MenuBarPopover: View {
                         ForEach(overdue) { TaskRow(task: $0, style: .compact) }
                     }
                 }
+                let feitas = store.completedToday
+                if today.isEmpty && overdue.isEmpty && !feitas.isEmpty {
+                    SecaoTarefas("Concluídas", contagem: feitas.count, recolhida: true) {
+                        ForEach(feitas) { TaskRow(task: $0, style: .compact) }
+                    }
+                }
                 if today.isEmpty {
                     if overdue.isEmpty { EstadoVazio(icone: "checkmark.circle", titulo: "Tudo feito por hoje") }
                 } else if overdue.isEmpty {
@@ -149,8 +155,7 @@ struct MenuBarPopover: View {
                     }
                 }
 
-                let feitas = store.completedToday
-                if !feitas.isEmpty {
+                if !(today.isEmpty && overdue.isEmpty) && !feitas.isEmpty {
                     SecaoTarefas("Concluídas", contagem: feitas.count, recolhida: true) {
                         ForEach(feitas) { TaskRow(task: $0, style: .compact) }
                     }
@@ -337,9 +342,9 @@ struct PopoverCalendarView: View {
                             .foregroundStyle(selected ? DS.acentoSolidoTexto.opacity(0.85) : DS.texto3)
                         Text("\(cal.component(.day, from: date))")
                             .txt(.md, selected || isToday ? .bold : .medium)
-                            .foregroundStyle(selected ? DS.acentoSolidoTexto : (isToday ? DS.acentoTexto : DS.texto))
+                            .foregroundStyle(selected ? DS.acentoSolidoTexto : (isToday ? DS.acento : DS.texto))
                         Circle()
-                            .fill(selected ? DS.acentoSolidoTexto : DS.acentoTexto)
+                            .fill(selected ? DS.acentoSolidoTexto : DS.acento)
                             .frame(width: 4, height: 4)
                             .opacity(busy ? 1 : 0)
                     }

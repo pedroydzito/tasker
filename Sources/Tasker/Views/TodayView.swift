@@ -71,8 +71,14 @@ struct TodayView: View {
                     }
                 }
 
+                let vazio = today.isEmpty && overdue.isEmpty
+                // Sem pendências: as concluídas vêm logo abaixo dos eventos, antes do "Nada pendente".
+                if vazio && !done.isEmpty { concluidas(done) }
+
                 if today.isEmpty {
-                    EstadoVazio(icone: "sun.max", titulo: "Nada pendente", descricao: "As tarefas com data de hoje aparecem aqui.")
+                    if overdue.isEmpty {
+                        EstadoVazio(icone: "sun.max", titulo: "Nada pendente", descricao: "As tarefas com data de hoje aparecem aqui.")
+                    }
                 } else if overdue.isEmpty {
                     CartaoDeLinhas { ForEach(today) { TaskRow(task: $0, showDate: false) } }
                 } else {
@@ -81,13 +87,15 @@ struct TodayView: View {
                     }
                 }
 
-                if !done.isEmpty {
-                    SecaoTarefas("Concluídas", contagem: done.count, recolhida: true) {
-                        ForEach(done) { TaskRow(task: $0, showDate: false) }
-                    }
-                }
+                if !vazio && !done.isEmpty { concluidas(done) }
             }
             .animation(DS.curva, value: today.map(\.id))
+        }
+    }
+
+    private func concluidas(_ done: [TaskItem]) -> some View {
+        SecaoTarefas("Concluídas", contagem: done.count, recolhida: true) {
+            ForEach(done) { TaskRow(task: $0, showDate: false) }
         }
     }
 }

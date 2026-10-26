@@ -157,7 +157,7 @@ struct ConectarGoogle: View {
             HStack(alignment: .top, spacing: DS.e3) {
                 Text("\(n)")
                     .txt(.xs, .bold)
-                    .foregroundStyle(DS.acentoTexto)
+                    .foregroundStyle(DS.acento)
                     .frame(width: 22, height: 22)
                     .background(Circle().fill(DS.acento.opacity(0.12)))
                 VStack(alignment: .leading, spacing: 2) {

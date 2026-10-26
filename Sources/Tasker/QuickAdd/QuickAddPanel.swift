@@ -94,7 +94,7 @@ struct QuickAddPanelView: View {
 
     var body: some View {
         VStack {
-            QuickAddField(defaultDue: store.today, style: .large, onAdded: onClose)
+            QuickAddField(defaultDue: store.today, style: .large, onAdded: onClose, onEscape: onClose)
                 .padding(DS.e2)
                 .background(DS.superficie, in: RoundedRectangle(cornerRadius: DS.raioCartao, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: DS.raioCartao, style: .continuous).strokeBorder(DS.borda))

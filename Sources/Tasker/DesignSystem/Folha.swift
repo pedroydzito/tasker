@@ -68,7 +68,7 @@ struct ToastDesfazer: View {
                     Text(aviso.texto).txt(.sm, .medium).foregroundStyle(DS.texto).lineLimit(1)
                     Button("Desfazer") { withAnimation(DS.curva) { store.desfazerAviso() } }
                         .buttonStyle(Botao(variante: .fantasma))
-                        .foregroundStyle(DS.acentoTexto)
+                        .foregroundStyle(DS.acento)
                 }
                 .padding(.leading, DS.e4)
                 .padding(.trailing, DS.e1)
@@ -243,9 +243,9 @@ struct CalendarioMes: View {
             VStack(spacing: 2) {
                 Text("\(cal.component(.day, from: dia))")
                     .txt(.sm, escolhido || ehHoje ? .semibold : .regular)
-                    .foregroundStyle(escolhido ? DS.acentoSolidoTexto : (ehHoje ? DS.acentoTexto : (noMes ? DS.texto : DS.texto3.opacity(0.6))))
+                    .foregroundStyle(escolhido ? DS.acentoSolidoTexto : (ehHoje ? DS.acento : (noMes ? DS.texto : DS.texto3.opacity(0.6))))
                 Circle()
-                    .fill(escolhido ? DS.acentoSolidoTexto : DS.acentoTexto)
+                    .fill(escolhido ? DS.acentoSolidoTexto : DS.acento)
                     .frame(width: 4, height: 4)
                     .opacity(ocupado(dia) ? 1 : 0)
             }
