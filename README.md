@@ -36,7 +36,7 @@ Os tokens ficam em `~/Library/Application Support/Tasker/secrets.json`, legível
 
 ## 2. Instalar
 
-1. Baixe o `Tasker.zip` do [último release](https://github.com/pedroydzito/tasker/releases/latest), descompacte e arraste o `Tasker.app` para **Aplicativos**.
+1. Baixe o `Tasker.dmg` do [último release](https://github.com/pedroydzito/tasker/releases/latest), abra e arraste o **Tasker** para **Aplicativos**. (O `Tasker.zip` do release é o que o atualizador automático usa.)
 2. Como o app não é assinado com conta de desenvolvedor Apple, rode isto uma vez no Terminal:
    ```bash
    xattr -cr /Applications/Tasker.app

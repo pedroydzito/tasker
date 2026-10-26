@@ -19,17 +19,26 @@ jobs:
         env:
           BUILD_NUMBER: ${{ github.run_number }}
       - run: cd build && ditto -c -k --keepParent Tasker.app Tasker.zip
+      # DMG para instalar arrastando o app até o atalho de Aplicativos.
+      - name: Criar DMG
+        run: |
+          mkdir -p build/dmg
+          cp -R build/Tasker.app build/dmg/
+          ln -s /Applications build/dmg/Aplicativos
+          hdiutil create -volname "Tasker" -srcfolder build/dmg -ov -format UDZO build/Tasker.dmg
       - uses: actions/upload-artifact@v4
         with:
           name: Tasker
-          path: build/Tasker.zip
+          path: |
+            build/Tasker.dmg
+            build/Tasker.zip
       # Cada build vira um release; o app instalado detecta e se atualiza sozinho.
       - name: Publicar release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG="v0.1.${{ github.run_number }}"
-          gh release create "$TAG" build/Tasker.zip \
+          gh release create "$TAG" build/Tasker.dmg build/Tasker.zip \
             --repo "${{ github.repository }}" \
             --target "${{ github.sha }}" \
             --title "Tasker $TAG" \
