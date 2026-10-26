@@ -627,7 +627,7 @@ final class TaskStore {
     // MARK: Etiquetas locais
 
     var tags: [Tag] {
-        if let tagsOrdenadas, tagsOrdenadasBase == (tagDB.tags, prefs.tagOrder) { return tagsOrdenadas }
+        if let tagsOrdenadas, let base = tagsOrdenadasBase, base == (tagDB.tags, prefs.tagOrder) { return tagsOrdenadas }
         let ordenadas = ordenarTags()
         tagsOrdenadas = ordenadas
         tagsOrdenadasBase = (tagDB.tags, prefs.tagOrder)
