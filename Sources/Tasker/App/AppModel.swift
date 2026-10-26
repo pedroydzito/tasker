@@ -23,6 +23,7 @@ final class AppModel {
     let prefs: Preferences
     let store: TaskStore
     let nav = Navigation()
+    let updater = Updater()
 
     private init() {
         auth = GoogleAuth()

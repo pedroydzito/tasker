@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
 # Compila o Tasker e monta o bundle Tasker.app em ./build.
 # Uso: scripts/build-app.sh [--install]
+# BUILD_NUMBER (opcional) define a versão 0.1.<BUILD_NUMBER>; sem ele o build é "0" (local,
+# e o atualizador automático não substitui builds locais).
 set -euo pipefail
 cd "$(dirname "$0")/.."
+
+BUILD_NUMBER="${BUILD_NUMBER:-0}"
+VERSION="0.1.${BUILD_NUMBER}"
 
 swift build -c release
 BIN_DIR="$(swift build -c release --show-bin-path)"
@@ -12,8 +17,10 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN_DIR/Tasker" "$APP/Contents/MacOS/Tasker"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$APP/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" "$APP/Contents/Info.plist"
 codesign --force --sign - "$APP"
-echo "✓ $APP"
+echo "✓ $APP ($VERSION)"
 
 if [[ "${1:-}" == "--install" ]]; then
     pkill -x Tasker 2>/dev/null || true

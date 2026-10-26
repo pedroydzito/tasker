@@ -109,7 +109,7 @@ struct CalendarEvent: Identifiable, Codable, Hashable {
         return "\(Self.time.string(from: start))–\(Self.time.string(from: end))"
     }
 
-    nonisolated(unsafe) private static let time: DateFormatter = {
+    private static let time: DateFormatter = {
         let f = DateFormatter()
         f.dateFormat = "HH:mm"
         return f

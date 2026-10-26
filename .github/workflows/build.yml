@@ -5,15 +5,33 @@ on:
   push:
     branches: ["**"]
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
       - run: swift --version
-      - run: ./scripts/build-app.sh
+      - name: Compilar
+        run: ./scripts/build-app.sh
+        env:
+          BUILD_NUMBER: ${{ github.run_number }}
       - run: cd build && ditto -c -k --keepParent Tasker.app Tasker.zip
       - uses: actions/upload-artifact@v4
         with:
           name: Tasker
           path: build/Tasker.zip
+      # Cada build vira um release; o app instalado detecta e se atualiza sozinho.
+      - name: Publicar release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="v0.1.${{ github.run_number }}"
+          gh release create "$TAG" build/Tasker.zip \
+            --repo "${{ github.repository }}" \
+            --target "${{ github.sha }}" \
+            --title "Tasker $TAG" \
+            --notes "$(git log -1 --pretty=%B)" \
+            --latest

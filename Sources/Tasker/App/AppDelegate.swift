@@ -10,6 +10,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.applicationIconImage = AppIcon.make()
         let model = AppModel.shared
         model.store.start()
+        model.updater.start()
 
         let panel = QuickAddPanelController(store: model.store)
         quickAdd = panel

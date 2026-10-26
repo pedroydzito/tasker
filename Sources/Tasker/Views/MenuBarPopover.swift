@@ -34,6 +34,9 @@ struct MenuBarPopover: View {
             .padding(.horizontal, 18)
             .padding(.top, 16)
 
+            UpdateBanner()
+                .padding(.horizontal, 14)
+
             QuickAddField(defaultDue: store.today)
                 .padding(.horizontal, 14)
 

@@ -4,11 +4,29 @@ import SwiftUI
 struct SettingsView: View {
     @Environment(TaskStore.self) private var store
     @Environment(GoogleAuth.self) private var auth
+    @Environment(Updater.self) private var updater
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
 
     var body: some View {
         @Bindable var prefs = store.prefs
         Form {
+            Section("Atualizações") {
+                UpdateBanner()
+                LabeledContent("Versão instalada", value: "\(updater.currentVersion) (build \(updater.currentBuild))")
+                HStack {
+                    Button("Procurar atualizações") { Task { await updater.check(userInitiated: true) } }
+                    switch updater.state {
+                    case .checking: ProgressView().controlSize(.small)
+                    case .upToDate: Text("Você está na versão mais recente").foregroundStyle(.secondary)
+                    case .failed(let message): Text(message).foregroundStyle(.red)
+                    default: EmptyView()
+                    }
+                }
+                Text("O Tasker verifica sozinho a cada 30 minutos e avisa por notificação.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             Section("Conta") {
                 HStack(spacing: 12) {
                     Avatar(profile: auth.profile, size: 40)

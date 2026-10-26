@@ -15,6 +15,7 @@ struct TaskerApp: App {
                 .environment(model.store)
                 .environment(model.auth)
                 .environment(model.nav)
+                .environment(model.updater)
         } label: {
             MenuBarLabel(store: model.store)
         }
@@ -25,6 +26,7 @@ struct TaskerApp: App {
                 .environment(model.store)
                 .environment(model.auth)
                 .environment(model.nav)
+                .environment(model.updater)
         }
         .defaultSize(width: 1040, height: 700)
         .windowToolbarStyle(.unified(showsTitle: false))

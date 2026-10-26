@@ -61,8 +61,8 @@ final class GoogleAuth {
 
     init() {
         clientID = UserDefaults.standard.string(forKey: Keys.clientID) ?? ""
-        clientSecret = Keychain.get(Keys.clientSecret) ?? ""
-        refreshToken = Keychain.get(Keys.refreshToken)
+        clientSecret = SecretStore.get(Keys.clientSecret) ?? ""
+        refreshToken = SecretStore.get(Keys.refreshToken)
         if let data = UserDefaults.standard.data(forKey: Keys.profile) {
             profile = try? JSONDecoder().decode(Profile.self, from: data)
         }
@@ -72,7 +72,7 @@ final class GoogleAuth {
         self.clientID = clientID.trimmingCharacters(in: .whitespacesAndNewlines)
         self.clientSecret = clientSecret.trimmingCharacters(in: .whitespacesAndNewlines)
         UserDefaults.standard.set(self.clientID, forKey: Keys.clientID)
-        Keychain.set(self.clientSecret, for: Keys.clientSecret)
+        SecretStore.set(self.clientSecret, for: Keys.clientSecret)
     }
 
     // MARK: Login
@@ -124,7 +124,7 @@ final class GoogleAuth {
         ])
         guard let refresh = token.refresh_token else { throw AuthError.noRefreshToken }
 
-        Keychain.set(refresh, for: Keys.refreshToken)
+        SecretStore.set(refresh, for: Keys.refreshToken)
         accessToken = token.access_token
         accessTokenExpiry = Date().addingTimeInterval(token.expires_in ?? 3600)
         refreshToken = refresh
@@ -142,7 +142,7 @@ final class GoogleAuth {
             request.httpMethod = "POST"
             URLSession.shared.dataTask(with: request).resume()
         }
-        Keychain.set(nil, for: Keys.refreshToken)
+        SecretStore.set(nil, for: Keys.refreshToken)
         UserDefaults.standard.removeObject(forKey: Keys.profile)
         refreshToken = nil
         accessToken = nil
