@@ -7,7 +7,8 @@ App nativo para macOS (Swift + SwiftUI) que vive na **barra de menu** e mostra s
 - **Ícone na barra de menu com contador**: ícone de tarefa com um selo mostrando quantas faltam para hoje e se atualiza na hora quando você cria ou conclui uma tarefa. Dá para trocar por "ícone + número ao lado", e decidir se as atrasadas entram na conta.
 - **Popover "Hoje"**: eventos do dia (recolhíveis), tarefas em atraso com botão **Adiar** (manda tudo para hoje), tarefas de hoje e um campo para adicionar.
 - **Janela principal**: Hoje, Amanhã, Próximas (14 dias), Calendário (mês + agenda do dia), Todas (por data ou por lista), Concluídas, cada lista do Google e as etiquetas. Clicar numa tarefa abre o painel de detalhes à direita.
-- **Listas com a sua cara**: emoji ou foto e cor personalizáveis; a lista aparece como uma pílula na cor dela.
+- **Listas com a sua cara**: ícone (biblioteca de ícones), foto ou inicial, e cor (com código hex). Crie, renomeie, exclua e reordene as listas arrastando. Listas criadas no Tasker aparecem também no Google Tasks (só o ícone e a cor ficam no app).
+- **Usar sem conta**: dá para usar o Tasker sem Google — tudo fica só neste Mac, sem servidor. **Exportar/Importar** (Ajustes → Dados) leva listas, tarefas e etiquetas para outro Mac ou para a conta Google depois.
 - **Tema**: Sistema, Claro ou Escuro (o menu não escurece só porque a barra está escura).
 - **Etiquetas locais**: ficam só no Tasker e não vão para o Google Tasks. As **listas** continuam sendo as do Google.
 - **Criação rápida com linguagem natural**: `Ligar pro cliente amanhã ~trabalho #urgente`
@@ -17,22 +18,18 @@ App nativo para macOS (Swift + SwiftUI) que vive na **barra de menu** e mostra s
 - **Sincronização contínua**: a cada 30 s por padrão (dá para mudar), de forma incremental; também ao abrir o popover, ao acordar o Mac e na virada do dia. As alterações aparecem na hora no app e são enviadas ao Google em seguida. Um cache local faz o app abrir na hora, mesmo sem internet.
 - Opção **Abrir ao iniciar o Mac**.
 
-## 1. Credenciais do Google (uma vez só)
+## 1. Conectar o Google (opcional)
 
-O app conversa direto com as APIs do Google usando a sua conta, sem nenhum servidor no meio. Para isso você precisa de um "ID do cliente OAuth" próprio:
+Quer só usar no Mac? Escolha **Usar sem conta** na primeira abertura e pule esta parte.
 
-1. Abra o [Google Cloud Console](https://console.cloud.google.com/) e crie um projeto (ex.: `Tasker`).
-2. Em **APIs e serviços → Biblioteca**, ative a **Google Tasks API** e a **Google Calendar API**.
-3. Em **APIs e serviços → Tela de consentimento OAuth** (Google Auth Platform):
-   - Tipo de usuário: **Externo**. Preencha nome do app e e-mail.
-   - Em **Público-alvo / Usuários de teste**, adicione o seu e-mail.
-   - **Importante:** depois clique em **Publicar app** (status "Em produção"). Enquanto o app estiver em modo "Teste", o Google derruba o login a cada 7 dias. Como o app não é verificado, no login vai aparecer "O Google não verificou este app": clique em **Avançado → Acessar Tasker**. Isso é normal para um app de uso pessoal.
-4. Em **APIs e serviços → Credenciais → Criar credenciais → ID do cliente OAuth**:
-   - Tipo de aplicativo: **App para computador**.
-   - Copie o **Client ID** e o **Client Secret**.
-5. Abra o Tasker, cole os dois e clique em **Entrar com Google**. O login acontece no navegador e depois volta para o app.
+Para sincronizar com o Google Tasks e a Agenda, o Tasker precisa de uma credencial OAuth sua (uma vez só). Na tela de boas-vindas (ou em Ajustes → Conta), cada passo tem um link direto:
 
-Os tokens ficam em `~/Library/Application Support/Tasker/secrets.json`, legível só pelo seu usuário.
+1. **Ativar as APIs Tasks e Calendar**: o link cria o projeto e liga as duas APIs de uma vez.
+2. **Configurar a tela de consentimento**: tipo **Externo**, seu e-mail como usuário de teste e **Publicar app** (em modo "Teste" o Google desconecta a cada 7 dias). Como o app não é verificado, no login aparece "O Google não verificou este app" → **Avançado → Acessar Tasker**.
+3. **Criar a credencial "App para computador"** e clicar em **Baixar JSON**.
+4. **Soltar o JSON na área indicada**: o Tasker lê o ID e o secret sozinho. Depois é só **Entrar com Google**.
+
+As credenciais e os tokens ficam em `~/Library/Application Support/Tasker/secrets.json`, legível só pelo seu usuário. Elas não são embutidas no app publicado, porque os releases deste repositório são públicos.
 
 ## 2. Instalar
 
