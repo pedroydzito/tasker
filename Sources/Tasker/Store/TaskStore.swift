@@ -33,7 +33,7 @@ final class TaskStore {
     /// Nome, emoji, cor e ordem de cada lista, pré-calculados.
     private(set) var listMeta: [String: ListMeta] = [:]
     private(set) var calendars: [CalendarInfo] = []
-    private(set) var events: [CalendarEvent] = []
+    private(set) var events: [CalendarEvent] = [] { didSet { eventosPorDia = [:] } }
     private(set) var isSyncing = false
     private(set) var lastSync: Date?
     var lastError: String?
@@ -58,6 +58,12 @@ final class TaskStore {
     @ObservationIgnored private var pendingIDs: Set<String> = []
     @ObservationIgnored private var observers: [NSObjectProtocol] = []
     @ObservationIgnored private var listasSaindo: Set<String> = []
+    /// Operações de cada tarefa rodam em fila (salvar e mover não disputam entre si).
+    @ObservationIgnored private var filas: [String: (token: UUID, task: Task<Void, Never>)] = [:]
+    /// Sincronização forçada pedida enquanto outra rodava: roda de novo ao terminar.
+    @ObservationIgnored private var syncPendente = false
+    @ObservationIgnored private var eventosPorDia: [Date: [CalendarEvent]] = [:]
+    @ObservationIgnored private var cacheAgendado: DispatchWorkItem?
     @ObservationIgnored private var tarefaAviso: Task<Void, Never>?
 
     /// A lista principal do Google ("Minhas tarefas"), sempre a primeira.
@@ -107,7 +113,10 @@ final class TaskStore {
     }
 
     func events(on day: Date) -> [CalendarEvent] {
-        events.filter { $0.overlaps(dayStart: day) }
+        if let pronto = eventosPorDia[day] { return pronto }
+        let doDia = events.filter { $0.overlaps(dayStart: day) }
+        eventosPorDia[day] = doDia
+        return doDia
     }
 
     func list(_ id: String) -> TaskList? { lists.first { $0.id == id } }
@@ -448,9 +457,19 @@ final class TaskStore {
     // MARK: Sincronização
 
     func sync(force: Bool = false) async {
-        guard hasAccount, !isSyncing else { return }
+        guard hasAccount else { return }
+        guard !isSyncing else {
+            if force { syncPendente = true }
+            return
+        }
         isSyncing = true
-        defer { isSyncing = false }
+        defer {
+            isSyncing = false
+            if syncPendente {
+                syncPendente = false
+                Task { await sync(force: true) }
+            }
+        }
         refreshToday()
 
         do {
@@ -485,19 +504,30 @@ final class TaskStore {
         let listIDs = Set(lists.map(\.id))
 
         // Junta tudo numa cópia e aplica de uma vez (um único rebuild do índice).
+        let inicio = taskMap
         var map = taskMap.filter { listIDs.contains($0.value.listID) }
         var changed = map.count != taskMap.count
-        for list in lists {
-            let started = Date()
-            let since = full ? nil : listMarks[list.id]
-            // Margem de 2 min para não perder alterações por diferença de relógio.
-            let remote = try await backend.fetchTasks(listID: list.id, updatedMin: since?.addingTimeInterval(-120))
+        // Busca todas as listas ao mesmo tempo.
+        let backend = self.backend
+        let pedidos = lists.map { ($0.id, full ? nil : listMarks[$0.id]) }
+        let started = Date()
+        let respostas = try await withThrowingTaskGroup(of: (String, [GTask]).self) { group in
+            for (id, since) in pedidos {
+                // Margem de 2 min para não perder alterações por diferença de relógio.
+                group.addTask { (id, try await backend.fetchTasks(listID: id, updatedMin: since?.addingTimeInterval(-120))) }
+            }
+            var todas: [String: [GTask]] = [:]
+            for try await (id, tarefas) in group { todas[id] = tarefas }
+            return todas
+        }
+        for (listID, since) in pedidos {
+            let remote = respostas[listID] ?? []
 
             if since == nil {
                 let remoteIDs = Set(remote.map(\.id))
                 let before = map.count
                 map = map.filter { _, task in
-                    task.listID != list.id || remoteIDs.contains(task.id) || task.isLocal || pendingIDs.contains(task.id)
+                    task.listID != listID || remoteIDs.contains(task.id) || task.isLocal || pendingIDs.contains(task.id)
                 }
                 if map.count != before { changed = true }
             }
@@ -505,14 +535,22 @@ final class TaskStore {
                 if g.deleted == true {
                     if map.removeValue(forKey: g.id) != nil { changed = true }
                 } else {
-                    let item = TaskItem(g, listID: list.id)
+                    let item = TaskItem(g, listID: listID)
                     if map[g.id] != item {
                         map[g.id] = item
                         changed = true
                     }
                 }
             }
-            listMarks[list.id] = started
+            listMarks[listID] = started
+        }
+        // O que mudou aqui enquanto a rede respondia vale mais que a resposta.
+        for (id, atual) in taskMap where inicio[id] != atual {
+            map[id] = atual
+            changed = true
+        }
+        for id in inicio.keys where taskMap[id] == nil {
+            if map.removeValue(forKey: id) != nil { changed = true }
         }
         if changed { taskMap = map }
     }
@@ -565,10 +603,18 @@ final class TaskStore {
     /// Busca eventos de todos os calendários visíveis em um intervalo (usado também pela tela de calendário).
     func loadEvents(from: Date, to: Date) async -> [CalendarEvent] {
         guard usesGoogle else { return [] }
-        var result: [CalendarEvent] = []
-        for calendar in calendars where isVisible(calendar) {
-            guard let items = try? await api.fetchEvents(calendarID: calendar.id, from: from, to: to) else { continue }
-            result += items.compactMap { CalendarEvent($0, calendar: calendar) }
+        let api = self.api
+        let visiveis = calendars.filter { isVisible($0) }
+        let result = await withTaskGroup(of: [CalendarEvent].self) { group in
+            for calendar in visiveis {
+                group.addTask {
+                    guard let items = try? await api.fetchEvents(calendarID: calendar.id, from: from, to: to) else { return [] }
+                    return items.compactMap { CalendarEvent($0, calendar: calendar) }
+                }
+            }
+            var todos: [CalendarEvent] = []
+            for await parte in group { todos += parte }
+            return todos
         }
         return result.sorted { ($0.isAllDay ? 0 : 1, $0.start) < ($1.isAllDay ? 0 : 1, $1.start) }
     }
@@ -581,6 +627,16 @@ final class TaskStore {
     // MARK: Etiquetas locais
 
     var tags: [Tag] {
+        if let tagsOrdenadas, tagsOrdenadasBase == (tagDB.tags, prefs.tagOrder) { return tagsOrdenadas }
+        let ordenadas = ordenarTags()
+        tagsOrdenadas = ordenadas
+        tagsOrdenadasBase = (tagDB.tags, prefs.tagOrder)
+        return ordenadas
+    }
+    @ObservationIgnored private var tagsOrdenadas: [Tag]?
+    @ObservationIgnored private var tagsOrdenadasBase: ([Tag], [String])?
+
+    private func ordenarTags() -> [Tag] {
         let order = prefs.tagOrder
         guard !order.isEmpty else { return tagDB.tags }
         let pos = Dictionary(uniqueKeysWithValues: order.enumerated().map { ($1, $0) })
@@ -738,9 +794,7 @@ final class TaskStore {
         movida.listID = destino
         movida.parent = nil
         taskMap[task.id] = movida
-        pendingIDs.insert(task.id)
-        Task {
-            defer { pendingIDs.remove(task.id) }
+        enfileirar(task.id) { [self] in
             do {
                 let result = try await backend.moveTask(listID: original.listID, taskID: task.id, toList: destino)
                 taskMap[task.id] = nil
@@ -787,19 +841,41 @@ final class TaskStore {
         var updated = original
         local(&updated)
         taskMap[task.id] = updated
-        pendingIDs.insert(task.id)
-
-        Task {
-            defer { pendingIDs.remove(task.id) }
+        // Lista em que a tarefa estará quando o pedido rodar (a fila garante a ordem).
+        let listID = original.listID
+        enfileirar(task.id) { [self] in
             do {
-                let result = try await backend.patchTask(listID: task.listID, taskID: task.id, fields: fields)
-                taskMap[result.id] = TaskItem(result, listID: task.listID)
+                let result = try await backend.patchTask(listID: listID, taskID: task.id, fields: fields)
+                if var atual = taskMap[result.id] {
+                    // Mantém o que outros pedidos na fila já mudaram localmente.
+                    let novo = TaskItem(result, listID: listID)
+                    if fields["title"] != nil { atual.title = novo.title }
+                    if fields["notes"] != nil { atual.notes = novo.notes }
+                    if fields["due"] != nil { atual.due = novo.due }
+                    if fields["status"] != nil { atual.isCompleted = novo.isCompleted; atual.completed = novo.completed }
+                    taskMap[result.id] = atual
+                }
                 saveCache()
             } catch {
                 taskMap[task.id] = original
                 lastError = "Não foi possível salvar: \(error.localizedDescription)"
             }
         }
+    }
+
+    /// Roda `op` depois das operações anteriores da mesma tarefa; a sync não a sobrescreve enquanto houver fila.
+    private func enfileirar(_ id: String, _ op: @escaping @MainActor () async -> Void) {
+        let anterior = filas[id]?.task
+        let token = UUID()
+        pendingIDs.insert(id)
+        let task = Task { @MainActor [weak self] in
+            await anterior?.value
+            await op()
+            guard let self, self.filas[id]?.token == token else { return }
+            self.filas[id] = nil
+            self.pendingIDs.remove(id)
+        }
+        filas[id] = (token, task)
     }
 
     // MARK: Cache em disco (abre instantaneamente, mesmo offline)
@@ -822,12 +898,23 @@ final class TaskStore {
         return dir.appendingPathComponent("cache.json")
     }
 
+    /// Junta várias gravações seguidas numa só e grava fora da thread principal.
     private func saveCache() {
+        cacheAgendado?.cancel()
+        let item = DispatchWorkItem { [weak self] in self?.gravarCache() }
+        cacheAgendado = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6, execute: item)
+    }
+
+    private func gravarCache() {
         let snapshot = Snapshot(email: accountKey, lists: lists, tasks: taskMap.values.filter { !$0.isLocal },
                                 calendars: calendars, events: events, listMarks: listMarks,
                                 eventFrom: eventRange?.lowerBound, eventTo: eventRange?.upperBound)
-        guard let data = try? JSONEncoder().encode(snapshot) else { return }
-        try? data.write(to: Self.cacheURL, options: .atomic)
+        let url = Self.cacheURL
+        DispatchQueue.global(qos: .utility).async {
+            guard let data = try? JSONEncoder().encode(snapshot) else { return }
+            try? data.write(to: url, options: .atomic)
+        }
     }
 
     private func loadCache() {

@@ -51,7 +51,7 @@ struct CalendarView: View {
     }
 
     private func events(on day: Date) -> [CalendarEvent] {
-        (monthEvents ?? store.events).filter { $0.overlaps(dayStart: day) }
+        monthEvents.map { $0.filter { $0.overlaps(dayStart: day) } } ?? store.events(on: day)
     }
 
     private var header: some View {

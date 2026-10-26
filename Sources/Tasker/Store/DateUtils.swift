@@ -31,8 +31,18 @@ extension Calendar {
 }
 
 enum DayLabel {
-    /// "Hoje", "Amanhã", "Ontem", "qua." ou "26 de out."
-    static func short(_ day: Date, today: Date) -> String {
+    @MainActor private static var memo: [Date: [Date: String]] = [:]
+
+    /// "Hoje", "Amanhã", "Ontem", "qua." ou "26 de out." — memorizado (a mesma data aparece em muitas linhas).
+    @MainActor static func short(_ day: Date, today: Date) -> String {
+        if let pronto = memo[today]?[day] { return pronto }
+        if memo[today] == nil { memo = [:] }
+        let rotulo = calcularShort(day, today: today)
+        memo[today, default: [:]][day] = rotulo
+        return rotulo
+    }
+
+    private static func calcularShort(_ day: Date, today: Date) -> String {
         let cal = Calendar.current
         let diff = cal.dateComponents([.day], from: today, to: day).day ?? 0
         switch diff {

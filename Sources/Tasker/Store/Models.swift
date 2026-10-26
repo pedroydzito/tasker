@@ -9,7 +9,7 @@ struct TaskItem: Identifiable, Codable, Hashable {
     var id: String
     var listID: String
     var title: String
-    var notes: String?
+    var notes: String? { didSet { cacheNotas() } }
     var isCompleted: Bool
     var due: String? { didSet { dueDay = Self.parseDue(due) } }
     var completed: String? { didSet { completedDate = completed.flatMap(RFC3339.date) } }
@@ -21,6 +21,15 @@ struct TaskItem: Identifiable, Codable, Hashable {
     /// O Google Tasks guarda só a data (em UTC); tratamos como um dia local.
     private(set) var dueDay: Date?
     private(set) var completedDate: Date?
+    /// Horário e texto das notas já separados (lidos a cada desenho da linha).
+    private(set) var horario: String?
+    private(set) var notasVisiveis: String = ""
+
+    private mutating func cacheNotas() {
+        let partes = HorarioNasNotas.separar(notes)
+        horario = partes.horario
+        notasVisiveis = partes.texto
+    }
 
     enum CodingKeys: String, CodingKey {
         case id, listID, title, notes, isCompleted, due, completed, parent, position, webViewLink
@@ -41,6 +50,7 @@ struct TaskItem: Identifiable, Codable, Hashable {
         self.webViewLink = webViewLink
         dueDay = Self.parseDue(due)
         completedDate = completed.flatMap(RFC3339.date)
+        cacheNotas()
     }
 
     init(from decoder: Decoder) throws {
@@ -175,7 +185,5 @@ enum HorarioNasNotas {
 }
 
 extension TaskItem {
-    var horario: String? { HorarioNasNotas.separar(notes).horario }
     /// Notas sem a linha do horário (o que aparece como descrição).
-    var notasVisiveis: String { HorarioNasNotas.separar(notes).texto }
 }
