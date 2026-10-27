@@ -43,7 +43,9 @@ struct QuickAddField: View {
                     .foregroundStyle(focused ? DS.acento : DS.texto3)
                     .rotationEffect(.degrees(focused ? 90 : 0))
                     .animation(DS.curva, value: focused)
-                TextField(placeholder, text: $text)
+                // Vertical: uma lista colada mantém as linhas (vira uma tarefa por linha).
+                TextField(placeholder, text: $text, axis: .vertical)
+                    .lineLimit(1...6)
                     .textFieldStyle(.plain)
                     .txt(style == .large ? .lg : .md)
                     .foregroundStyle(DS.texto)
@@ -155,7 +157,13 @@ struct QuickAddField: View {
             }
             .buttonStyle(SoAfunda(escala: 0.95))
             .help("Trocar a data")
-            ForEach(parsed.tagNames, id: \.self) { name in
+            if varias.count > 1 {
+                Chip("\(varias.count) tarefas", cor: DS.acento) {
+                    Image(systemName: "list.bullet").font(.system(size: 10, weight: .semibold))
+                }
+                .help("Uma tarefa por linha. Data e lista escritas na linha valem só para ela.")
+            }
+            ForEach(varias.count > 1 ? [] : parsed.tagNames, id: \.self) { name in
                 Chip("#\(name)", cor: store.tags.first { $0.name.lowercased() == name.lowercased() }
                     .map { Color(hex: $0.colorHex) } ?? DS.texto2)
             }
@@ -164,12 +172,38 @@ struct QuickAddField: View {
         }
     }
 
+    /// Linhas do texto (mais de uma = lista colada).
+    private var varias: [String] { QuickAddParser.linhas(text) }
+
     private func submit() {
+        let linhas = varias
+        if linhas.count > 1 {
+            // Cada linha vira uma tarefa; o que estiver escrito na linha (data, ~lista, #etiqueta)
+            // vale para ela, o resto vem dos chips.
+            for linha in linhas {
+                let r = QuickAddParser.parse(linha, lists: store.lists, today: store.today)
+                let titulo = r.title.trimmingCharacters(in: .whitespaces)
+                guard !titulo.isEmpty else { continue }
+                var tagIDs = store.resolveTags(named: r.tagNames)
+                if let fixedTagID, !tagIDs.contains(fixedTagID) { tagIDs.append(fixedTagID) }
+                let dataDaLinha: Date?? = r.due
+                let quando: Date? = dataDaLinha ?? dataEscolhida ?? defaultDue
+                store.addTask(title: titulo, listID: r.listID ?? chosenListID ?? fixedListID ?? store.defaultList?.id,
+                              due: quando, tagIDs: tagIDs,
+                              horario: dataDaLinha == nil && quando != nil ? horario : nil)
+            }
+            limpar()
+            return
+        }
         let result = parsed
         guard !result.title.trimmingCharacters(in: .whitespaces).isEmpty else { return }
         var tagIDs = store.resolveTags(named: result.tagNames)
         if let fixedTagID, !tagIDs.contains(fixedTagID) { tagIDs.append(fixedTagID) }
         store.addTask(title: result.title, listID: listID, due: due, tagIDs: tagIDs, horario: due == nil ? nil : horario)
+        limpar()
+    }
+
+    private func limpar() {
         text = ""
         chosenListID = nil
         dropdownAberto = false

@@ -217,6 +217,8 @@ struct EditorDeNota: View {
                                     .allowsHitTesting(false)
                             }
                         }
+                        // O TextEditor tem 5 pt de margem interna: puxa para alinhar com o título.
+                        .padding(.leading, -5)
                         .onChange(of: texto) { _, novo in salvar(texto: novo) }
                         .accessibilityIdentifier("textoNota")
 

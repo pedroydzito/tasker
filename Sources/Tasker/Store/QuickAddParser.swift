@@ -12,6 +12,13 @@ struct QuickAddParser {
         var tagNames: [String] = []
     }
 
+    /// Lista colada: uma tarefa por linha, sem os marcadores ("- ", "• ", "1. ", "[ ]").
+    static func linhas(_ text: String) -> [String] {
+        text.split(whereSeparator: \.isNewline)
+            .map { Caderno.semMarcador(String($0)) }
+            .filter { !$0.isEmpty }
+    }
+
     static func parse(_ text: String, lists: [TaskList], today: Date) -> Result {
         let cal = Calendar.current
         var tokens = text.split(separator: " ", omittingEmptySubsequences: true).map(String.init)

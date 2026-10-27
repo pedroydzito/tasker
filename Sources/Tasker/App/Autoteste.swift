@@ -190,6 +190,11 @@ enum Autoteste {
         let lido = QuickAddParser.parse("pagar conta amanhã #casa", lists: store.lists, today: hoje)
         verificar(lido.title == "pagar conta" && lido.due == Optional(Optional(amanha)) && lido.tagNames == ["casa"], "entende data e etiqueta")
         verificar(QuickAddParser.parse("festa 31/02", lists: store.lists, today: hoje).due == nil, "31/02 não vira outra data")
+        let colada = QuickAddParser.linhas("- leite\n• pão amanhã\n\n3. ovos #mercado\n   ")
+        verificar(colada == ["leite", "pão amanhã", "ovos #mercado"], "lista colada vira uma linha por tarefa")
+        verificar(QuickAddParser.parse(colada[1], lists: store.lists, today: hoje).due == Optional(Optional(amanha)),
+                  "data escrita numa linha vale para ela")
+        verificar(QuickAddParser.linhas("uma tarefa só").count == 1, "texto de uma linha continua uma tarefa")
 
         return falhas.isEmpty
     }

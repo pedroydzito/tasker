@@ -11,6 +11,7 @@ struct Sidebar: View {
 
     @AppStorage("sidebar.listsCollapsed") private var listsCollapsed = false
     @AppStorage("sidebar.tagsCollapsed") private var tagsCollapsed = false
+    @AppStorage("sidebar.cadernoCollapsed") private var cadernoCollapsed = false
     @Namespace private var trilho
     @State private var alvoDeTarefa: String?
 
@@ -25,14 +26,19 @@ struct Sidebar: View {
                 VStack(alignment: .leading, spacing: DS.e1) {
                     BotaoBusca()
                         .padding(.bottom, DS.e2)
-                    item(.despejo, "Despejo", "tray", caderno.despejo.count)
                     item(.today, "Hoje", "sun.max", store.badgeCount)
                     item(.tomorrow, "Amanhã", "sunrise", store.tasks(on: Calendar.current.adding(days: 1, to: store.today)).count)
                     item(.upcoming, "Próximas", "calendar.day.timeline.left")
                     item(.calendar, "Calendário", "calendar")
-                    item(.notas, "Notas", "note.text")
                     item(.all, "Todas", "tray.full", store.activeCount)
                     item(.completed, "Concluídas", "checkmark.circle")
+
+                    // Caderno: o que é só do Tasker (não vai para o Google Tasks).
+                    cabecalhoSecao("Caderno", recolhida: $cadernoCollapsed)
+                    if !cadernoCollapsed {
+                        item(.despejo, "Despejo", "tray", caderno.despejo.count)
+                        item(.notas, "Notas", "note.text")
+                    }
 
                     cabecalhoSecao("Listas", recolhida: $listsCollapsed) {
                         BotaoIcone(simbolo: "plus", rotulo: "Nova lista", tamanho: 22, tamanhoIcone: 10) {
