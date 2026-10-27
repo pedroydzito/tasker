@@ -186,6 +186,42 @@ enum Autoteste {
             verificar(store.tasks[mae.id] != nil && store.subtarefas(de: mae.id).count == 1, "Desfazer devolve mãe e filhas")
         }
 
+        secao("Tempo")
+        verificar(Duracao.ler("20") == 1200 && Duracao.ler("20m") == 1200, "\"20\" e \"20m\" = 20 minutos")
+        verificar(Duracao.ler("1h20") == 4800 && Duracao.ler("1h 20m") == 4800, "\"1h20\" e \"1h 20m\"")
+        verificar(Duracao.ler("1:20") == 4800 && Duracao.ler("1:20:30") == 4830, "\"1:20\" (h:min) e \"1:20:30\"")
+        verificar(Duracao.ler("45s") == 45 && Duracao.ler("2h") == 7200, "segundos e horas")
+        verificar(Duracao.ler("abc") == nil && Duracao.ler("") == nil && Duracao.ler("1x") == nil, "texto inválido é recusado")
+        verificar(Duracao.relogio(65) == "01:05" && Duracao.relogio(3725) == "1:02:05", "formato de relógio")
+        verificar(Duracao.curto(8100) == "2h 15m" && Duracao.curto(45) == "45s", "formato curto")
+        let t0 = Date()
+        store.addTask(title: "cronometrada", listID: listaPadrao, due: hoje)
+        if let temp = store.tasks.values.first(where: { $0.title == "cronometrada" }) {
+            store.alternarCronometro(temp.id, agora: t0)
+            verificar(store.cronometroAtivo == temp.id, "play liga o cronômetro (mesmo antes de a tarefa existir no backend)")
+            await store.aguardarOperacoes()
+            let real = store.tasks.values.first { $0.title == "cronometrada" }
+            verificar(real.map { store.cronometroAtivo == $0.id && !$0.isLocal } == true, "cronômetro segue a tarefa quando ganha o id definitivo")
+            if let real {
+                verificar(abs(store.tempo(de: real.id, agora: t0.addingTimeInterval(90)) - 90) < 0.5, "tempo corre enquanto roda")
+                store.alternarCronometro(real.id, agora: t0.addingTimeInterval(90))
+                verificar(store.cronometroAtivo == nil, "pausa")
+                verificar(abs(store.tempo(de: real.id, agora: t0.addingTimeInterval(500)) - 90) < 0.5, "pausado não conta")
+                store.alternarCronometro(real.id, agora: t0.addingTimeInterval(600))
+                verificar(abs(store.tempo(de: real.id, agora: t0.addingTimeInterval(630)) - 120) < 0.5, "continuar soma ao total")
+                if let outra = store.tasks.values.first(where: { $0.title == "pagar boleto" }) {
+                    store.alternarCronometro(outra.id, agora: t0.addingTimeInterval(630))
+                    verificar(store.cronometroAtivo == outra.id && abs(store.tempo(de: real.id) - 120) < 0.5,
+                              "dar play em outra pausa a primeira")
+                    store.setCompleted(outra, true)
+                    verificar(store.cronometroAtivo == nil, "concluir pausa o cronômetro")
+                }
+                store.definirTempo(real.id, segundos: 1200)
+                verificar(store.tempo(de: real.id) == 1200, "tempo digitado à mão substitui o total")
+                verificar(TempoDB.load().total[real.id] == 1200, "tempo salvo em disco")
+            }
+        }
+
         secao("Criação rápida")
         let lido = QuickAddParser.parse("pagar conta amanhã #casa", lists: store.lists, today: hoje)
         verificar(lido.title == "pagar conta" && lido.due == Optional(Optional(amanha)) && lido.tagNames == ["casa"], "entende data e etiqueta")

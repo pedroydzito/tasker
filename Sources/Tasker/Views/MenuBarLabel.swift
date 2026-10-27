@@ -11,7 +11,19 @@ struct MenuBarLabel: View {
     var body: some View {
         let count = store.hasAccount ? store.badgeCount : 0
         let show = store.prefs.showCountInMenuBar && count > 0
-        Image(nsImage: Self.icon(count: show ? count : nil, style: store.prefs.menuBarStyle))
+        Group {
+            if let ativo = store.cronometroAtivo {
+                // Cronômetro rodando: o número de tarefas dá lugar ao tempo correndo.
+                TimelineView(.periodic(from: .now, by: 1)) { contexto in
+                    HStack(spacing: 4) {
+                        Image(nsImage: Self.icon(count: nil, style: store.prefs.menuBarStyle))
+                        Text(Duracao.relogio(store.tempo(de: ativo, agora: contexto.date))).monospacedDigit()
+                    }
+                }
+            } else {
+                Image(nsImage: Self.icon(count: show ? count : nil, style: store.prefs.menuBarStyle))
+            }
+        }
             .onReceive(NotificationCenter.default.publisher(for: AppDelegate.abrirJanelaPrincipal)) { _ in
                 openWindow(id: WindowID.main)
             }

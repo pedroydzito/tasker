@@ -129,6 +129,7 @@ struct CompletedView: View {
         let groups = Dictionary(grouping: items) { Calendar.current.startOfDay(for: $0.completedDate ?? .distantPast) }
         PageScaffold(rotulo: "\(store.completedTasks.count) tarefas até aqui", title: "Concluídas") {
             VStack(alignment: .leading, spacing: DS.e6) {
+                ResumoConcluidas()
                 ForEach(groups.keys.sorted(by: >), id: \.self) { day in
                     SecaoTarefas(day == .distantPast ? "Sem data" : DayLabel.short(day, today: store.today),
                                  contagem: groups[day]?.count ?? 0) {

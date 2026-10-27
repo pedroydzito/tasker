@@ -38,6 +38,7 @@ enum Capturas {
             ("02-despejo", janela, { nav.selection = .despejo; return AnyView(ambiente(MainWindow())) }),
             ("03-organizando", janela, { AnyView(ambiente(Moldura { DespejoView(abrirTriagem: true) })) }),
             ("04-notas-dia", janela, { nav.selection = .notas; nav.notaAberta = .dia(store.today); return AnyView(ambiente(MainWindow())) }),
+            ("12-concluidas", CGSize(width: 1180, height: 900), { nav.selection = .completed; return AnyView(ambiente(MainWindow())) }),
             ("06-calendario", CGSize(width: 1180, height: 1000), { nav.selection = .calendar; return AnyView(ambiente(MainWindow())) }),
             ("07-busca", CGSize(width: 640, height: 560), { AnyView(ambiente(Moldura { BuscaView(consultaInicial: "reuniao") })) }),
             ("08-menu", CGSize(width: MenuBarPopover.largura, height: MenuBarPopover.altura), { AnyView(ambiente(MenuBarPopover())) }),
@@ -201,6 +202,20 @@ enum Capturas {
             store.addSubtask(title: "Reescrever a conclusão", parent: mae)
             await store.aguardarOperacoes()
             if let feita = store.subtarefas(de: mae.id).first { store.setCompleted(feita, true) }
+        }
+        // Tempo e concluídas para o resumo.
+        for (titulo, dias) in [("Responder e-mails", 0), ("Preparar slides", -1), ("Ler artigo", -2), ("Treino", -4), ("Planejar semana", -6)] {
+            store.addTask(title: titulo, listID: lista, due: cal.adding(days: dias, to: hoje))
+        }
+        await store.aguardarOperacoes()
+        for (i, tarefa) in store.tasks.values.filter({ ["Responder e-mails", "Preparar slides", "Ler artigo", "Treino", "Planejar semana"].contains($0.title) }).enumerated() {
+            store.definirTempo(tarefa.id, segundos: Double(900 * (i + 1)))
+            store.setCompleted(tarefa, true)
+        }
+        await store.aguardarOperacoes()
+        if let tcc = store.tasks.values.first(where: { $0.title.hasPrefix("Revisar capítulo") }) {
+            store.definirTempo(tcc.id, segundos: 2700)
+            store.alternarCronometro(tcc.id, agora: Date().addingTimeInterval(-754))
         }
         caderno.capturar("""
         marcar consulta no dentista

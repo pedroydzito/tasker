@@ -89,6 +89,7 @@ struct TaskInspector: View {
                                     .foregroundStyle(current.isCompleted ? DS.texto3 : DS.texto)
                             }
                             PropriedadesDaTarefa(rascunho: binding)
+                            CampoTempo(taskID: current.id)
                         }
 
                         VStack(alignment: .leading, spacing: DS.e2) {
@@ -377,9 +378,10 @@ struct Subtarefas: View {
         let filhas = store.subtarefas(de: mae.id)
         let feitas = filhas.filter(\.isCompleted).count
         VStack(alignment: .leading, spacing: DS.e2) {
-            HStack {
-                Text("Subtarefas").rotulo()
-                if !filhas.isEmpty {
+            // Sem subtarefas: só a linha discreta de adicionar (sem título nem cartão).
+            if !filhas.isEmpty {
+                HStack {
+                    Text("Subtarefas").rotulo()
                     Text("\(feitas)/\(filhas.count)").txt(.xs, .semibold).foregroundStyle(DS.texto3)
                 }
             }
@@ -404,10 +406,11 @@ struct Subtarefas: View {
                         .focused($foco)
                         .onSubmit(adicionar)
                 }
-                .padding(.horizontal, DS.e3)
-                .padding(.vertical, 9)
+                .padding(.horizontal, filhas.isEmpty ? 0 : DS.e3)
+                .padding(.vertical, filhas.isEmpty ? 4 : 9)
+                .help("Enter adiciona e já deixa pronto para a próxima")
             }
-            .background(DS.superficie2, in: RoundedRectangle(cornerRadius: DS.raioM, style: .continuous))
+            .background(DS.superficie2.opacity(filhas.isEmpty ? 0 : 1), in: RoundedRectangle(cornerRadius: DS.raioM, style: .continuous))
         }
         .animation(DS.curva, value: filhas.map(\.id))
     }

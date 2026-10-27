@@ -44,6 +44,8 @@ final class TaskStore {
     private(set) var eventRange: Range<Date>?
     private(set) var today = Calendar.current.startOfDay(for: .now)
     private(set) var tagDB = TagDatabase.load()
+    /// Tempo gasto por tarefa e o cronômetro ativo.
+    private(set) var tempoDB = TempoDB.load()
     /// Aviso de "excluído — Desfazer" (some sozinho em 3 s).
     private(set) var aviso: AvisoDesfazer?
     /// Aviso de sucesso ("✓ Tarefa adicionada"), some em 2 s. Ações seguidas se somam.
@@ -767,6 +769,54 @@ final class TaskStore {
         tagDB.save()
     }
 
+    // MARK: Tempo
+
+    /// Tarefa com o cronômetro rodando agora (só uma por vez).
+    var cronometroAtivo: String? { tempoDB.ativo }
+
+    /// Total gasto na tarefa, contando o trecho que está rodando agora.
+    func tempo(de id: String, agora: Date = .now) -> TimeInterval {
+        var t = tempoDB.total[id] ?? 0
+        if tempoDB.ativo == id, let inicio = tempoDB.inicio { t += max(0, agora.timeIntervalSince(inicio)) }
+        return t
+    }
+
+    /// Play/pausa. Dar play numa tarefa pausa a que estava rodando.
+    func alternarCronometro(_ id: String, agora: Date = .now) {
+        if tempoDB.ativo == id {
+            pausarCronometro(agora: agora)
+            return
+        }
+        pausarCronometro(agora: agora)
+        tempoDB.ativo = id
+        tempoDB.inicio = agora
+        tempoDB.save()
+    }
+
+    func pausarCronometro(agora: Date = .now) {
+        guard let id = tempoDB.ativo else { return }
+        tempoDB.total[id] = tempo(de: id, agora: agora)
+        tempoDB.ativo = nil
+        tempoDB.inicio = nil
+        tempoDB.save()
+    }
+
+    /// Tempo digitado à mão (esqueci de cronometrar). Se estiver rodando, segue a partir do novo valor.
+    func definirTempo(_ id: String, segundos: TimeInterval, agora: Date = .now) {
+        tempoDB.total[id] = max(0, segundos) == 0 ? nil : max(0, segundos)
+        if tempoDB.ativo == id { tempoDB.inicio = agora }
+        tempoDB.save()
+    }
+
+    /// O id da tarefa mudou (criada no Google, movida de lista): o tempo vai junto.
+    private func remapearTempo(de antigo: String, para novo: String) {
+        guard antigo != novo else { return }
+        var mudou = false
+        if let t = tempoDB.total.removeValue(forKey: antigo) { tempoDB.total[novo] = t; mudou = true }
+        if tempoDB.ativo == antigo { tempoDB.ativo = novo; mudou = true }
+        if mudou { tempoDB.save() }
+    }
+
     // MARK: Alterações (otimistas)
 
     func addTask(title: String, listID: String? = nil, due: Date?, notes: String? = nil, tagIDs: [String] = [],
@@ -785,6 +835,7 @@ final class TaskStore {
             do {
                 let created = try await backend.insertTask(listID: listID, title: title, notes: notas, due: dueString)
                 idsCriados[tempID] = created.id
+                remapearTempo(de: tempID, para: created.id)
                 // Mantém o que foi mudado aqui enquanto o Google criava (as mudanças seguem na fila).
                 var item = TaskItem(created, listID: listID)
                 if let local = taskMap[tempID] {
@@ -829,6 +880,7 @@ final class TaskStore {
                 let created = try await backend.insertTask(listID: parent.listID, title: title, notes: nil, due: nil,
                                                            parent: parent.id)
                 idsCriados[tempID] = created.id
+                remapearTempo(de: tempID, para: created.id)
                 var item = TaskItem(created, listID: parent.listID)
                 if let local = taskMap[tempID] {
                     item.title = local.title
@@ -847,6 +899,8 @@ final class TaskStore {
 
     func setCompleted(_ task: TaskItem, _ done: Bool) {
         if done && prefs.completionSound { NSSound(named: "Pop")?.play() }
+        // Concluiu com o cronômetro rodando: pausa e guarda o tempo.
+        if done && tempoDB.ativo == task.id { pausarCronometro() }
         let fields: [String: Any] = done
             ? ["status": "completed"]
             : ["status": "needsAction", "completed": NSNull()]
@@ -889,6 +943,7 @@ final class TaskStore {
                 let result = try await backend.moveTask(listID: original.listID, taskID: task.id, toList: destino)
                 taskMap[task.id] = nil
                 taskMap[result.id] = TaskItem(result, listID: destino)
+                remapearTempo(de: task.id, para: result.id)
                 if result.id != task.id, let tags = tagDB.assignments.removeValue(forKey: task.id) {
                     tagDB.assignments[result.id] = tags
                     tagDB.save()

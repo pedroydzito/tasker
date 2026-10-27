@@ -16,6 +16,7 @@ struct TaskRow: View {
 
     /// No menu da barra, clicar abre os detalhes embaixo da linha (em vez de outra folha).
     @Environment(\.noMenuDaBarra) private var noMenu
+    @Environment(\.openWindow) private var openWindow
     @State private var expandida = false
     @State private var renomeando = false
     @State private var nome = ""
@@ -136,15 +137,28 @@ struct TaskRow: View {
             if !expandida { seta }
             Spacer(minLength: DS.e2)
             if expandida {
-                // Aberta: a data fica nos detalhes; aqui só o lápis para renomear.
+                // Aberta: a data fica nos detalhes; aqui ver no app, renomear e excluir.
                 if !renomeando {
-                    BotaoIcone(simbolo: "pencil", rotulo: "Renomear", tamanho: 24, tamanhoIcone: 11) {
-                        nome = task.title
-                        renomeando = true
-                        DispatchQueue.main.async { focoNome = true }
+                    HStack(spacing: 0) {
+                        BotaoIcone(simbolo: "eye", rotulo: "Ver no app (descrição, etiquetas e mais)", tamanho: 24, tamanhoIcone: 11,
+                                   acao: abrirNoApp)
+                        BotaoIcone(simbolo: "pencil", rotulo: "Renomear", tamanho: 24, tamanhoIcone: 11) {
+                            nome = task.title
+                            renomeando = true
+                            DispatchQueue.main.async { focoNome = true }
+                        }
+                        BotaoIcone(simbolo: "trash", rotulo: "Excluir tarefa", tamanho: 24, tamanhoIcone: 11) {
+                            let alvo = store.tasks[task.id] ?? task
+                            folhas.confirmar("Excluir tarefa", mensagem: "“\(alvo.displayTitle)” será excluída. Dá para desfazer logo depois.") {
+                                store.delete(alvo)
+                            }
+                        }
                     }
                 }
-            } else if task.hasNotes {
+            } else {
+                ControleDeTempo(taskID: task.id, visivel: hovering && !task.isCompleted)
+            }
+            if !expandida && task.hasNotes {
                 Image(systemName: "text.alignleft").font(.system(size: 10.5)).foregroundStyle(DS.texto3)
             }
             if !expandida, showDate || store.horario(of: task) != nil, let texto = textoDaData(compacto: true) {
@@ -163,6 +177,7 @@ struct TaskRow: View {
             seta
             metadadosSemData.fixedSize()
             Spacer(minLength: 120)
+            ControleDeTempo(taskID: task.id, visivel: hovering && !task.isCompleted)
             dataComHora
             if showList { ListChip(listID: task.listID) }
         }
@@ -180,8 +195,17 @@ struct TaskRow: View {
                 .txt(.xs)
             }
             Spacer(minLength: DS.e2)
+            ControleDeTempo(taskID: task.id, visivel: hovering && !task.isCompleted)
             if showList { ListChip(listID: task.listID) }
         }
+    }
+
+    private func abrirNoApp() {
+        nav.selection = task.isCompleted ? .completed : .list(task.listID)
+        nav.selectedTaskID = task.id
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate()
+        openWindow(id: WindowID.main)
     }
 
     /// Data (e horário) como metadado; atrasada em vermelho.
@@ -386,6 +410,10 @@ struct DetalheNoMenu: View {
                 }
             }
 
+            if !atual.isCompleted || store.tempo(de: atual.id) > 0 {
+                CampoTempo(taskID: atual.id).padding(.leading, -3)
+            }
+
             let notas = atual.notasVisiveis.trimmingCharacters(in: .whitespacesAndNewlines)
             if !notas.isEmpty {
                 Text(notas)
@@ -400,26 +428,6 @@ struct DetalheNoMenu: View {
                 Subtarefas(mae: atual) { _ in }
             }
 
-            HStack(spacing: DS.e1) {
-                Button {
-                    nav.selection = atual.isCompleted ? .completed : .list(atual.listID)
-                    nav.selectedTaskID = atual.id
-                    NSApp.setActivationPolicy(.regular)
-                    NSApp.activate()
-                    openWindow(id: WindowID.main)
-                } label: {
-                    Label("Abrir no app", systemImage: "arrow.up.left.and.arrow.down.right")
-                }
-                .buttonStyle(Botao(variante: .fantasma))
-                .help("Descrição, etiquetas e o resto, na janela")
-                Spacer()
-                BotaoIcone(simbolo: "trash", rotulo: "Excluir tarefa", tamanho: 26, tamanhoIcone: 12) {
-                    folhas.confirmar("Excluir tarefa", mensagem: "“\(atual.displayTitle)” será excluída. Dá para desfazer logo depois.") {
-                        store.delete(atual)
-                    }
-                }
-            }
-            .padding(.leading, -DS.e2)
         }
         .padding(.leading, 12 + CGFloat(depth) * 26 + 30)
         .padding(.trailing, 12)
