@@ -293,6 +293,7 @@ struct Triagem: View {
         Button(action: acao) {
             VStack(spacing: DS.e2) {
                 Image(systemName: simbolo).font(.system(size: 18, weight: .medium))
+                    .frame(height: 22)
                 Text(titulo).txt(.sm, .semibold)
             }
             .foregroundStyle(DS.texto)

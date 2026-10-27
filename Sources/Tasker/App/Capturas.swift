@@ -38,7 +38,7 @@ enum Capturas {
             ("02-despejo", janela, { nav.selection = .despejo; return AnyView(ambiente(MainWindow())) }),
             ("03-triagem", janela, { AnyView(ambiente(Moldura { DespejoView(abrirTriagem: true) })) }),
             ("04-notas-dia", janela, { nav.selection = .notas; nav.notaAberta = .dia(store.today); return AnyView(ambiente(MainWindow())) }),
-            ("06-calendario", janela, { nav.selection = .calendar; return AnyView(ambiente(MainWindow())) }),
+            ("06-calendario", CGSize(width: 1180, height: 1000), { nav.selection = .calendar; return AnyView(ambiente(MainWindow())) }),
             ("07-busca", CGSize(width: 640, height: 560), { AnyView(ambiente(Moldura { BuscaView(consultaInicial: "reuniao") })) }),
             ("08-menu", CGSize(width: MenuBarPopover.largura, height: MenuBarPopover.altura), { AnyView(ambiente(MenuBarPopover())) }),
             ("09-lista-subtarefas", janela, {

@@ -15,11 +15,13 @@ struct CalendarView: View {
     var body: some View {
         HStack(spacing: 0) {
             // Rolável: o mês nunca passa da altura da janela (antes empurrava a barra lateral).
+            // Altura das células acompanha a janela: mais alta mostra mais itens por dia.
+            GeometryReader { geo in
             ScrollView {
                 VStack(alignment: .leading, spacing: DS.e4) {
                     header
                     weekdayHeader
-                    grid
+                    grid(alturaCelula: Self.alturaCelula(para: geo.size.height))
                         .id(month)
                         .transition(.asymmetric(insertion: .offset(x: 28 * direcao).combined(with: .opacity), removal: .opacity))
                 }
@@ -30,6 +32,7 @@ struct CalendarView: View {
             }
             .scrollIndicators(.automatic)
             .indicadorDeRolagem()
+            }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             Divisoria(largura: $larguraAgenda, minimo: 280, maximo: 520, sentido: -1)
@@ -95,7 +98,15 @@ struct CalendarView: View {
         return (0..<42).map { cal.adding(days: $0, to: start) }
     }
 
-    private var grid: some View {
+    /// Espaço fixo acima e abaixo da grade (título, dias da semana, margens e espaços entre semanas).
+    private static let alturaFixa: CGFloat = 56 + 64 + DS.e4 + 20 + DS.e4 + DS.e6 + 6 * 5
+
+    /// Seis semanas dividem a altura que sobra; abaixo de 64 a tela rola em vez de espremer.
+    static func alturaCelula(para altura: CGFloat) -> CGFloat {
+        max(64, ((altura - alturaFixa) / 6).rounded(.down))
+    }
+
+    private func grid(alturaCelula: CGFloat) -> some View {
         let days = gridDays
         let comNota = caderno.diasComNota
         return VStack(spacing: 6) {
@@ -107,6 +118,7 @@ struct CalendarView: View {
                                 isToday: day == store.today,
                                 isSelected: day == selected,
                                 temNota: comNota.contains(day),
+                                altura: alturaCelula,
                                 events: events(on: day),
                                 tasks: store.tasks(on: day) + store.completedTasks(on: day)) {
                             withAnimation(DS.curvaRapida) { selected = day }
@@ -125,6 +137,7 @@ private struct DayCell: View {
     let isToday: Bool
     let isSelected: Bool
     var temNota = false
+    var altura: CGFloat = 84
     let events: [CalendarEvent]
     let tasks: [TaskItem]
     let action: () -> Void
@@ -143,8 +156,10 @@ private struct DayCell: View {
 
     var body: some View {
         let itens = events.map(Item.evento) + tasks.map(Item.tarefa)
-        // No máximo 2 itens; com mais, 2 + "+N" — a célula nunca cresce.
-        let visiveis = itens.count <= 2 ? itens : Array(itens.prefix(2))
+        // Quantas linhas cabem na altura da célula (número do dia em cima); com mais itens,
+        // a última linha vira "+N". A célula nunca cresce além da altura dada.
+        let cabem = max(1, Int((altura - 36) / 16))
+        let visiveis = itens.count <= cabem ? itens : Array(itens.prefix(max(cabem - 1, 1)))
         let extra = itens.count - visiveis.count
         Button(action: action) {
             VStack(alignment: .leading, spacing: 3) {
@@ -182,7 +197,8 @@ private struct DayCell: View {
             }
             .padding(6)
             .frame(maxWidth: .infinity, alignment: .topLeading)
-            .frame(height: 84, alignment: .topLeading)
+            .frame(height: altura, alignment: .topLeading)
+            .clipped()
             .background(RoundedRectangle(cornerRadius: DS.raioM, style: .continuous)
                 .fill(inMonth ? DS.superficie : DS.superficie.opacity(0.4)))
             .overlay(RoundedRectangle(cornerRadius: DS.raioM, style: .continuous)
