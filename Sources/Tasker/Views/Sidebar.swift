@@ -26,7 +26,8 @@ struct Sidebar: View {
                 VStack(alignment: .leading, spacing: DS.e1) {
                     BotaoBusca()
                         .padding(.bottom, DS.e2)
-                    item(.today, "Hoje", "sun.max", store.badgeCount)
+                    // Sem energia: sem números cobrando.
+                    item(.today, "Hoje", "sun.max", store.prefs.energiaBaixa ? nil : store.badgeCount)
                     item(.tomorrow, "Amanhã", "sunrise", store.tasks(on: Calendar.current.adding(days: 1, to: store.today)).count)
                     item(.upcoming, "Próximas", "calendar.day.timeline.left")
                     item(.calendar, "Calendário", "calendar")
