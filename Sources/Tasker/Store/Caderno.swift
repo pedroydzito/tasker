@@ -144,7 +144,7 @@ final class Caderno {
         salvar()
     }
 
-    static func semMarcador(_ linha: String) -> String {
+    nonisolated static func semMarcador(_ linha: String) -> String {
         var s = linha.trimmingCharacters(in: .whitespaces)
         for prefixo in ["- [ ] ", "[ ] ", "☐ ", "- ", "• ", "* ", "– "] where s.hasPrefix(prefixo) {
             s.removeFirst(prefixo.count)
