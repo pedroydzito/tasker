@@ -6,6 +6,9 @@ import SwiftUI
 struct ResumoConcluidas: View {
     @Environment(TaskStore.self) private var store
     @AppStorage("concluidas.periodo") private var periodo = Periodo.semana
+    /// Barra sob o mouse e onde o mouse está (o tooltip acompanha).
+    @State private var emFoco: Date?
+    @State private var mouse: CGPoint = .zero
 
     enum Periodo: String, Hashable {
         case semana, mes, ano
@@ -67,6 +70,7 @@ struct ResumoConcluidas: View {
                             y: .value("Tarefas", b.quantidade))
                         .foregroundStyle(by: .value("Lista", b.lista))
                         .cornerRadius(3)
+                        .opacity(emFoco == nil || emFoco == b.inicio ? 1 : 0.35)
                 }
                 .chartForegroundStyleScale(domain: nomes, range: cores)
                 .chartXScale(domain: inicio...cal.date(byAdding: unidade, value: 1, to: store.today)!)
@@ -82,7 +86,40 @@ struct ResumoConcluidas: View {
                         AxisValueLabel()
                     }
                 }
-                .chartLegend(position: .bottom, alignment: .leading, spacing: DS.e3)
+                .chartLegend(.hidden)
+                .chartOverlay { proxy in
+                    GeometryReader { geo in
+                        let plot = proxy.plotFrame.map { geo[$0] } ?? .zero
+                        ZStack(alignment: .topLeading) {
+                            Rectangle().fill(.clear).contentShape(Rectangle())
+                                .onContinuousHover { fase in
+                                    switch fase {
+                                    case .active(let ponto):
+                                        mouse = ponto
+                                        let x = ponto.x - plot.minX
+                                        if x >= 0, x <= plot.width, let data: Date = proxy.value(atX: x) {
+                                            emFoco = cal.dateInterval(of: unidade, for: data)?.start
+                                        } else {
+                                            emFoco = nil
+                                        }
+                                    case .ended:
+                                        emFoco = nil
+                                    }
+                                }
+                            if let emFoco {
+                                let doDia = barras.filter { $0.inicio == emFoco }.sorted { $0.quantidade > $1.quantidade }
+                                tooltip(emFoco, doDia, unidade: unidade, cores: Dictionary(zip(nomes, cores), uniquingKeysWith: { a, _ in a }))
+                                    .fixedSize()
+                                    // Ao lado do mouse; perto da borda direita, vai para a esquerda.
+                                    .offset(x: mouse.x + 200 > geo.size.width ? mouse.x - 196 : mouse.x + 16,
+                                            y: min(max(0, mouse.y - 30), max(0, geo.size.height - 120)))
+                                    .allowsHitTesting(false)
+                                    .transition(.opacity)
+                            }
+                        }
+                    }
+                }
+                .animation(DS.curvaRapida, value: emFoco)
                 .frame(height: 190)
                 .animation(DS.curva, value: periodo)
             }
@@ -130,6 +167,32 @@ struct ResumoConcluidas: View {
         .padding(DS.e5)
         .background(DS.superficie, in: RoundedRectangle(cornerRadius: DS.raioCartao, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: DS.raioCartao, style: .continuous).strokeBorder(DS.borda))
+    }
+
+    private func tooltip(_ inicio: Date, _ itens: [Barra], unidade: Calendar.Component, cores: [String: Color]) -> some View {
+        let total = itens.reduce(0) { $0 + $1.quantidade }
+        return VStack(alignment: .leading, spacing: 6) {
+            Text(unidade == .month
+                 ? inicio.formatted(.dateTime.month(.wide).year()).primeiraMaiuscula
+                 : inicio.formatted(.dateTime.weekday(.wide).day().month(.abbreviated)).primeiraMaiuscula)
+                .txt(.xs, .semibold).foregroundStyle(DS.texto3)
+            Text(total == 0 ? "Nenhuma concluída" : (total == 1 ? "1 concluída" : "\(total) concluídas"))
+                .txt(.sm, .semibold).foregroundStyle(DS.texto)
+            ForEach(itens) { b in
+                HStack(spacing: 6) {
+                    Circle().fill(cores[b.lista] ?? DS.texto3).frame(width: 7, height: 7)
+                    Text(b.lista).txt(.xs).foregroundStyle(DS.texto2).lineLimit(1)
+                    Spacer(minLength: DS.e3)
+                    Text("\(b.quantidade)").txt(.xs, .semibold).monospacedDigit().foregroundStyle(DS.texto)
+                }
+            }
+        }
+        .frame(minWidth: 150, alignment: .leading)
+        .padding(.horizontal, DS.e3)
+        .padding(.vertical, 10)
+        .background(DS.superficie, in: RoundedRectangle(cornerRadius: DS.raioM, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: DS.raioM, style: .continuous).strokeBorder(DS.borda))
+        .sombraAlta()
     }
 
     private func numero(_ valor: String, _ rotulo: String) -> some View {
