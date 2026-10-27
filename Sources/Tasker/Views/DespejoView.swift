@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// Campo do despejo: Enter guarda e o campo continua pronto para o próximo.
 /// Texto colado com várias linhas vira um item por linha.
@@ -11,6 +12,8 @@ struct CampoDespejo: View {
 
     @State private var texto = ""
     @State private var confirmacao: String?
+    @State private var foto: URL?
+    @State private var arrastando = false
     @FocusState private var foco: Bool
 
     var body: some View {
@@ -31,6 +34,32 @@ struct CampoDespejo: View {
                         if texto.isEmpty, let onEscape { onEscape() } else { texto = "" }
                     }
                     .accessibilityIdentifier("campoDespejo")
+                if let foto {
+                    // Foto escolhida: o texto vira o "por que salvei".
+                    ZStack(alignment: .topTrailing) {
+                        Image(nsImage: NSImage(contentsOf: foto) ?? NSImage())
+                            .resizable().scaledToFill()
+                            .frame(width: 34, height: 34)
+                            .clipShape(RoundedRectangle(cornerRadius: DS.raioP, style: .continuous))
+                        Button { withAnimation(DS.curvaRapida) { self.foto = nil } } label: {
+                            Image(systemName: "xmark.circle.fill").font(.system(size: 12)).foregroundStyle(DS.texto2)
+                                .background(Circle().fill(DS.superficie))
+                        }
+                        .buttonStyle(SoAfunda(escala: 0.85))
+                        .offset(x: 5, y: -5)
+                        .help("Tirar a foto")
+                    }
+                    .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + 4 }
+                } else {
+                    Button(action: escolherFoto) {
+                        Image(systemName: "photo.badge.plus").font(.system(size: 13, weight: .medium)).foregroundStyle(DS.texto3)
+                            .frame(width: 26, height: 26)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(SoAfunda(escala: 0.88))
+                    .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + 4 }
+                    .help("Guardar uma foto (ou arraste uma imagem para cá)")
+                }
             }
             .padding(.leading, DS.e4)
             .padding(.trailing, DS.e3)
@@ -40,11 +69,26 @@ struct CampoDespejo: View {
                     RoundedRectangle(cornerRadius: DS.raioM, style: .continuous).fill(DS.superficie2)
                 }
             }
+            .overlay {
+                if arrastando {
+                    RoundedRectangle(cornerRadius: DS.raioM, style: .continuous)
+                        .strokeBorder(DS.acento, style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
+                }
+            }
+            .dropDestination(for: URL.self) { urls, _ in
+                guard let url = urls.first(where: { NSImage(contentsOf: $0) != nil }) else { return false }
+                withAnimation(DS.curvaRapida) { foto = url }
+                foco = true
+                return true
+            } isTargeted: { arrastando = $0 }
 
             Group {
                 if let confirmacao {
                     Label(confirmacao, systemImage: "checkmark.circle.fill")
                         .foregroundStyle(DS.sucesso)
+                } else if foto != nil {
+                    Text("Escreva por que salvou esta foto (opcional) e aperte Enter.")
+                        .foregroundStyle(DS.texto3)
                 } else if style != .compacto {
                     Text("Enter guarda e já deixa pronto para o próximo. Sem data, sem lista — organize depois.")
                         .foregroundStyle(DS.texto3)
@@ -61,6 +105,7 @@ struct CampoDespejo: View {
     }
 
     private var placeholder: String {
+        if foto != nil { return "Por que salvou esta foto?" }
         switch style {
         case .large: "O que está ocupando a sua cabeça?"
         case .compacto: "Despejar algo…"
@@ -68,9 +113,20 @@ struct CampoDespejo: View {
         }
     }
 
+    private func escolherFoto() {
+        let painel = NSOpenPanel()
+        painel.allowedContentTypes = [.image]
+        painel.message = "Escolha uma foto para guardar no despejo"
+        if painel.runModal() == .OK, let url = painel.url {
+            withAnimation(DS.curvaRapida) { foto = url }
+            foco = true
+        }
+    }
+
     private func guardar() {
-        let total = caderno.capturar(texto)
+        let total = caderno.capturar(texto, foto: foto)
         guard total > 0 else { return }
+        foto = nil
         texto = ""
         foco = true
         let mensagem = total == 1 ? "Guardado no despejo" : "\(total) itens guardados no despejo"
@@ -81,18 +137,46 @@ struct CampoDespejo: View {
     }
 }
 
-/// Tela do despejo: captura no topo e os itens embaixo. Cada item se organiza no próprio card;
-/// "Organizar um a um" destaca um card por vez, do mais antigo ao mais novo.
+/// Miniatura da foto de um item (clique abre no Pré-Visualização).
+struct MiniaturaFoto: View {
+    let nome: String
+    var lado: CGFloat = 40
+
+    var body: some View {
+        let url = Caderno.urlDaFoto(nome)
+        Button { NSWorkspace.shared.open(url) } label: {
+            Image(nsImage: NSImage(contentsOf: url) ?? NSImage())
+                .resizable().scaledToFill()
+                .frame(width: lado, height: lado)
+                .clipShape(RoundedRectangle(cornerRadius: DS.raioP, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: DS.raioP, style: .continuous).strokeBorder(DS.borda))
+        }
+        .buttonStyle(SoAfunda(escala: 0.94))
+        .help("Abrir a foto")
+    }
+}
+
+/// Despejo: a caixa de entrada e as pilhas Depois e Não.
 struct DespejoView: View {
+    enum Pilha: Hashable { case caixa, depois, nao }
+
     @Environment(Caderno.self) private var caderno
-    /// Já começa organizando um a um (usado nas capturas de tela).
+    /// Já começa organizando (usado nas capturas de tela).
     var abrirTriagem = false
 
+    @State private var pilha: Pilha
+
+    init(abrirTriagem: Bool = false, pilhaInicial: Pilha = .caixa) {
+        self.abrirTriagem = abrirTriagem
+        _pilha = State(initialValue: pilhaInicial)
+    }
     /// Card aberto (com as escolhas à mostra).
     @State private var aberto: String?
-    /// Organizando um a um: ao resolver um card, abre o próximo.
+    /// Organizando de 3 em 3: quantos já foram nesta rodada.
     @State private var emSequencia = false
-    @State private var pulados: Set<String> = []
+    @State private var nestaRodada = 0
+    @State private var pausaDaRodada = false
+    private static let tamanhoDaRodada = 3
 
     var body: some View {
         PageScaffold(rotulo: "Tire da cabeça. Organize depois.", title: "Despejo") {
@@ -102,89 +186,137 @@ struct DespejoView: View {
                     .background(DS.superficie, in: RoundedRectangle(cornerRadius: DS.raioCartao, style: .continuous))
                     .overlay(RoundedRectangle(cornerRadius: DS.raioCartao, style: .continuous).strokeBorder(DS.borda))
 
-                if caderno.despejo.isEmpty {
-                    EstadoVazio(icone: "brain.head.profile", titulo: "Cabeça leve",
-                                descricao: "Escreva aqui tudo o que estiver ocupando espaço. Depois, com calma, decida o que vira tarefa, nota ou sai da lista.")
-                        .padding(.top, DS.e6)
-                } else {
-                    barra
-                    VStack(spacing: DS.e2) {
-                        // Mais antigos primeiro: é a ordem em que se organiza.
-                        ForEach(caderno.despejo) { item in
-                            CartaoDespejo(item: item, aberto: aberto == item.id, emSequencia: emSequencia,
-                                          abrir: { withAnimation(DS.curva) { aberto = aberto == item.id ? nil : item.id } },
-                                          resolvido: { proximo(depois: item.id) },
-                                          pular: { pulados.insert(item.id); proximo(depois: item.id) })
-                                .transition(.asymmetric(insertion: .opacity.combined(with: .offset(y: -6)),
-                                                        removal: .opacity.combined(with: .scale(scale: 0.97))))
-                        }
-                    }
+                Segmentado(selecao: $pilha, opcoes: [
+                    (.caixa, "Caixa · \(caderno.despejo.count)"),
+                    (.depois, "Depois · \(caderno.depois.count)"),
+                    (.nao, "Não · \(caderno.naoCarregar.count)"),
+                ])
+
+                switch pilha {
+                case .caixa: caixa
+                case .depois: PilhaDespejo(estado: .depois)
+                case .nao: PilhaDespejo(estado: .nao)
                 }
             }
         }
-        .animation(DS.curva, value: caderno.despejo.map(\.id))
+        .animation(DS.curva, value: caderno.itens.map(\.id))
+        .animation(DS.curva, value: caderno.itens.map(\.estado))
+        .animation(DS.curva, value: pilha)
         .onAppear { if abrirTriagem { comecar() } }
+        .onChange(of: pilha) { _, _ in parar() }
+    }
+
+    @ViewBuilder private var caixa: some View {
+        if caderno.despejo.isEmpty {
+            EstadoVazio(icone: "brain.head.profile", titulo: "Cabeça leve",
+                        descricao: "Escreva aqui tudo o que estiver ocupando espaço. Depois, com calma, decida: Agora, Depois ou Não.")
+                .padding(.top, DS.e6)
+        } else {
+            barra
+            if pausaDaRodada {
+                pausa.transition(.opacity.combined(with: .offset(y: -6)))
+            }
+            VStack(spacing: DS.e2) {
+                // Mais antigos primeiro: é a ordem em que se organiza.
+                ForEach(caderno.despejo) { item in
+                    CartaoDespejo(item: item, aberto: aberto == item.id,
+                                  abrir: { withAnimation(DS.curva) { aberto = aberto == item.id ? nil : item.id } },
+                                  resolvido: { proximo(depois: item.id) })
+                        .transition(.asymmetric(insertion: .opacity.combined(with: .offset(y: -6)),
+                                                removal: .opacity.combined(with: .scale(scale: 0.97))))
+                }
+            }
+        }
     }
 
     private var barra: some View {
         HStack {
-            Text(caderno.despejo.count == 1 ? "1 item para organizar" : "\(caderno.despejo.count) itens para organizar")
+            Text(caderno.despejo.count == 1 ? "1 coisa para organizar" : "\(caderno.despejo.count) coisas para organizar")
                 .txt(.sm, .medium)
                 .foregroundStyle(DS.texto3)
             Spacer()
             if emSequencia {
-                Button("Parar de organizar") { parar() }
+                Button("Parar") { parar() }
                     .buttonStyle(Botao(variante: .superficie, tamanho: .m))
-                    .help("Sai do modo um a um; os itens ficam como estão")
+                    .help("Sai do modo de organizar; os itens ficam como estão")
             } else {
                 Button(action: comecar) {
-                    Label("Organizar um a um", systemImage: "rectangle.stack")
+                    Label(caderno.despejo.count > Self.tamanhoDaRodada ? "Organizar 3" : "Organizar", systemImage: "rectangle.stack")
                 }
                 .buttonStyle(Botao(variante: .primario, tamanho: .m))
-                .help("Abre um item por vez, do mais antigo ao mais novo")
+                .help("Abre um item por vez, do mais antigo, de 3 em 3 — sem precisar esvaziar tudo")
                 .accessibilityIdentifier("organizar")
             }
         }
     }
 
+    /// Depois de 3: um respiro, sem cobrar o resto.
+    private var pausa: some View {
+        HStack(spacing: DS.e3) {
+            Image(systemName: "checkmark.seal").font(.system(size: 18, weight: .medium)).foregroundStyle(DS.sucesso)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Pronto, 3 organizadas.").txt(.sm, .semibold).foregroundStyle(DS.texto)
+                Text("Pode parar aqui. O resto espera.").txt(.xs).foregroundStyle(DS.texto3)
+            }
+            Spacer()
+            Button("Por hoje chega") { parar() }.buttonStyle(Botao(variante: .fantasma))
+                .help("Para de organizar")
+            Button("Mais 3") { comecar() }.buttonStyle(Botao(variante: .primario))
+                .help("Organizar mais 3")
+        }
+        .padding(DS.e4)
+        .background(DS.sucessoTenue, in: RoundedRectangle(cornerRadius: DS.raioCartao, style: .continuous))
+    }
+
     private func comecar() {
-        pulados = []
-        emSequencia = true
-        withAnimation(DS.curva) { aberto = caderno.despejo.first?.id }
+        withAnimation(DS.curva) {
+            pausaDaRodada = false
+            nestaRodada = 0
+            emSequencia = true
+            aberto = caderno.despejo.first?.id
+        }
     }
 
     private func parar() {
         withAnimation(DS.curva) {
             emSequencia = false
+            pausaDaRodada = false
             aberto = nil
         }
     }
 
-    /// Depois de resolver (ou pular) um card: abre o próximo da fila, se estiver organizando um a um.
+    /// Depois de resolver um card: abre o próximo, até completar a rodada de 3.
     private func proximo(depois id: String) {
         guard emSequencia else {
             withAnimation(DS.curva) { if aberto == id { aberto = nil } }
             return
         }
-        let fila = caderno.despejo.filter { $0.id != id && !pulados.contains($0.id) }
+        nestaRodada += 1
+        let fila = caderno.despejo.filter { $0.id != id }
         withAnimation(DS.curva) {
-            aberto = fila.first?.id
-            if fila.isEmpty { emSequencia = false }
+            if fila.isEmpty {
+                emSequencia = false
+                aberto = nil
+            } else if nestaRodada >= Self.tamanhoDaRodada {
+                emSequencia = false
+                aberto = nil
+                pausaDaRodada = true
+            } else {
+                aberto = fila.first?.id
+            }
         }
     }
 }
 
-/// Card do despejo. Clique no texto para editar; no hover aparecem as ações (por cima do fim
-/// do texto, sem mudar a largura dele). Aberto, mostra as escolhas e as opções de tarefa.
+/// Card da caixa. Clique no texto para editar; no hover, Agora · Depois · Não por cima do fim do
+/// texto (sem mudar a largura). Aberto, mostra as escolhas grandes e "escolher lista e data".
 struct CartaoDespejo: View {
     @Environment(Caderno.self) private var caderno
     @Environment(TaskStore.self) private var store
     let item: ItemDespejo
     let aberto: Bool
-    let emSequencia: Bool
     let abrir: () -> Void
     let resolvido: () -> Void
-    let pular: () -> Void
 
     @State private var sobre = false
     @State private var editando = false
@@ -198,7 +330,7 @@ struct CartaoDespejo: View {
             if aberto {
                 Group {
                     if virandoTarefa {
-                        OpcoesDeTarefaDespejo(texto: item.texto) { titulo, listID, due, horario, tags in
+                        OpcoesDeTarefaDespejo(texto: item.textoExibido) { titulo, listID, due, horario, tags in
                             caderno.virarTarefa(item.id, titulo: titulo, listID: listID, due: due, horario: horario, tagIDs: tags)
                             resolvido()
                         } cancelar: {
@@ -225,7 +357,11 @@ struct CartaoDespejo: View {
 
     private var linha: some View {
         HStack(spacing: DS.e3) {
-            Circle().fill(aberto ? DS.acento : DS.texto3.opacity(0.5)).frame(width: 6, height: 6)
+            if let foto = item.foto {
+                MiniaturaFoto(nome: foto, lado: aberto ? 56 : 36)
+            } else {
+                Circle().fill(aberto ? DS.acento : DS.texto3.opacity(0.5)).frame(width: 6, height: 6)
+            }
             if editando {
                 TextField("", text: $rascunho, axis: .vertical)
                     .textFieldStyle(.plain)
@@ -235,9 +371,9 @@ struct CartaoDespejo: View {
                     .onExitCommand { editando = false }
                     .onChange(of: foco) { _, focado in if !focado { salvarEdicao() } }
             } else {
-                Text(item.texto)
+                Text(item.textoExibido)
                     .txt(aberto ? .lg : .md, aberto ? .semibold : .regular)
-                    .foregroundStyle(DS.texto)
+                    .foregroundStyle(item.texto.isEmpty ? DS.texto3 : DS.texto)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .contentShape(Rectangle())
                     .onTapGesture {
@@ -252,55 +388,45 @@ struct CartaoDespejo: View {
         // Ações por cima do fim da linha: o texto mantém a largura.
         .overlay(alignment: .trailing) {
             if sobre && !editando && !aberto {
-                HStack(spacing: 2) {
-                    acaoRapida("checklist", "Virar tarefa") {
-                        virandoTarefa = true
-                        abrir()
-                    }
-                    acaoRapida("note.text", "Virar nota") {
-                        caderno.virarNota(item.id)
-                        resolvido()
-                    }
-                    acaoRapida("xmark", "Soltar (tirar da lista; dá para desfazer)") {
-                        caderno.soltar(item.id)
-                        resolvido()
-                    }
+                AcoesRapidasDespejo(id: item.id, tamanho: 28, depois: resolvido) {
+                    virandoTarefa = false
+                    abrir()
                 }
-                .padding(.leading, DS.e6)
-                .background(
-                    LinearGradient(stops: [.init(color: DS.superficie.opacity(0), location: 0),
-                                           .init(color: DS.superficie, location: 0.35)],
-                                   startPoint: .leading, endPoint: .trailing)
-                )
                 .transition(.opacity)
             }
         }
     }
 
-    private func acaoRapida(_ simbolo: String, _ rotulo: String, _ acao: @escaping () -> Void) -> some View {
-        BotaoIcone(simbolo: simbolo, rotulo: rotulo, tamanho: 28, tamanhoIcone: 13) {
-            withAnimation(DS.curva) { acao() }
-        }
-    }
-
-    /// As quatro saídas, com hover e clique animados (estilo Botão do design system).
+    /// As saídas, com hover e clique animados (estilo Botão do design system).
     private var escolhas: some View {
-        HStack(spacing: DS.e2) {
-            escolha("Virar tarefa", "checklist", "1", ajuda: "Escolher lista e data e criar a tarefa") {
-                withAnimation(DS.curva) { virandoTarefa = true }
+        VStack(alignment: .leading, spacing: DS.e2) {
+            HStack(spacing: DS.e2) {
+                escolha("Agora", "bolt", "1", ajuda: "Vira tarefa para hoje") {
+                    caderno.fazerAgora(item.id)
+                    resolvido()
+                }
+                escolha("Depois", "clock", "2", ajuda: "Importante, mas não agora: fica guardado em Depois") {
+                    caderno.mover(item.id, para: .depois)
+                    resolvido()
+                }
+                escolha("Não", "hand.raised", "3", ajuda: "Decidi não carregar isso (fica guardado em Não)") {
+                    caderno.mover(item.id, para: .nao)
+                    resolvido()
+                }
+                escolha("Nota", "note.text", "4", ajuda: "Vira uma nota, com este texto como título") {
+                    caderno.virarNota(item.id)
+                    resolvido()
+                }
             }
-            escolha("Virar nota", "note.text", "2", ajuda: "Vai para Notas, com este texto como título") {
-                caderno.virarNota(item.id)
-                resolvido()
-            }
-            if emSequencia {
-                escolha("Pular", "forward", "3", ajuda: "Deixa para depois; continua no despejo", acao: pular)
-            } else {
-                escolha("Fechar", "chevron.up", "3", ajuda: "Fecha o card sem mudar nada", acao: abrir)
-            }
-            escolha("Soltar", "xmark.circle", "4", ajuda: "Tira da lista (dá para desfazer)") {
-                caderno.soltar(item.id)
-                resolvido()
+            HStack {
+                Button("Escolher lista e data…") { withAnimation(DS.curva) { virandoTarefa = true } }
+                    .buttonStyle(Botao(variante: .fantasma))
+                    .help("Virar tarefa escolhendo a lista, a data e o horário")
+                Spacer()
+                Button("Fechar", action: abrir)
+                    .buttonStyle(Botao(variante: .fantasma))
+                    .keyboardShortcut(.cancelAction)
+                    .help("Fecha o card sem mudar nada (Esc)")
             }
         }
     }
@@ -321,6 +447,133 @@ struct CartaoDespejo: View {
         guard editando else { return }
         editando = false
         caderno.editar(item.id, texto: rascunho)
+    }
+}
+
+/// Agora · Depois · Não (e "mais") em ícones, para o hover dos itens da caixa.
+struct AcoesRapidasDespejo: View {
+    @Environment(Caderno.self) private var caderno
+    let id: String
+    var tamanho: CGFloat = 26
+    var depois: () -> Void = {}
+    var mais: (() -> Void)?
+
+    var body: some View {
+        HStack(spacing: 2) {
+            botao("bolt", "Agora: vira tarefa para hoje") { caderno.fazerAgora(id) }
+            botao("clock", "Depois: importante, mas não agora") { caderno.mover(id, para: .depois) }
+            botao("hand.raised", "Não: decidi não carregar isso") { caderno.mover(id, para: .nao) }
+            if let mais {
+                BotaoIcone(simbolo: "ellipsis", rotulo: "Mais opções (nota, lista e data)", tamanho: tamanho, tamanhoIcone: 13) {
+                    withAnimation(DS.curva) { mais() }
+                }
+            }
+        }
+        .padding(.leading, DS.e6)
+        .background(
+            LinearGradient(stops: [.init(color: DS.superficie.opacity(0), location: 0),
+                                   .init(color: DS.superficie, location: 0.3)],
+                           startPoint: .leading, endPoint: .trailing)
+        )
+    }
+
+    private func botao(_ simbolo: String, _ rotulo: String, _ acao: @escaping () -> Void) -> some View {
+        BotaoIcone(simbolo: simbolo, rotulo: rotulo, tamanho: tamanho, tamanhoIcone: 13) {
+            withAnimation(DS.curva) {
+                acao()
+                depois()
+            }
+        }
+    }
+}
+
+/// Pilhas Depois e Não: o que foi guardado, sem cobrança. Dá para trazer de volta a qualquer hora.
+struct PilhaDespejo: View {
+    @Environment(Caderno.self) private var caderno
+    let estado: ItemDespejo.Estado
+
+    var body: some View {
+        let itens = estado == .depois ? caderno.depois : caderno.naoCarregar
+        VStack(alignment: .leading, spacing: DS.e4) {
+            HStack(alignment: .top) {
+                Text(estado == .depois
+                     ? "Importante, mas não agora. Fica aqui guardado — sem prazo e sem cobrança."
+                     : "O que você decidiu não carregar. Uma ideia não precisa ser feita só porque é boa.")
+                    .txt(.sm).foregroundStyle(DS.texto3)
+                Spacer()
+                if estado == .nao && !itens.isEmpty {
+                    Button("Apagar tudo") { withAnimation(DS.curva) { caderno.esvaziarNao() } }
+                        .buttonStyle(Botao(variante: .fantasma))
+                        .help("Apaga de vez os itens desta pilha (dá para desfazer logo depois)")
+                }
+            }
+            if itens.isEmpty {
+                EstadoVazio(icone: estado == .depois ? "clock" : "hand.raised",
+                            titulo: estado == .depois ? "Nada guardado para depois" : "Nada por aqui",
+                            descricao: estado == .depois
+                                ? "No despejo, use “Depois” para o que é importante, mas não agora."
+                                : "No despejo, use “Não” para o que você decidiu não carregar.")
+                    .padding(.top, DS.e4)
+            } else {
+                CartaoDeLinhas(recuoDoFio: DS.e4) {
+                    ForEach(itens) { LinhaPilha(item: $0) }
+                }
+            }
+        }
+    }
+}
+
+private struct LinhaPilha: View {
+    @Environment(Caderno.self) private var caderno
+    let item: ItemDespejo
+    @State private var sobre = false
+
+    var body: some View {
+        HStack(spacing: DS.e3) {
+            if let foto = item.foto { MiniaturaFoto(nome: foto, lado: 32) }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.textoExibido).txt(.md).foregroundStyle(item.texto.isEmpty ? DS.texto3 : DS.texto)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Text((item.movido ?? item.criado).formatted(.relative(presentation: .named)).primeiraMaiuscula)
+                    .txt(.xs).foregroundStyle(DS.texto3)
+            }
+        }
+        .overlay(alignment: .trailing) {
+            if sobre {
+                HStack(spacing: 2) {
+                    BotaoIcone(simbolo: "bolt", rotulo: "Agora: vira tarefa para hoje", tamanho: 28, tamanhoIcone: 13) {
+                        withAnimation(DS.curva) { caderno.fazerAgora(item.id) }
+                    }
+                    BotaoIcone(simbolo: "tray.and.arrow.up", rotulo: "Voltar para a caixa", tamanho: 28, tamanhoIcone: 13) {
+                        withAnimation(DS.curva) { caderno.mover(item.id, para: .caixa) }
+                    }
+                    if item.estado == .depois {
+                        BotaoIcone(simbolo: "hand.raised", rotulo: "Não: decidi não carregar isso", tamanho: 28, tamanhoIcone: 13) {
+                            withAnimation(DS.curva) { caderno.mover(item.id, para: .nao) }
+                        }
+                    } else {
+                        BotaoIcone(simbolo: "clock", rotulo: "Mover para Depois", tamanho: 28, tamanhoIcone: 13) {
+                            withAnimation(DS.curva) { caderno.mover(item.id, para: .depois) }
+                        }
+                    }
+                    BotaoIcone(simbolo: "trash", rotulo: "Apagar (dá para desfazer)", tamanho: 28, tamanhoIcone: 13) {
+                        withAnimation(DS.curva) { caderno.soltar(item.id) }
+                    }
+                }
+                .padding(.leading, DS.e6)
+                .background(
+                    LinearGradient(stops: [.init(color: DS.superficie.opacity(0), location: 0),
+                                           .init(color: DS.superficie, location: 0.3)],
+                                   startPoint: .leading, endPoint: .trailing)
+                )
+                .transition(.opacity)
+            }
+        }
+        .padding(.horizontal, DS.e3)
+        .padding(.vertical, 9)
+        .background(RoundedRectangle(cornerRadius: DS.raioM, style: .continuous).fill(sobre ? DS.veuHover : .clear))
+        .onHover { sobre = $0 && !RolagemSuave.shared.rolando }
+        .animation(DS.curvaRapida, value: sobre)
     }
 }
 
@@ -377,7 +630,7 @@ struct OpcoesDeTarefaDespejo: View {
                 .frame(maxWidth: 320)
             }
             HStack {
-                Button("Cancelar", action: cancelar)
+                Button("Voltar", action: cancelar)
                     .buttonStyle(.superficie)
                     .help("Volta às escolhas")
                 Spacer()
@@ -405,7 +658,7 @@ struct OpcoesDeTarefaDespejo: View {
     }
 }
 
-/// Linha compacta do despejo (aba do menu): editar no clique; no hover, organizar ou soltar.
+/// Linha compacta do despejo (aba do menu): editar no clique; no hover, Agora · Depois · Não.
 struct LinhaDespejo: View {
     @Environment(Caderno.self) private var caderno
     let item: ItemDespejo
@@ -419,7 +672,11 @@ struct LinhaDespejo: View {
 
     var body: some View {
         HStack(spacing: DS.e3) {
-            Circle().fill(DS.texto3.opacity(0.5)).frame(width: 5, height: 5)
+            if let foto = item.foto {
+                MiniaturaFoto(nome: foto, lado: 26)
+            } else {
+                Circle().fill(DS.texto3.opacity(0.5)).frame(width: 5, height: 5)
+            }
             if editando {
                 TextField("", text: $rascunho, axis: .vertical)
                     .textFieldStyle(.plain)
@@ -429,9 +686,9 @@ struct LinhaDespejo: View {
                     .onExitCommand { editando = false }
                     .onChange(of: foco) { _, focado in if !focado { salvar() } }
             } else {
-                Text(item.texto)
+                Text(item.textoExibido)
                     .txt(compacta ? .sm : .md)
-                    .foregroundStyle(DS.texto)
+                    .foregroundStyle(item.texto.isEmpty ? DS.texto3 : DS.texto)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .contentShape(Rectangle())
                     .onTapGesture {
@@ -445,19 +702,8 @@ struct LinhaDespejo: View {
         }
         .overlay(alignment: .trailing) {
             if sobre && !editando {
-                HStack(spacing: 2) {
-                    BotaoIcone(simbolo: "arrow.up.forward.app", rotulo: "Organizar na janela", tamanho: 26, tamanhoIcone: 13, acao: organizar)
-                    BotaoIcone(simbolo: "xmark", rotulo: "Soltar (tirar da lista; dá para desfazer)", tamanho: 26, tamanhoIcone: 12) {
-                        withAnimation(DS.curva) { caderno.soltar(item.id) }
-                    }
-                }
-                .padding(.leading, DS.e5)
-                .background(
-                    LinearGradient(stops: [.init(color: DS.superficie.opacity(0), location: 0),
-                                           .init(color: DS.superficie, location: 0.35)],
-                                   startPoint: .leading, endPoint: .trailing)
-                )
-                .transition(.opacity)
+                AcoesRapidasDespejo(id: item.id, tamanho: 26, mais: organizar)
+                    .transition(.opacity)
             }
         }
         .padding(.horizontal, DS.e3)

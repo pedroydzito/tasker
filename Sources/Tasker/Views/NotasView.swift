@@ -46,6 +46,11 @@ struct NotasView: View {
             HStack {
                 CabecalhoTela(rotulo: "\(caderno.notas.count) \(caderno.notas.count == 1 ? "nota" : "notas")", titulo: "Notas", tamanho: .display2)
                 Spacer()
+                BotaoIcone(simbolo: "calendar.badge.checkmark", rotulo: "Revisão da semana (nota pronta com o que foi feito e o que ficou)") {
+                    let id = caderno.revisaoDaSemana()
+                    withAnimation(DS.curva) { nav.notaAberta = .nota(id) }
+                }
+                .accessibilityIdentifier("revisaoSemana")
                 BotaoIcone(simbolo: "square.and.pencil", rotulo: "Nova nota") {
                     let id = caderno.novaNota()
                     withAnimation(DS.curva) { nav.notaAberta = .nota(id) }
@@ -197,6 +202,10 @@ struct EditorDeNota: View {
                                 if carregado, case .nota(let id) = alvo { caderno.atualizar(id, titulo: novo) }
                             }
                             .accessibilityIdentifier("tituloNota")
+                    }
+
+                    if let foto = nota?.foto {
+                        MiniaturaFoto(nome: foto, lado: 160)
                     }
 
                     TextEditor(text: $texto)

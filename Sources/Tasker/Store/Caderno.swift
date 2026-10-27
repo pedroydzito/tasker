@@ -1,11 +1,39 @@
-import Foundation
+import AppKit
 import Observation
 
-/// Algo despejado da cabeça: só texto, sem data, lista ou etiqueta. É organizado depois, na triagem.
+/// Algo despejado da cabeça: só texto (e uma foto, se quiser), sem data, lista ou etiqueta.
+/// É organizado depois: Agora (vira tarefa), Depois (guardado, fora da vista) ou Não (decidi não carregar).
 struct ItemDespejo: Identifiable, Codable, Hashable {
+    enum Estado: String, Codable { case caixa, depois, nao }
+
     let id: String
     var texto: String
     let criado: Date
+    var estado: Estado = .caixa
+    /// Quando foi para Depois / Não (para ordenar essas pilhas).
+    var movido: Date?
+    /// Nome do arquivo da foto em `Pastas/DespejoFotos`.
+    var foto: String?
+
+    init(id: String, texto: String, criado: Date, foto: String? = nil) {
+        self.id = id
+        self.texto = texto
+        self.criado = criado
+        self.foto = foto
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        texto = try c.decode(String.self, forKey: .texto)
+        criado = try c.decode(Date.self, forKey: .criado)
+        estado = try c.decodeIfPresent(Estado.self, forKey: .estado) ?? .caixa
+        movido = try c.decodeIfPresent(Date.self, forKey: .movido)
+        foto = try c.decodeIfPresent(String.self, forKey: .foto)
+    }
+
+    /// Texto para mostrar (uma foto sem descrição ainda tem um rótulo).
+    var textoExibido: String { texto.isEmpty ? "Foto sem descrição" : texto }
 }
 
 /// Nota livre ou nota do dia (diário de planejamento). Fica só no Tasker.
@@ -17,6 +45,8 @@ struct Anotacao: Identifiable, Codable, Hashable {
     var dia: Date?
     let criada: Date
     var editada: Date
+    /// Foto trazida do despejo (arquivo em `Pastas/DespejoFotos`).
+    var foto: String?
 
     /// Título para listas e busca: o escrito, senão a primeira linha, senão "Sem título".
     var tituloExibido: String {
@@ -45,8 +75,14 @@ struct ResultadoBusca: Identifiable, Hashable {
 /// Despejo e notas: guardados num arquivo do Tasker (o Google Tasks não tem onde guardar isso).
 @MainActor @Observable
 final class Caderno {
-    /// Ordem de chegada: o mais antigo primeiro (é o primeiro da triagem).
-    private(set) var despejo: [ItemDespejo] = []
+    /// Tudo o que foi despejado (caixa, depois e não), em ordem de chegada.
+    private(set) var itens: [ItemDespejo] = []
+    /// Caixa de entrada: o que ainda não foi organizado. O mais antigo primeiro.
+    var despejo: [ItemDespejo] { itens.filter { $0.estado == .caixa } }
+    /// Importante, mas não agora. O mais recente primeiro.
+    var depois: [ItemDespejo] { itens.filter { $0.estado == .depois }.sorted { ($0.movido ?? $0.criado) > ($1.movido ?? $1.criado) } }
+    /// O que foi decidido não carregar (guardado, dá para trazer de volta).
+    var naoCarregar: [ItemDespejo] { itens.filter { $0.estado == .nao }.sorted { ($0.movido ?? $0.criado) > ($1.movido ?? $1.criado) } }
     private(set) var notas: [Anotacao] = []
 
     @ObservationIgnored let store: TaskStore
@@ -73,7 +109,7 @@ final class Caderno {
         self.store = store
         self.arquivo = arquivo
         if let data = try? Data(contentsOf: arquivo), let lido = try? Self.decoder.decode(Arquivo.self, from: data) {
-            despejo = lido.despejo
+            itens = lido.despejo
             notas = lido.notas
         }
     }
@@ -81,69 +117,157 @@ final class Caderno {
     // MARK: Despejo
 
     /// Joga na caixa. Um texto com várias linhas (colado de outro lugar) vira um item por linha,
-    /// sem os marcadores de lista ("- ", "• ", "1. ", "[ ]"). Devolve quantos entraram.
+    /// sem os marcadores de lista ("- ", "• ", "1. ", "[ ]"). Com foto, é um item só (o texto é o porquê).
     @discardableResult
-    func capturar(_ texto: String) -> Int {
-        let itens = texto.split(whereSeparator: \.isNewline)
+    func capturar(_ texto: String, foto: URL? = nil) -> Int {
+        let agora = Date()
+        if let foto {
+            guard let nome = Self.guardarFoto(foto) else { return 0 }
+            let porque = texto.trimmingCharacters(in: .whitespacesAndNewlines)
+            itens.append(ItemDespejo(id: UUID().uuidString, texto: porque, criado: agora, foto: nome))
+            salvar()
+            store.avisarSucesso("Foto guardada no despejo", icone: "photo")
+            return 1
+        }
+        let linhas = texto.split(whereSeparator: \.isNewline)
             .map { Self.semMarcador(String($0)) }
             .filter { !$0.isEmpty }
-        guard !itens.isEmpty else { return 0 }
-        let agora = Date()
-        for (i, linha) in itens.enumerated() {
+        guard !linhas.isEmpty else { return 0 }
+        for (i, linha) in linhas.enumerated() {
             // Milissegundos de diferença mantêm a ordem colada mesmo ordenando por data.
-            despejo.append(ItemDespejo(id: UUID().uuidString, texto: linha, criado: agora.addingTimeInterval(Double(i) / 1000)))
+            itens.append(ItemDespejo(id: UUID().uuidString, texto: linha, criado: agora.addingTimeInterval(Double(i) / 1000)))
         }
         salvar()
-        store.avisarSucesso(itens.count == 1 ? "Guardado no despejo" : "\(itens.count) itens no despejo",
+        store.avisarSucesso(linhas.count == 1 ? "Guardado no despejo" : "\(linhas.count) itens no despejo",
                             plural: "itens no despejo", icone: "brain.head.profile")
-        return itens.count
+        return linhas.count
     }
+
+    func item(_ id: String) -> ItemDespejo? { itens.first { $0.id == id } }
 
     func editar(_ id: String, texto: String) {
-        guard let i = despejo.firstIndex(where: { $0.id == id }) else { return }
+        guard let i = itens.firstIndex(where: { $0.id == id }) else { return }
         let limpo = texto.trimmingCharacters(in: .whitespacesAndNewlines)
-        if limpo.isEmpty {
-            despejo.remove(at: i)
+        if limpo.isEmpty && itens[i].foto == nil {
+            itens.remove(at: i)
         } else {
-            despejo[i].texto = limpo
+            itens[i].texto = limpo
         }
         salvar()
     }
 
-    /// Tira da caixa sem virar nada (com "Desfazer").
+    /// Agora: vira tarefa para hoje, na lista padrão, num clique.
+    func fazerAgora(_ id: String) {
+        guard let item = item(id) else { return }
+        virarTarefa(id, titulo: item.textoExibido, listID: nil, due: store.today, horario: nil)
+    }
+
+    /// Depois / Não / de volta à caixa. Sai da caixa com "Desfazer".
+    func mover(_ id: String, para estado: ItemDespejo.Estado) {
+        guard let i = itens.firstIndex(where: { $0.id == id }), itens[i].estado != estado else { return }
+        let anterior = itens[i].estado
+        itens[i].estado = estado
+        itens[i].movido = .now
+        salvar()
+        switch estado {
+        case .depois:
+            store.mostrarAviso("Guardado para depois") { [weak self] in self?.voltar(id, para: anterior) } confirmar: {}
+        case .nao:
+            store.mostrarAviso("Você decidiu não carregar isso") { [weak self] in self?.voltar(id, para: anterior) } confirmar: {}
+        case .caixa:
+            store.avisarSucesso("De volta à caixa de entrada", icone: "tray.and.arrow.up")
+        }
+    }
+
+    private func voltar(_ id: String, para estado: ItemDespejo.Estado) {
+        guard let i = itens.firstIndex(where: { $0.id == id }) else { return }
+        itens[i].estado = estado
+        salvar()
+    }
+
+    /// Apaga de vez (com "Desfazer"). A foto só é apagada se não for desfeito.
     func soltar(_ id: String) {
-        guard let i = despejo.firstIndex(where: { $0.id == id }) else { return }
-        let item = despejo.remove(at: i)
+        guard let i = itens.firstIndex(where: { $0.id == id }) else { return }
+        let item = itens.remove(at: i)
         salvar()
-        store.mostrarAviso("Item solto") { [weak self] in
+        store.mostrarAviso("Item apagado") { [weak self] in
             self?.devolver(item, em: i)
-        } confirmar: {}
+        } confirmar: {
+            if let foto = item.foto { try? FileManager.default.removeItem(at: Self.urlDaFoto(foto)) }
+        }
     }
 
-    /// Vira tarefa (na lista e data escolhidas na triagem).
+    /// Esvazia a pilha "Não carregar" (com "Desfazer").
+    func esvaziarNao() {
+        let removidos = itens.enumerated().filter { $0.element.estado == .nao }
+        guard !removidos.isEmpty else { return }
+        itens.removeAll { $0.estado == .nao }
+        salvar()
+        store.mostrarAviso("\(removidos.count) \(removidos.count == 1 ? "item apagado" : "itens apagados")") { [weak self] in
+            guard let self else { return }
+            for (i, item) in removidos where !self.itens.contains(where: { $0.id == item.id }) {
+                self.itens.insert(item, at: min(i, self.itens.count))
+            }
+            self.salvar()
+        } confirmar: {
+            for (_, item) in removidos { if let foto = item.foto { try? FileManager.default.removeItem(at: Self.urlDaFoto(foto)) } }
+        }
+    }
+
+    /// Vira tarefa (na lista e data escolhidas).
     func virarTarefa(_ id: String, titulo: String? = nil, listID: String?, due: Date?, horario: String?, tagIDs: [String] = []) {
-        guard let i = despejo.firstIndex(where: { $0.id == id }) else { return }
-        let nome = (titulo ?? despejo[i].texto).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let i = itens.firstIndex(where: { $0.id == id }) else { return }
+        let nome = (titulo ?? itens[i].texto).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !nome.isEmpty else { return }
+        // A foto não vai para o Google Tasks: fica numa nota com o mesmo nome, para não se perder.
+        if let foto = itens[i].foto {
+            let n = novaNota(titulo: nome, texto: "Foto guardada junto da tarefa “\(nome)”.", avisar: false)
+            if let j = notas.firstIndex(where: { $0.id == n }) { notas[j].foto = foto }
+        }
         store.addTask(title: nome, listID: listID, due: due, tagIDs: tagIDs, horario: due == nil ? nil : horario)
-        despejo.remove(at: i)
+        itens.remove(at: i)
         salvar()
     }
 
-    /// Vira nota solta (o texto do item é o começo da nota). Devolve o id da nota.
+    /// Vira nota solta (o texto do item é o título; a foto vai junto). Devolve o id da nota.
     @discardableResult
     func virarNota(_ id: String) -> String? {
-        guard let i = despejo.firstIndex(where: { $0.id == id }) else { return nil }
-        let item = despejo.remove(at: i)
-        let nota = novaNota(titulo: item.texto)
+        guard let i = itens.firstIndex(where: { $0.id == id }) else { return nil }
+        let item = itens.remove(at: i)
+        let nota = novaNota(titulo: item.texto.isEmpty ? "Foto" : item.texto)
+        if let foto = item.foto, let j = notas.firstIndex(where: { $0.id == nota }) { notas[j].foto = foto }
         salvar()
         return nota
     }
 
     private func devolver(_ item: ItemDespejo, em indice: Int) {
-        guard !despejo.contains(where: { $0.id == item.id }) else { return }
-        despejo.insert(item, at: min(indice, despejo.count))
+        guard !itens.contains(where: { $0.id == item.id }) else { return }
+        itens.insert(item, at: min(indice, itens.count))
         salvar()
+    }
+
+    // MARK: Fotos
+
+    static func urlDaFoto(_ nome: String) -> URL { Pastas.pasta("DespejoFotos").appendingPathComponent(nome) }
+
+    /// Copia a imagem para a pasta do Tasker (reduzida a 1600 px, em JPEG). Devolve o nome do arquivo.
+    static func guardarFoto(_ origem: URL) -> String? {
+        guard let imagem = NSImage(contentsOf: origem), imagem.size.width > 0, imagem.size.height > 0 else { return nil }
+        let escala = min(1, 1600 / max(imagem.size.width, imagem.size.height))
+        let tamanho = NSSize(width: (imagem.size.width * escala).rounded(), height: (imagem.size.height * escala).rounded())
+        let reduzida = NSImage(size: tamanho, flipped: false) { rect in
+            imagem.draw(in: rect)
+            return true
+        }
+        guard let tiff = reduzida.tiffRepresentation, let rep = NSBitmapImageRep(data: tiff),
+              let jpeg = rep.representation(using: .jpeg, properties: [.compressionFactor: 0.82]) else { return nil }
+        let nome = "\(UUID().uuidString).jpg"
+        do {
+            try jpeg.write(to: urlDaFoto(nome), options: .atomic)
+            return nome
+        } catch {
+            return nil
+        }
     }
 
     nonisolated static func semMarcador(_ linha: String) -> String {
@@ -193,10 +317,10 @@ final class Caderno {
     }
 
     @discardableResult
-    func novaNota(titulo: String = "", texto: String = "") -> String {
+    func novaNota(titulo: String = "", texto: String = "", avisar: Bool = true) -> String {
         let nota = Anotacao(id: UUID().uuidString, titulo: titulo, texto: texto, dia: nil, criada: .now, editada: .now)
         notas.append(nota)
-        store.avisarSucesso("Nota criada", plural: "notas criadas", icone: "note.text")
+        if avisar { store.avisarSucesso("Nota criada", plural: "notas criadas", icone: "note.text") }
         salvar()
         return nota.id
     }
@@ -232,6 +356,39 @@ final class Caderno {
             notas.remove(at: i)
             salvar()
         }
+    }
+
+    // MARK: Revisão da semana
+
+    /// Nota da semana já montada: o que foi concluído, o que ficou, como está o despejo e as
+    /// perguntas para a próxima. Abrir de novo na mesma semana devolve a mesma nota.
+    @discardableResult
+    func revisaoDaSemana(agora: Date = .now) -> String {
+        let cal = Calendar.current
+        let semana = cal.dateInterval(of: .weekOfYear, for: agora) ?? DateInterval(start: agora, duration: 7 * 86400)
+        let fim = cal.adding(days: -1, to: semana.end)
+        let titulo = "Semana de \(semana.start.formatted(.dateTime.day().month(.abbreviated))) a \(fim.formatted(.dateTime.day().month(.abbreviated)))"
+        if let existente = notas.first(where: { $0.titulo == titulo && $0.dia == nil }) { return existente.id }
+
+        let feitas = store.completedTasks.filter { ($0.completedDate ?? .distantPast) >= semana.start }
+        let ficou = store.overdueTasks + store.todayTasks
+        let tempo = feitas.reduce(0) { $0 + store.tempo(de: $1.id) }
+        var linhas: [String] = []
+        linhas.append("Concluídas (\(feitas.count))" + (tempo > 0 ? " · \(Duracao.curto(tempo)) registrados" : ""))
+        linhas += feitas.prefix(30).map { "✓ \($0.displayTitle)" }
+        if feitas.isEmpty { linhas.append("Nenhuma ainda — e tudo bem.") }
+        linhas.append("")
+        linhas.append("Ficou para depois (\(ficou.count))")
+        linhas += ficou.prefix(15).map { "• \($0.displayTitle)" }
+        linhas.append("")
+        linhas.append("Despejo: \(despejo.count) na caixa · \(depois.count) em Depois")
+        linhas.append("")
+        linhas.append("Como foi a semana?")
+        linhas.append("")
+        linhas.append("")
+        linhas.append("O que eu quero da próxima semana?")
+        linhas.append("[ ] ")
+        return novaNota(titulo: titulo, texto: linhas.joined(separator: "\n"))
     }
 
     // MARK: Tarefas dentro da nota ("[ ] comprar pão")
@@ -302,7 +459,7 @@ final class Caderno {
                                             trecho: Self.trecho(nota.texto, palavras), data: nota.dia ?? nota.editada,
                                             concluida: false, pontos: p + 3))
         }
-        for item in despejo {
+        for item in itens {
             guard let p = pontos(titulo: item.texto, corpo: "") else { continue }
             resultado.append(ResultadoBusca(tipo: .despejo, alvo: item.id, titulo: item.texto, trecho: nil,
                                             data: item.criado, concluida: false, pontos: p + 2))
@@ -358,7 +515,8 @@ final class Caderno {
     func salvarAgora(sincrono: Bool = false) {
         gravacao?.cancel()
         gravacao = nil
-        let copia = Arquivo(despejo: despejo, notas: notas)
+        LembreteDespejo.agendar(quantidade: despejo.count, prefs: store.prefs)
+        let copia = Arquivo(despejo: itens, notas: notas)
         let url = arquivo
         let gravar = {
             guard let data = try? Self.encoder.encode(copia) else { return }

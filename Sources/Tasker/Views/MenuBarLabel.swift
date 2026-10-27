@@ -10,7 +10,8 @@ struct MenuBarLabel: View {
 
     var body: some View {
         let count = store.hasAccount ? store.badgeCount : 0
-        let show = store.prefs.showCountInMenuBar && count > 0
+        // Sem energia: nada de número cobrando na barra.
+        let show = store.prefs.showCountInMenuBar && count > 0 && !store.prefs.energiaBaixa
         Group {
             if let ativo = store.cronometroAtivo {
                 // Cronômetro rodando: o número de tarefas dá lugar ao tempo correndo.

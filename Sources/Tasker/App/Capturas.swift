@@ -63,6 +63,26 @@ enum Capturas {
             cenas.append(("05-nota-solta", janela, { nav.selection = .notas; nav.notaAberta = .nota(ideia.id); return AnyView(ambiente(MainWindow())) }))
         }
 
+        // Por último (mudam o estado): pilhas, sem energia e revisão da semana.
+        cenas.append(("13-despejo-depois", janela, { AnyView(ambiente(Moldura { DespejoView(pilhaInicial: .depois) })) }))
+        cenas.append(("14-despejo-nao", janela, { AnyView(ambiente(Moldura { DespejoView(pilhaInicial: .nao) })) }))
+        cenas.append(("15-hoje-sem-energia", janela, {
+            store.prefs.energiaBaixa = true
+            nav.selection = .today
+            return AnyView(ambiente(MainWindow()))
+        }))
+        cenas.append(("16-menu-sem-energia", CGSize(width: MenuBarPopover.largura, height: MenuBarPopover.altura), {
+            store.prefs.energiaBaixa = true
+            return AnyView(ambiente(MenuBarPopover()))
+        }))
+        cenas.append(("17-revisao-semana", janela, {
+            store.prefs.energiaBaixa = false
+            let id = caderno.revisaoDaSemana()
+            nav.selection = .notas
+            nav.notaAberta = .nota(id)
+            return AnyView(ambiente(MainWindow()))
+        }))
+
         var ok = true
 
         // Roteiro: excluir a nota aberta com o editor de texto focado (o caso que fechava o app).
@@ -231,6 +251,21 @@ enum Capturas {
         [ ] separar roupas da academia
         → enviar proposta
         """)
+        // Pilhas Depois e Não, e uma foto na caixa.
+        caderno.capturar("estudar compulsão alimentar\nposicionamento da marca\ncomprar luminária nova\nfazer curso de cerâmica")
+        for (texto, estado) in [("estudar compulsão alimentar", ItemDespejo.Estado.depois), ("posicionamento da marca", .depois),
+                                ("comprar luminária nova", .nao), ("fazer curso de cerâmica", .nao)] {
+            if let item = caderno.despejo.first(where: { $0.texto == texto }) { caderno.mover(item.id, para: estado) }
+        }
+        store.desfazerAviso() // só para não deixar o aviso na captura
+        let png = Pastas.base.appendingPathComponent("exemplo.png")
+        let img = NSImage(size: NSSize(width: 800, height: 600), flipped: false) { r in
+            NSGradient(colors: [.systemTeal, .systemIndigo])?.draw(in: r, angle: 35); return true
+        }
+        if let tiff = img.tiffRepresentation, let dado = NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:]) {
+            try? dado.write(to: png)
+            caderno.capturar("print da agenda da clínica", foto: png)
+        }
         caderno.novaNota(titulo: "Ideias do app", texto: "Reunião com Ana sobre o despejo e as notas.\n\n- triagem um a um\n- busca em tudo")
         await store.aguardarOperacoes()
         // Espera a conclusão da subtarefa ser enviada.

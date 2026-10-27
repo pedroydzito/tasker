@@ -117,6 +117,24 @@ final class Preferences {
     }
 
     /// Usar sem conta: tudo fica só neste Mac.
+    /// "Tô sem energia": o Hoje mostra uma coisa por vez, sem atrasadas e sem contagem.
+    var energiaBaixa: Bool {
+        get { access(keyPath: \.energiaBaixa); return d.bool(forKey: "energiaBaixa") }
+        set { withMutation(keyPath: \.energiaBaixa) { d.set(newValue, forKey: "energiaBaixa") } }
+    }
+
+    /// Lembrete gentil do despejo, uma vez por dia.
+    var lembreteDespejo: Bool {
+        get { access(keyPath: \.lembreteDespejo); return d.bool(forKey: "lembreteDespejo") }
+        set { withMutation(keyPath: \.lembreteDespejo) { d.set(newValue, forKey: "lembreteDespejo") } }
+    }
+
+    /// Hora do lembrete (0–23).
+    var horaLembrete: Int {
+        get { access(keyPath: \.horaLembrete); return d.object(forKey: "horaLembrete") as? Int ?? 18 }
+        set { withMutation(keyPath: \.horaLembrete) { d.set(newValue, forKey: "horaLembrete") } }
+    }
+
     var localMode: Bool {
         get { access(keyPath: \.localMode); return d.bool(forKey: "localMode") }
         set { withMutation(keyPath: \.localMode) { d.set(newValue, forKey: "localMode") } }

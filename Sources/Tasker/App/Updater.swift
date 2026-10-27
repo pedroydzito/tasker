@@ -303,7 +303,16 @@ extension Updater: UNUserNotificationCenterDelegate {
 
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter,
                                             didReceive response: UNNotificationResponse) async {
-        guard response.notification.request.content.categoryIdentifier == "TASKER_UPDATE" else { return }
+        let categoria = response.notification.request.content.categoryIdentifier
+        if categoria == LembreteDespejo.categoria {
+            // Lembrete do despejo: abre a janela já no Despejo.
+            await MainActor.run {
+                AppModel.shared.nav.selection = .despejo
+                NotificationCenter.default.post(name: AppDelegate.abrirJanelaPrincipal, object: nil)
+            }
+            return
+        }
+        guard categoria == "TASKER_UPDATE" else { return }
         await MainActor.run { self.installAvailableUpdate() }
     }
 }

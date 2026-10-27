@@ -17,6 +17,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let model = AppModel.shared
         NSApp.appearance = model.prefs.appearance.nsAppearance
         model.store.start()
+        LembreteDespejo.agendar(quantidade: model.caderno.despejo.count, prefs: model.prefs)
         model.updater.start()
 
         // Botão direito no ícone da barra: menu com "Abrir em janela expandida" e "Fechar".

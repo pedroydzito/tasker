@@ -9,6 +9,7 @@ struct SettingsView: View {
     @Environment(GoogleAuth.self) private var auth
     @Environment(Updater.self) private var updater
     @Environment(Folhas.self) private var folhas
+    @Environment(Caderno.self) private var caderno
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var mensagemDados: (String, TomNota)?
     @State private var importando = false
@@ -70,7 +71,7 @@ struct SettingsView: View {
                 }
 
                 Pasta(icone: "checklist", titulo: "Tarefas",
-                      subtitulo: "Lista padrão e som ao concluir") {
+                      subtitulo: "Lista padrão, som, lembrete do despejo e energia") {
                     LinhaAjuste("Lista padrão", "Para onde vão as tarefas novas") {
                         Menu {
                             ForEach(store.lists) { list in
@@ -87,7 +88,21 @@ struct SettingsView: View {
                     LinhaAjuste("Som ao concluir") {
                         Toggle("", isOn: $prefs.completionSound).toggleStyle(.chave).labelsHidden()
                     }
+                    LinhaAjuste("Lembrete do despejo", "Uma vez por dia, só se houver algo na caixa. Sem cobrança.") {
+                        Toggle("", isOn: $prefs.lembreteDespejo).toggleStyle(.chave).labelsHidden()
+                    }
+                    if prefs.lembreteDespejo {
+                        LinhaAjuste("Horário do lembrete") {
+                            Segmentado(selecao: $prefs.horaLembrete, opcoes: [(9, "9h"), (13, "13h"), (18, "18h"), (21, "21h")])
+                        }
+                    }
+                    LinhaAjuste("Estou sem energia", "O Hoje mostra uma coisa por vez, sem atrasadas e sem número na barra") {
+                        Toggle("", isOn: $prefs.energiaBaixa).toggleStyle(.chave).labelsHidden()
+                    }
                 }
+                .onChange(of: prefs.lembreteDespejo) { _, _ in LembreteDespejo.agendar(quantidade: caderno.despejo.count, prefs: prefs) }
+                .onChange(of: prefs.horaLembrete) { _, _ in LembreteDespejo.agendar(quantidade: caderno.despejo.count, prefs: prefs) }
+
 
                 if store.usesGoogle {
                     Pasta(icone: "calendar", titulo: "Agenda e sincronização",

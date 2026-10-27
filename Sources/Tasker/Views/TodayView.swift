@@ -60,9 +60,16 @@ struct TodayView: View {
         let overdue = store.overdueTasks
         let today = store.todayTasks
         let done = store.completedToday
-        PageScaffold(rotulo: "\(DayLabel.long(store.today)) · \(taskCountText(overdue.count + today.count))", title: "Hoje") {
+        let baixa = store.prefs.energiaBaixa
+        PageScaffold(rotulo: baixa ? DayLabel.long(store.today) : "\(DayLabel.long(store.today)) · \(taskCountText(overdue.count + today.count))",
+                     title: "Hoje") {
             VStack(alignment: .leading, spacing: DS.e5) {
+                SeletorDeEnergia()
                 EventsCard(events: store.events(on: store.today))
+
+                if baixa {
+                    UmaCoisaPorVez()
+                } else {
 
                 if !overdue.isEmpty {
                     SecaoTarefas("Em atraso", contagem: overdue.count, tom: DS.perigoTexto,
@@ -88,8 +95,10 @@ struct TodayView: View {
                 }
 
                 if !vazio && !done.isEmpty { concluidas(done) }
+                }
             }
             .animation(DS.curva, value: today.map(\.id))
+            .animation(DS.curva, value: baixa)
         }
     }
 

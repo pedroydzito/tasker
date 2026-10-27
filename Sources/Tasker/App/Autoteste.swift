@@ -222,6 +222,88 @@ enum Autoteste {
             }
         }
 
+        secao("Agora · Depois · Não")
+        let cad = Caderno(store: store, arquivo: Pastas.base.appendingPathComponent("caderno-adn.json"))
+        cad.capturar("ligar pro banco\nideia de podcast\ncomprar tênis\nler sobre TOC")
+        let ids = cad.despejo.map(\.id)
+        verificar(ids.count == 4, "4 itens na caixa")
+        cad.fazerAgora(ids[0])
+        await store.aguardarOperacoes()
+        let agora = store.tasks.values.first { $0.title == "ligar pro banco" }
+        verificar(agora?.dueDay == hoje && !cad.despejo.contains { $0.id == ids[0] }, "Agora vira tarefa de hoje e sai da caixa")
+        cad.mover(ids[1], para: .depois)
+        verificar(cad.depois.map(\.id) == [ids[1]] && cad.despejo.count == 2, "Depois sai da caixa e vai para a pilha Depois")
+        cad.mover(ids[2], para: .nao)
+        verificar(cad.naoCarregar.map(\.id) == [ids[2]], "Não vai para a pilha Não (guardado, não apagado)")
+        verificar(store.aviso != nil, "Não mostra Desfazer")
+        store.desfazerAviso()
+        verificar(cad.despejo.contains { $0.id == ids[2] } && cad.naoCarregar.isEmpty, "Desfazer devolve à caixa")
+        cad.mover(ids[2], para: .nao)
+        cad.mover(ids[1], para: .caixa)
+        verificar(cad.despejo.contains { $0.id == ids[1] } && cad.depois.isEmpty, "trazer de volta de Depois")
+        cad.mover(ids[3], para: .nao)
+        cad.esvaziarNao()
+        verificar(cad.naoCarregar.isEmpty && cad.item(ids[3]) == nil, "apagar tudo em Não")
+        store.desfazerAviso()
+        verificar(cad.naoCarregar.count == 2, "Desfazer devolve os apagados")
+        verificar(caderno.buscar("tenis").isEmpty && cad.buscar("tenis").first?.tipo == .despejo, "busca acha itens de Não também")
+        cad.salvarAgora(sincrono: true)
+        let relidoADN = Caderno(store: store, arquivo: Pastas.base.appendingPathComponent("caderno-adn.json"))
+        verificar(relidoADN.naoCarregar.count == 2 && relidoADN.despejo.count == 1, "pilhas relidas do disco")
+        let antigo = Pastas.base.appendingPathComponent("caderno-antigo.json")
+        try? Data(#"{"despejo":[{"id":"a","texto":"velho","criado":"2026-10-01T10:00:00Z"}],"notas":[]}"#.utf8).write(to: antigo)
+        verificar(Caderno(store: store, arquivo: antigo).despejo.map(\.texto) == ["velho"], "item salvo antes das pilhas abre na caixa")
+
+        secao("Foto no despejo")
+        let png = Pastas.base.appendingPathComponent("teste.png")
+        let img = NSImage(size: NSSize(width: 2400, height: 1200), flipped: false) { r in
+            NSColor.systemTeal.setFill(); r.fill(); return true
+        }
+        if let tiff = img.tiffRepresentation, let dado = NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:]) {
+            try? dado.write(to: png)
+        }
+        verificar(cad.capturar("print do horário", foto: png) == 1, "foto com o porquê vira 1 item")
+        let comFoto = cad.despejo.first { $0.foto != nil }
+        let arquivoFoto = comFoto.flatMap { $0.foto.map(Caderno.urlDaFoto) }
+        verificar(arquivoFoto.map { FileManager.default.fileExists(atPath: $0.path) } == true, "foto copiada para a pasta do Tasker")
+        if let arquivoFoto, let lida = NSImage(contentsOf: arquivoFoto) {
+            verificar(max(lida.size.width, lida.size.height) <= 1600.5, "foto reduzida a no máximo 1600 px")
+        }
+        verificar(cad.capturar("", foto: Pastas.base.appendingPathComponent("nao-existe.png")) == 0, "arquivo que não é imagem é recusado")
+        if let comFoto, let nota = cad.virarNota(comFoto.id) {
+            verificar(cad.nota(nota)?.foto == comFoto.foto, "virar nota leva a foto junto")
+        }
+        cad.capturar("", foto: png)
+        if let semTexto = cad.despejo.first(where: { $0.foto != nil }) {
+            verificar(semTexto.textoExibido == "Foto sem descrição", "foto sem texto tem rótulo")
+            cad.editar(semTexto.id, texto: "")
+            verificar(cad.item(semTexto.id) != nil, "apagar o texto de uma foto não apaga a foto")
+        }
+
+        secao("Revisão da semana")
+        let rev = cad.revisaoDaSemana()
+        let textoRev = cad.nota(rev)?.texto ?? ""
+        verificar(cad.nota(rev)?.titulo.hasPrefix("Semana de") == true, "nota da semana com título do período")
+        verificar(textoRev.contains("Concluídas (") && textoRev.contains("Como foi a semana?")
+                  && textoRev.contains("O que eu quero da próxima semana?"), "tem concluídas e as perguntas")
+        verificar(textoRev.contains("✓ "), "lista o que foi concluído na semana")
+        verificar(cad.revisaoDaSemana() == rev, "abrir de novo na mesma semana não duplica")
+
+        secao("Lembrete e energia")
+        let cal = Calendar.current
+        let manha = cal.date(bySettingHour: 8, minute: 0, second: 0, of: hoje)!
+        let noite = cal.date(bySettingHour: 22, minute: 0, second: 0, of: hoje)!
+        verificar(LembreteDespejo.proximoDisparo(hora: 18, agora: manha) == cal.date(bySettingHour: 18, minute: 0, second: 0, of: hoje),
+                  "lembrete ainda hoje se o horário não passou")
+        verificar(LembreteDespejo.proximoDisparo(hora: 18, agora: noite)
+                  == cal.date(bySettingHour: 18, minute: 0, second: 0, of: cal.adding(days: 1, to: hoje)),
+                  "lembrete amanhã se o horário já passou")
+        verificar(LembreteDespejo.texto(quantidade: 1).contains("1 coisa") && LembreteDespejo.texto(quantidade: 7).contains("só 3"),
+                  "texto do lembrete gentil")
+        store.prefs.energiaBaixa = true
+        verificar(store.prefs.energiaBaixa, "modo sem energia liga")
+        store.prefs.energiaBaixa = false
+
         secao("Criação rápida")
         let lido = QuickAddParser.parse("pagar conta amanhã #casa", lists: store.lists, today: hoje)
         verificar(lido.title == "pagar conta" && lido.due == Optional(Optional(amanha)) && lido.tagNames == ["casa"], "entende data e etiqueta")
