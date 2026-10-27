@@ -37,7 +37,6 @@ final class QuickAddPanelController {
         panel.contentView = hosting
 
         if let screen = NSScreen.main {
-            // Altura com folga para o dropdown de listas; a área vazia é transparente.
             // Altura com folga para o calendário e o dropdown de listas; a área vazia é
             // transparente e os cliques nela passam para o que está atrás.
             let size = NSSize(width: 580, height: 640)
