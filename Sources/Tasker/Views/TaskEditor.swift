@@ -226,8 +226,7 @@ struct PropriedadesDaTarefa: View {
                 SeletorDeDataEmbutido(due: $rascunho.due, horario: $rascunho.horario) {
                     withAnimation(DS.curva) { dataAberta = false }
                 }
-                    .frame(maxWidth: 320)
-                    .transition(.opacity.combined(with: .offset(y: -6)))
+                        .transition(.opacity.combined(with: .offset(y: -6)))
             }
         }
     }
@@ -242,54 +241,95 @@ struct SeletorDeDataEmbutido: View {
     @State private var mes = Calendar.current.dateInterval(of: .month, for: .now)?.start ?? .now
     @State private var textoHora = ""
 
+    private static let sugestoes = ["09:00", "12:00", "15:00", "18:00", "20:00"]
+
     var body: some View {
         VStack(alignment: .leading, spacing: DS.e3) {
-            HStack(spacing: DS.e1) {
+            // Atalhos: quebram de linha quando não cabem (nunca cortam o texto).
+            Fluxo(espaco: DS.e1) {
                 atalho("Hoje", 0)
                 atalho("Amanhã", 1)
-                Button("Sem data") { due = nil; fechar() }.buttonStyle(Botao(variante: .fantasma))
+                atalho("Próx. semana", 7)
+                Button("Sem data") { due = nil; horario = nil; fechar() }
+                    .buttonStyle(Botao(variante: due == nil ? .primario : .fantasma))
+                    .fixedSize()
+                    .help("Tirar a data")
             }
             CalendarioMes(mes: $mes, selecionado: due, hoje: store.today,
                           ocupado: { !store.tasks(on: $0).isEmpty }) { dia in
                 due = dia
             }
-            // Horário opcional (fica no Tasker; o Google Tasks só guarda a data).
-            HStack(spacing: DS.e2) {
-                Image(systemName: "clock").font(.system(size: 12, weight: .medium)).foregroundStyle(DS.texto3)
-                TextField("Sem horário", text: $textoHora)
-                    .textFieldStyle(.plain)
-                    .txt(.sm, .medium)
-                    .monospacedDigit()
-                    .frame(width: 84)
-                    .padding(.horizontal, DS.e2)
-                    .frame(height: 30)
-                    .background(DS.superficie2, in: RoundedRectangle(cornerRadius: DS.raioP, style: .continuous))
-                    .onSubmit(aplicarHora)
-                    .onChange(of: textoHora) { _, _ in aplicarHora() }
-                ForEach(["09:00", "12:00", "18:00"], id: \.self) { h in
-                    Button(h) { textoHora = h }.buttonStyle(Botao(variante: horario == h ? .primario : .superficie))
-                }
-                if horario != nil {
-                    BotaoIcone(simbolo: "xmark", rotulo: "Tirar o horário", tamanho: 24, tamanhoIcone: 10) {
-                        textoHora = ""
-                        horario = nil
-                    }
-                }
+            // Horário opcional (fica na descrição da tarefa; o Google Tasks só guarda a data).
+            ViewThatFits(in: .horizontal) {
+                linhaHorario(sugestoesVisiveis: Array(Self.sugestoes.prefix(3)))
+                linhaHorario(sugestoesVisiveis: [])
             }
             .disabled(due == nil)
             .opacity(due == nil ? 0.5 : 1)
             HStack {
-                Spacer()
-                Button("Pronto", action: fechar).buttonStyle(.superficie)
+                if due == nil {
+                    Text("Sem data").txt(.xs).foregroundStyle(DS.texto3)
+                } else if let due {
+                    Text(DayLabel.comAtraso(due, today: store.today) + (horario.map { " · \($0)" } ?? ""))
+                        .txt(.xs, .medium).foregroundStyle(DS.texto2).lineLimit(1)
+                }
+                Spacer(minLength: DS.e2)
+                Button("Pronto", action: fechar).buttonStyle(.superficie).fixedSize()
+                    .keyboardShortcut(.defaultAction)
             }
         }
         .padding(DS.e3)
+        .frame(maxWidth: 420, alignment: .leading)
         .background(DS.superficie, in: RoundedRectangle(cornerRadius: DS.raioM, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: DS.raioM, style: .continuous).strokeBorder(DS.borda))
         .sombra()
         .onAppear {
             if let due { mes = Calendar.current.dateInterval(of: .month, for: due)?.start ?? mes }
             textoHora = horario ?? ""
+        }
+    }
+
+    /// Campo + sugestões em botões (com espaço) ou num menu (sem espaço).
+    private func linhaHorario(sugestoesVisiveis: [String]) -> some View {
+        HStack(spacing: DS.e2) {
+            Image(systemName: "clock").font(.system(size: 12, weight: .medium)).foregroundStyle(DS.texto3)
+            TextField("Sem horário", text: $textoHora)
+                .textFieldStyle(.plain)
+                .txt(.sm, .medium)
+                .monospacedDigit()
+                .frame(minWidth: 64, maxWidth: 96)
+                .padding(.horizontal, DS.e2)
+                .frame(height: 30)
+                .background(DS.superficie2, in: RoundedRectangle(cornerRadius: DS.raioP, style: .continuous))
+                .onSubmit(aplicarHora)
+                .onChange(of: textoHora) { _, _ in aplicarHora() }
+                .help("Digite: 9, 930, 9:30 ou 09h30")
+            if sugestoesVisiveis.isEmpty {
+                Menu {
+                    ForEach(Self.sugestoes, id: \.self) { h in Button(h) { textoHora = h } }
+                } label: {
+                    Image(systemName: "chevron.down").font(.system(size: 10, weight: .semibold))
+                }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .animacaoDeClique(raio: DS.raioP)
+                .help("Horários sugeridos")
+            } else {
+                ForEach(sugestoesVisiveis, id: \.self) { h in
+                    Button(h) { textoHora = h }
+                        .buttonStyle(Botao(variante: horario == h ? .primario : .superficie))
+                        .fixedSize()
+                        .help("Às \(h)")
+                }
+            }
+            if horario != nil {
+                BotaoIcone(simbolo: "xmark", rotulo: "Tirar o horário", tamanho: 24, tamanhoIcone: 10) {
+                    textoHora = ""
+                    horario = nil
+                }
+            }
+            Spacer(minLength: 0)
         }
     }
 
@@ -311,6 +351,8 @@ struct SeletorDeDataEmbutido: View {
         let dia = Calendar.current.adding(days: dias, to: store.today)
         return Button(rotulo) { due = dia; fechar() }
             .buttonStyle(Botao(variante: due == dia ? .primario : .superficie))
+            .fixedSize()
+            .help(DayLabel.long(dia).primeiraMaiuscula)
     }
 }
 

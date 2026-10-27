@@ -627,7 +627,6 @@ struct OpcoesDeTarefaDespejo: View {
                 SeletorDeDataEmbutido(due: $due, horario: $horario) {
                     withAnimation(DS.curva) { dataAberta = false }
                 }
-                .frame(maxWidth: 320)
             }
             HStack {
                 Button("Voltar", action: cancelar)

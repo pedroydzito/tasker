@@ -94,7 +94,6 @@ struct QuickAddField: View {
                     withAnimation(DS.curva) { dataAberta = false }
                     focused = true
                 }
-                .frame(maxWidth: 320)
                 .padding(.horizontal, DS.e1)
                 .padding(.bottom, DS.e1)
                 .transition(.opacity.combined(with: .offset(y: -6)))

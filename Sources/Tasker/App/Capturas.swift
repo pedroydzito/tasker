@@ -63,6 +63,15 @@ enum Capturas {
             cenas.append(("05-nota-solta", janela, { nav.selection = .notas; nav.notaAberta = .nota(ideia.id); return AnyView(ambiente(MainWindow())) }))
         }
 
+        // Seletor de data em larguras diferentes (menu estreito, despejo e painel largo).
+        for (nome, largura) in [("18-data-estreito", 300.0), ("19-data-medio", 420.0), ("20-data-largo", 640.0)] {
+            cenas.append((nome, CGSize(width: largura, height: 560), {
+                AnyView(ambiente(Moldura {
+                    SeletorDeDataEmbutido(due: .constant(store.today), horario: .constant("09:00")) {}
+                }))
+            }))
+        }
+
         // Por último (mudam o estado): pilhas, sem energia e revisão da semana.
         cenas.append(("13-despejo-depois", janela, { AnyView(ambiente(Moldura { DespejoView(pilhaInicial: .depois) })) }))
         cenas.append(("14-despejo-nao", janela, { AnyView(ambiente(Moldura { DespejoView(pilhaInicial: .nao) })) }))

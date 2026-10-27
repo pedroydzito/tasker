@@ -219,6 +219,7 @@ struct CalendarioMes: View {
     let escolher: (Date) -> Void
 
     @State private var direcao: CGFloat = 1
+    @State private var alturaDia: CGFloat = 36
     private let cal = Calendar.current
 
     var body: some View {
@@ -251,6 +252,10 @@ struct CalendarioMes: View {
                     }
                 }
             }
+            // A altura dos dias acompanha a largura (cabe no menu estreito e cresce no app).
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { largura in
+                alturaDia = min(38, max(28, (largura / 7 - 2) * 0.8))
+            }
             .id(mes)
             .transition(.asymmetric(insertion: .offset(x: 28 * direcao).combined(with: .opacity), removal: .opacity))
         }
@@ -272,12 +277,13 @@ struct CalendarioMes: View {
                     .opacity(ocupado(dia) ? 1 : 0)
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 38)
+            .frame(height: alturaDia)
             .background(RoundedRectangle(cornerRadius: DS.raioM, style: .continuous)
                 .fill(escolhido ? DS.acentoSolido : .clear))
             .contentShape(Rectangle())
         }
         .buttonStyle(Pressionavel(raio: DS.raioM, escala: 0.94))
+        .help(DayLabel.long(dia).primeiraMaiuscula)
     }
 
     private func mudar(_ valor: Int) {
@@ -353,5 +359,42 @@ struct SeletorDeData: View {
     private func concluir(_ dia: Date?) {
         escolher(dia)
         withAnimation(DS.curvaSaida) { folhas.fechar() }
+    }
+}
+
+/// Itens lado a lado que quebram de linha quando não cabem (como texto).
+struct Fluxo: Layout {
+    var espaco: CGFloat = 6
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let largura = proposal.width ?? .infinity
+        var x: CGFloat = 0, y: CGFloat = 0, alturaLinha: CGFloat = 0, maiorX: CGFloat = 0
+        for v in subviews {
+            let t = v.sizeThatFits(.unspecified)
+            if x > 0, x + t.width > largura {
+                x = 0
+                y += alturaLinha + espaco
+                alturaLinha = 0
+            }
+            x += t.width + espaco
+            maiorX = max(maiorX, x - espaco)
+            alturaLinha = max(alturaLinha, t.height)
+        }
+        return CGSize(width: min(maiorX, largura), height: y + alturaLinha)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var x = bounds.minX, y = bounds.minY, alturaLinha: CGFloat = 0
+        for v in subviews {
+            let t = v.sizeThatFits(.unspecified)
+            if x > bounds.minX, x + t.width > bounds.maxX {
+                x = bounds.minX
+                y += alturaLinha + espaco
+                alturaLinha = 0
+            }
+            v.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(t))
+            x += t.width + espaco
+            alturaLinha = max(alturaLinha, t.height)
+        }
     }
 }
