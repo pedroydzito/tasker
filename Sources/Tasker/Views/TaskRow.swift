@@ -17,6 +17,9 @@ struct TaskRow: View {
     /// No menu da barra, clicar abre os detalhes embaixo da linha (em vez de outra folha).
     @Environment(\.noMenuDaBarra) private var noMenu
     @State private var expandida = false
+    @State private var renomeando = false
+    @State private var nome = ""
+    @FocusState private var focoNome: Bool
     @State private var checking = false
     @State private var hovering = false
     @State private var pressed = false
@@ -118,13 +121,33 @@ struct TaskRow: View {
     private var linhaCompacta: some View {
         HStack(spacing: DS.e3) {
             circulo
-            titulo
-            seta
+            if renomeando {
+                TextField("Nome da tarefa", text: $nome)
+                    .textFieldStyle(.plain)
+                    .txt(.sm, .medium)
+                    .focused($focoNome)
+                    .onSubmit(salvarNome)
+                    .onExitCommand { renomeando = false }
+                    .onChange(of: focoNome) { _, focado in if !focado { salvarNome() } }
+                    .help("Enter salva; Esc cancela")
+            } else {
+                titulo
+            }
+            if !expandida { seta }
             Spacer(minLength: DS.e2)
-            if task.hasNotes {
+            if expandida {
+                // Aberta: a data fica nos detalhes; aqui só o lápis para renomear.
+                if !renomeando {
+                    BotaoIcone(simbolo: "pencil", rotulo: "Renomear", tamanho: 24, tamanhoIcone: 11) {
+                        nome = task.title
+                        renomeando = true
+                        DispatchQueue.main.async { focoNome = true }
+                    }
+                }
+            } else if task.hasNotes {
                 Image(systemName: "text.alignleft").font(.system(size: 10.5)).foregroundStyle(DS.texto3)
             }
-            if showDate || store.horario(of: task) != nil, let texto = textoDaData(compacto: true) {
+            if !expandida, showDate || store.horario(of: task) != nil, let texto = textoDaData(compacto: true) {
                 Text(texto)
                     .txt(.xs, .medium)
                     .monospacedDigit()
@@ -203,7 +226,16 @@ struct TaskRow: View {
         }
     }
 
+    private func salvarNome() {
+        guard renomeando else { return }
+        renomeando = false
+        let limpo = nome.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !limpo.isEmpty, limpo != task.title else { return }
+        store.save(task, title: limpo, notes: task.notes ?? "", due: task.dueDay)
+    }
+
     private func open() {
+        if renomeando { return }
         if noMenu {
             withAnimation(DS.curva) { expandida.toggle() }
             return
@@ -296,8 +328,8 @@ extension EnvironmentValues {
     }
 }
 
-/// Detalhes da tarefa abertos embaixo da linha, no menu: ver, renomear, mudar a data,
-/// marcar e criar subtarefas. O resto (descrição, lista, etiquetas) é na janela.
+/// Detalhes da tarefa abertos embaixo da linha, no menu: lista e data (clicáveis), notas,
+/// subtarefas e, discretos no fim, abrir no app e excluir. Renomear é pelo lápis da própria linha.
 struct DetalheNoMenu: View {
     @Environment(TaskStore.self) private var store
     @Environment(Navigation.self) private var nav
@@ -306,21 +338,52 @@ struct DetalheNoMenu: View {
     let task: TaskItem
     var depth = 0
 
-    @State private var renomeando = false
-    @State private var nome = ""
-    @FocusState private var focoNome: Bool
+    @State private var dataAberta = false
+    @State private var listasAbertas = false
 
     var body: some View {
         let atual = store.tasks[task.id] ?? task
-        VStack(alignment: .leading, spacing: DS.e3) {
-            if renomeando {
-                TextField("Nome da tarefa", text: $nome)
-                    .campo()
-                    .focused($focoNome)
-                    .onSubmit { salvarNome(atual) }
-                    .onExitCommand { renomeando = false }
-                    .onChange(of: focoNome) { _, focado in if !focado { salvarNome(atual) } }
-                    .help("Enter salva; Esc cancela")
+        VStack(alignment: .leading, spacing: DS.e4) {
+            VStack(alignment: .leading, spacing: DS.e2) {
+                HStack(spacing: DS.e2) {
+                    Button {
+                        withAnimation(DS.curva) { listasAbertas.toggle(); dataAberta = false }
+                    } label: {
+                        ListChip(listID: atual.listID, comSeta: true, aberta: listasAbertas)
+                    }
+                    .buttonStyle(SoAfunda(escala: 0.95))
+                    .help("Mudar de lista")
+                    .disabled(atual.isLocal)
+
+                    Button {
+                        withAnimation(DS.curva) { dataAberta.toggle(); listasAbertas = false }
+                    } label: {
+                        Chip(atual.dueDay.map { DayLabel.comAtraso($0, today: store.today) + (atual.horario.map { " · \($0)" } ?? "") } ?? "Sem data",
+                             cor: (atual.dueDay ?? .distantFuture) < store.today ? DS.perigoTexto : nil) {
+                            Image(systemName: "calendar").font(.system(size: 10, weight: .semibold))
+                        }
+                    }
+                    .buttonStyle(SoAfunda(escala: 0.95))
+                    .help("Mudar data e horário")
+                }
+                if !store.tags(for: atual).isEmpty {
+                    HStack(spacing: DS.e1) { ForEach(store.tags(for: atual)) { TagChip(tag: $0) } }
+                }
+                if listasAbertas {
+                    DropdownDeListas(atual: atual.listID) { id in
+                        withAnimation(DS.curva) {
+                            listasAbertas = false
+                            store.moveTask(atual, toList: id)
+                        }
+                    }
+                    .transition(.opacity.combined(with: .offset(y: -4)))
+                }
+                if dataAberta {
+                    SeletorDeDataEmbutido(due: dataBinding(atual), horario: horarioBinding(atual)) {
+                        withAnimation(DS.curva) { dataAberta = false }
+                    }
+                    .transition(.opacity.combined(with: .offset(y: -4)))
+                }
             }
 
             let notas = atual.notasVisiveis.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -333,68 +396,53 @@ struct DetalheNoMenu: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            HStack(spacing: DS.e2) {
-                ListChip(listID: atual.listID)
-                Chip(atual.dueDay.map { DayLabel.comAtraso($0, today: store.today) + (atual.horario.map { " · \($0)" } ?? "") } ?? "Sem data",
-                     cor: (atual.dueDay ?? .distantFuture) < store.today ? DS.perigoTexto : nil) {
-                    Image(systemName: "calendar").font(.system(size: 10, weight: .semibold))
-                }
-                ForEach(store.tags(for: atual)) { TagChip(tag: $0) }
-            }
-
             if atual.parent == nil && !atual.isLocal {
                 Subtarefas(mae: atual) { _ in }
             }
 
-            HStack(spacing: 2) {
-                BotaoIcone(simbolo: "pencil", rotulo: "Renomear aqui", tamanho: 28, tamanhoIcone: 13) {
-                    nome = atual.title
-                    renomeando = true
-                    DispatchQueue.main.async { focoNome = true }
-                }
-                Menu {
-                    Button("Hoje") { store.setDue(atual, store.today) }
-                    Button("Amanhã") { store.setDue(atual, Calendar.current.adding(days: 1, to: store.today)) }
-                    Button("Próxima semana") { store.setDue(atual, Calendar.current.adding(days: 7, to: store.today)) }
-                    Divider()
-                    Button("Sem data") { store.setDue(atual, nil) }
-                } label: {
-                    Image(systemName: "calendar.badge.clock")
-                }
-                .menuStyle(.borderlessButton)
-                .menuIndicator(.hidden)
-                .fixedSize()
-                .frame(width: 28, height: 28)
-                .animacaoDeClique(circulo: true)
-                .help("Mudar a data")
-                BotaoIcone(simbolo: "arrow.up.left.and.arrow.down.right", rotulo: "Abrir no app (descrição, lista, etiquetas)",
-                           tamanho: 28, tamanhoIcone: 13) {
+            HStack(spacing: DS.e1) {
+                Button {
                     nav.selection = atual.isCompleted ? .completed : .list(atual.listID)
                     nav.selectedTaskID = atual.id
                     NSApp.setActivationPolicy(.regular)
                     NSApp.activate()
                     openWindow(id: WindowID.main)
+                } label: {
+                    Label("Abrir no app", systemImage: "arrow.up.left.and.arrow.down.right")
                 }
+                .buttonStyle(Botao(variante: .fantasma))
+                .help("Descrição, etiquetas e o resto, na janela")
                 Spacer()
-                BotaoIcone(simbolo: "trash", rotulo: "Excluir tarefa", tamanho: 28, tamanhoIcone: 13) {
+                BotaoIcone(simbolo: "trash", rotulo: "Excluir tarefa", tamanho: 26, tamanhoIcone: 12) {
                     folhas.confirmar("Excluir tarefa", mensagem: "“\(atual.displayTitle)” será excluída. Dá para desfazer logo depois.") {
                         store.delete(atual)
                     }
                 }
             }
-            .foregroundStyle(DS.texto2)
+            .padding(.leading, -DS.e2)
         }
         .padding(.leading, 12 + CGFloat(depth) * 26 + 30)
         .padding(.trailing, 12)
-        .padding(.top, 2)
-        .padding(.bottom, DS.e3)
+        .padding(.top, DS.e2)
+        .padding(.bottom, DS.e2)
+        .animation(DS.curva, value: dataAberta)
+        .animation(DS.curva, value: listasAbertas)
     }
 
-    private func salvarNome(_ atual: TaskItem) {
-        guard renomeando else { return }
-        renomeando = false
-        let limpo = nome.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !limpo.isEmpty, limpo != atual.title else { return }
-        store.save(atual, title: limpo, notes: atual.notes ?? "", due: atual.dueDay)
+    /// Mudar a data salva na hora (sem passar por "Salvar"): é uma ação rápida do menu.
+    private func dataBinding(_ atual: TaskItem) -> Binding<Date?> {
+        Binding(get: { atual.dueDay }, set: { novo in
+            let hora = novo == nil ? nil : atual.horario
+            store.save(atual, title: atual.title, notes: HorarioNasNotas.juntar(atual.notasVisiveis, hora), due: novo)
+        })
+    }
+
+    private func horarioBinding(_ atual: TaskItem) -> Binding<String?> {
+        Binding(get: { atual.horario }, set: { novo in
+            let atualizada = store.tasks[atual.id] ?? atual
+            store.save(atualizada, title: atualizada.title,
+                       notes: HorarioNasNotas.juntar(atualizada.notasVisiveis, atualizada.dueDay == nil ? nil : novo),
+                       due: atualizada.dueDay)
+        })
     }
 }
