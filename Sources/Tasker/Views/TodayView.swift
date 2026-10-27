@@ -6,11 +6,13 @@ struct PageScaffold<Leading: View, Content: View>: View {
     let title: String
     @ViewBuilder var leading: Leading
     @ViewBuilder var content: Content
+    /// Ações discretas à direita do título (ex.: energia no Hoje).
+    var acoes: AnyView?
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: DS.e5) {
-                CabecalhoTela(rotulo: rotulo, titulo: title) { leading }
+                CabecalhoTela(rotulo: rotulo, titulo: title, leading: { leading }, trailing: { acoes ?? AnyView(EmptyView()) })
                     .encadeado(0)
                 Avisos()
                 content.encadeado(1)
@@ -27,11 +29,12 @@ struct PageScaffold<Leading: View, Content: View>: View {
 }
 
 extension PageScaffold where Leading == EmptyView {
-    init(rotulo: String? = nil, title: String, @ViewBuilder content: () -> Content) {
+    init(rotulo: String? = nil, title: String, acoes: AnyView? = nil, @ViewBuilder content: () -> Content) {
         self.rotulo = rotulo
         self.title = title
         self.leading = EmptyView()
         self.content = content()
+        self.acoes = acoes
     }
 }
 
@@ -57,19 +60,15 @@ struct TodayView: View {
     @Environment(TaskStore.self) private var store
 
     var body: some View {
-        let overdue = store.overdueTasks
+        let baixa = store.prefs.energiaBaixa
+        // Sem energia: as mesmas linhas de sempre, mas sem atrasadas e sem números.
+        let overdue = baixa ? [] : store.overdueTasks
         let today = store.todayTasks
         let done = store.completedToday
-        let baixa = store.prefs.energiaBaixa
         PageScaffold(rotulo: baixa ? DayLabel.long(store.today) : "\(DayLabel.long(store.today)) · \(taskCountText(overdue.count + today.count))",
-                     title: "Hoje") {
+                     title: "Hoje", acoes: AnyView(BotaoEnergia())) {
             VStack(alignment: .leading, spacing: DS.e5) {
-                SeletorDeEnergia()
                 EventsCard(events: store.events(on: store.today))
-
-                if baixa {
-                    UmaCoisaPorVez()
-                } else {
 
                 if !overdue.isEmpty {
                     SecaoTarefas("Em atraso", contagem: overdue.count, tom: DS.perigoTexto,
@@ -95,11 +94,11 @@ struct TodayView: View {
                 }
 
                 if !vazio && !done.isEmpty { concluidas(done) }
-                }
             }
             .animation(DS.curva, value: today.map(\.id))
             .animation(DS.curva, value: baixa)
         }
+
     }
 
     private func concluidas(_ done: [TaskItem]) -> some View {

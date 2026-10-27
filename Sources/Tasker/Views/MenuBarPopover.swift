@@ -63,7 +63,6 @@ struct MenuBarPopover: View {
         HStack(alignment: .center, spacing: DS.e2) {
             Text(titulo).display(.titulo).foregroundStyle(DS.texto)
             Spacer()
-            if tab == .today { BotaoEnergia() }
             BotaoIcone(simbolo: "arrow.up.left.and.arrow.down.right", rotulo: "Abrir em tela grande") {
                 openApp(destination)
             }
@@ -129,10 +128,8 @@ struct MenuBarPopover: View {
                 CalendarIssueBanner()
                 ErrorBanner()
 
-                if store.prefs.energiaBaixa {
-                    UmaCoisaPorVez(compacto: true)
-                } else {
-                let overdue = store.prefs.showOverdueInMenu ? store.overdueTasks : []
+                // Sem energia: sem a seção de atrasadas.
+                let overdue = store.prefs.showOverdueInMenu && !store.prefs.energiaBaixa ? store.overdueTasks : []
                 let today = store.todayTasks
                 if !overdue.isEmpty {
                     SecaoTarefas("Em atraso", contagem: overdue.count, tom: DS.perigoTexto,
@@ -160,7 +157,6 @@ struct MenuBarPopover: View {
                     SecaoTarefas("Concluídas", contagem: feitas.count, recolhida: true) {
                         ForEach(feitas) { TaskRow(task: $0, style: .compact) }
                     }
-                }
                 }
             }
         }

@@ -155,8 +155,6 @@ struct TaskRow: View {
                         }
                     }
                 }
-            } else {
-                ControleDeTempo(taskID: task.id, visivel: hovering && !task.isCompleted)
             }
             if !expandida && task.hasNotes {
                 Image(systemName: "text.alignleft").font(.system(size: 10.5)).foregroundStyle(DS.texto3)
@@ -177,7 +175,6 @@ struct TaskRow: View {
             seta
             metadadosSemData.fixedSize()
             Spacer(minLength: 120)
-            ControleDeTempo(taskID: task.id, visivel: hovering && !task.isCompleted)
             dataComHora
             if showList { ListChip(listID: task.listID) }
         }
@@ -195,7 +192,6 @@ struct TaskRow: View {
                 .txt(.xs)
             }
             Spacer(minLength: DS.e2)
-            ControleDeTempo(taskID: task.id, visivel: hovering && !task.isCompleted)
             if showList { ListChip(listID: task.listID) }
         }
     }
