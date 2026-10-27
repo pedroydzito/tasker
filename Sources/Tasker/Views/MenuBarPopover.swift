@@ -242,7 +242,7 @@ struct MenuBarPopover: View {
             aba(.today, "sun.max", "Hoje")
             aba(.calendar, "calendar", "Calendário")
             aba(.lists, "list.bullet", "Listas")
-            aba(.despejo, "tray", "Despejo")
+            aba(.despejo, "brain.head.profile", "Despejo")
             Rectangle().fill(DS.borda).frame(width: 1, height: 22).padding(.horizontal, 2)
             BotaoIcone(simbolo: "gearshape", rotulo: "Abrir ajustes", tamanho: 40, tamanhoIcone: 15) {
                 openApp(.settings)
@@ -384,7 +384,7 @@ struct DespejoDoMenu: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: DS.e3) {
                     if caderno.despejo.isEmpty {
-                        EstadoVazio(icone: "tray", titulo: "Cabeça leve",
+                        EstadoVazio(icone: "brain.head.profile", titulo: "Cabeça leve",
                                     descricao: "Despeje aqui o que estiver ocupando espaço. Organize depois.")
                             .padding(.top, DS.e4)
                     } else {

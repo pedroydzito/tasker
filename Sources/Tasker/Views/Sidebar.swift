@@ -36,7 +36,7 @@ struct Sidebar: View {
                     // Caderno: o que é só do Tasker (não vai para o Google Tasks).
                     cabecalhoSecao("Caderno", recolhida: $cadernoCollapsed)
                     if !cadernoCollapsed {
-                        item(.despejo, "Despejo", "tray", caderno.despejo.count)
+                        item(.despejo, "Despejo", "brain.head.profile", caderno.despejo.count)
                         item(.notas, "Notas", "note.text")
                     }
 
@@ -211,6 +211,7 @@ struct Sidebar: View {
         }
         // Sem encolher no clique: a linha também é a alça de arrastar.
         .buttonStyle(Pressionavel(raio: DS.raioM, escala: 1))
+        .help(contagem.map { $0 > 0 ? "\(titulo) · \($0)" : titulo } ?? titulo)
     }
 
     private func cabecalhoSecao(_ titulo: String, recolhida: Binding<Bool>) -> some View {
@@ -234,6 +235,7 @@ struct Sidebar: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(SoAfunda())
+            .help(recolhida.wrappedValue ? "Mostrar \(titulo.lowercased())" : "Recolher \(titulo.lowercased())")
             Spacer()
             acao()
         }

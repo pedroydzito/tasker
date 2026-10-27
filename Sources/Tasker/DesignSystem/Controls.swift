@@ -312,6 +312,7 @@ struct Chave: ToggleStyle {
             .animation(DS.curva, value: configuration.isOn)
         }
         .buttonStyle(SoAfunda(escala: 0.94))
+        .help(configuration.isOn ? "Ligado — clique para desligar" : "Desligado — clique para ligar")
         .accessibilityAddTraits(.isToggle)
     }
 }
@@ -350,6 +351,7 @@ struct Segmentado<Value: Hashable>: View {
                         .contentShape(Capsule())
                 }
                 .buttonStyle(SoAfunda())
+                .help(rotulo)
             }
         }
         .padding(3)

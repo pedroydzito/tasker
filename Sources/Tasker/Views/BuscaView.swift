@@ -114,7 +114,7 @@ private struct LinhaResultado: View {
         switch resultado.tipo {
         case .tarefa: resultado.concluida ? "checkmark.circle" : "circle"
         case .nota: "note.text"
-        case .despejo: "tray"
+        case .despejo: "brain.head.profile"
         case .evento: "calendar"
         }
     }

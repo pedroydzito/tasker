@@ -29,6 +29,13 @@ jobs:
           export TASKER_HOME="$RUNNER_TEMP/tasker-capturas"
           rm -rf "$TASKER_HOME"
           build/Tasker.app/Contents/MacOS/Tasker --capturas build/capturas
+      # Investigação: o caminho antigo de excluir nota. Pode falhar sem bloquear o release.
+      - name: Reproduzir exclusão de nota (caminho antigo)
+        continue-on-error: true
+        run: |
+          export TASKER_HOME="$RUNNER_TEMP/tasker-repro"
+          rm -rf "$TASKER_HOME"
+          build/Tasker.app/Contents/MacOS/Tasker --repro-exclusao-nota; echo "saída: $?"
       - uses: actions/upload-artifact@v4
         if: always()
         with:

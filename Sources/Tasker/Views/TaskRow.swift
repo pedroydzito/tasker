@@ -66,6 +66,7 @@ struct TaskRow: View {
         .animation(DS.curvaRapida, value: isSelected)
         .onTapGesture(perform: open)
         .pointerStyle(.link)
+        .help("Abrir “\(task.displayTitle)”")
         // Arraste até uma lista da barra lateral para mudar a tarefa de lista.
         .draggable("tarefa:\(task.id)") {
             HStack(spacing: DS.e2) {

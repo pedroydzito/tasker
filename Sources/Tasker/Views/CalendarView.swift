@@ -206,6 +206,7 @@ private struct DayCell: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(Pressionavel(raio: DS.raioM, escala: 0.98))
+        .help(DayLabel.long(day).primeiraMaiuscula)
     }
 
     private func linha(_ text: String, cor: Color, evento: Bool, passado: Bool, riscado: Bool) -> some View {

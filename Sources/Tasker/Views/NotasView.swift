@@ -98,9 +98,7 @@ struct NotasView: View {
     }
 
     private func excluir(_ nota: Anotacao) {
-        let alvo: AlvoNota = nota.dia.map { .dia($0) } ?? .nota(nota.id)
-        if nav.notaAberta == alvo { nav.notaAberta = nil }
-        withAnimation(DS.curva) { caderno.excluirNota(nota.id) }
+        excluirNotaComSeguranca(nota.id, caderno: caderno, nav: nav)
     }
 }
 
@@ -135,6 +133,7 @@ private struct LinhaNota: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(Pressionavel(raio: DS.raioM, escala: 0.99))
+        .help("Abrir “\(titulo)”")
     }
 }
 
@@ -173,8 +172,7 @@ struct EditorDeNota: View {
                 if let nota {
                     BotaoIcone(simbolo: "trash", rotulo: "Excluir nota") {
                         folhas.confirmar("Excluir nota", mensagem: "“\(nota.tituloExibido)” será excluída. Dá para desfazer logo depois.") {
-                            nav.notaAberta = nil
-                            caderno.excluirNota(nota.id)
+                            excluirNotaComSeguranca(nota.id, caderno: caderno, nav: nav)
                         }
                     }
                 }
@@ -301,5 +299,22 @@ private struct TarefasDaNota: View {
         withAnimation(DS.curva) {
             caderno.criarTarefa(daLinha: p.linha, naNota: nota.id, listID: nil, due: nota.dia)
         }
+    }
+}
+
+/// Exclui uma nota sem derrubar o editor: primeiro encerra a edição do texto (o editor de texto
+/// do AppKit não pode sumir com o cursor dentro), fecha a nota na tela e só no ciclo seguinte
+/// tira a nota do caderno — depois que a folha de confirmação terminou de fechar.
+@MainActor
+func excluirNotaComSeguranca(_ id: String, caderno: Caderno, nav: Navigation) {
+    for janela in NSApp.windows where janela.firstResponder is NSTextView {
+        janela.makeFirstResponder(nil)
+    }
+    if let nota = caderno.nota(id) {
+        let alvo: AlvoNota = nota.dia.map { .dia($0) } ?? .nota(id)
+        if nav.notaAberta == alvo { nav.notaAberta = nil }
+    }
+    DispatchQueue.main.async {
+        withAnimation(DS.curva) { caderno.excluirNota(id) }
     }
 }

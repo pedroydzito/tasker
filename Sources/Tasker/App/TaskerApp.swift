@@ -16,6 +16,9 @@ enum Entry {
             }
             exit(ok ? 0 : 1)
         }
+        if args.contains("--repro-exclusao-nota") {
+            MainActor.assumeIsolated { Capturas.reproduzirExclusaoAntiga() }
+        }
         if args.contains("--autoteste") {
             MainActor.assumeIsolated { Autoteste.iniciar() }
         }

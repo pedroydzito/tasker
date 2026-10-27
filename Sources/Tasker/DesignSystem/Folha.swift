@@ -66,9 +66,14 @@ struct ToastDesfazer: View {
                 HStack(spacing: DS.e3) {
                     Image(systemName: "trash").font(.system(size: 12, weight: .semibold)).foregroundStyle(DS.texto3)
                     Text(aviso.texto).txt(.sm, .medium).foregroundStyle(DS.texto).lineLimit(1)
+                        .layoutPriority(0)
+                    // O botão nunca encolhe: quem corta (com "…") é a mensagem, se faltar espaço.
                     Button("Desfazer") { withAnimation(DS.curva) { store.desfazerAviso() } }
                         .buttonStyle(Botao(variante: .fantasma))
                         .foregroundStyle(DS.acento)
+                        .fixedSize()
+                        .layoutPriority(1)
+                        .help("Desfazer a exclusão")
                 }
                 .padding(.leading, DS.e4)
                 .padding(.trailing, DS.e1)
@@ -76,6 +81,8 @@ struct ToastDesfazer: View {
                 .background(DS.superficie, in: Capsule())
                 .overlay(Capsule().strokeBorder(DS.borda))
                 .sombraAlta()
+                .fixedSize(horizontal: true, vertical: false)
+                .frame(maxWidth: 520)
                 .id(aviso.id)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
