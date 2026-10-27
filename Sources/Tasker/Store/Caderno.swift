@@ -94,6 +94,8 @@ final class Caderno {
             despejo.append(ItemDespejo(id: UUID().uuidString, texto: linha, criado: agora.addingTimeInterval(Double(i) / 1000)))
         }
         salvar()
+        store.avisarSucesso(itens.count == 1 ? "Guardado no despejo" : "\(itens.count) itens no despejo",
+                            plural: "itens no despejo", icone: "brain.head.profile")
         return itens.count
     }
 
@@ -185,6 +187,7 @@ final class Caderno {
             }
         } else if !vazio {
             notas.append(Anotacao(id: UUID().uuidString, titulo: "", texto: texto, dia: d, criada: .now, editada: .now))
+            store.avisarSucesso("Nota do dia criada", icone: "note.text")
         }
         salvar()
     }
@@ -193,6 +196,7 @@ final class Caderno {
     func novaNota(titulo: String = "", texto: String = "") -> String {
         let nota = Anotacao(id: UUID().uuidString, titulo: titulo, texto: texto, dia: nil, criada: .now, editada: .now)
         notas.append(nota)
+        store.avisarSucesso("Nota criada", plural: "notas criadas", icone: "note.text")
         salvar()
         return nota.id
     }

@@ -85,9 +85,24 @@ struct ToastDesfazer: View {
                 .frame(maxWidth: 520)
                 .id(aviso.id)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
+            } else if let sucesso = store.sucesso {
+                HStack(spacing: DS.e2) {
+                    Image(systemName: sucesso.icone).font(.system(size: 13, weight: .semibold)).foregroundStyle(DS.sucesso)
+                    Text(sucesso.texto).txt(.sm, .medium).foregroundStyle(DS.texto).lineLimit(1)
+                        .contentTransition(.numericText())
+                }
+                .padding(.horizontal, DS.e4)
+                .padding(.vertical, 10)
+                .background(DS.superficie, in: Capsule())
+                .overlay(Capsule().strokeBorder(DS.borda))
+                .sombraAlta()
+                .fixedSize()
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .animation(DS.curvaRapida, value: sucesso.quantidade)
             }
         }
         .animation(DS.curva, value: store.aviso?.id)
+        .animation(DS.curva, value: store.sucesso?.singular)
     }
 }
 

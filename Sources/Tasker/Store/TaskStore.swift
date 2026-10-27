@@ -46,6 +46,9 @@ final class TaskStore {
     private(set) var tagDB = TagDatabase.load()
     /// Aviso de "excluído — Desfazer" (some sozinho em 3 s).
     private(set) var aviso: AvisoDesfazer?
+    /// Aviso de sucesso ("✓ Tarefa adicionada"), some em 2 s. Ações seguidas se somam.
+    private(set) var sucesso: AvisoSucesso?
+    @ObservationIgnored private var tarefaSucesso: Task<Void, Never>?
 
     /// Fonte das tarefas. Toda alteração reconstrói o índice uma única vez.
     @ObservationIgnored private var taskMap: [String: TaskItem] = [:] {
@@ -203,6 +206,7 @@ final class TaskStore {
             prefs.listOrder = lists.map(\.id)
             listMarks[created.id] = .now
             listsChanged()
+            avisarSucesso("Lista criada", plural: "listas criadas")
             saveCache()
             return created.id
         } catch {
@@ -279,6 +283,19 @@ final class TaskStore {
             guard !Task.isCancelled, let self, self.aviso?.id == novo.id else { return }
             self.aviso = nil
             novo.expirar()
+        }
+    }
+
+    /// "✓ Tarefa adicionada"; repetido em seguida vira "3 tarefas adicionadas".
+    func avisarSucesso(_ singular: String, plural: String? = nil, icone: String = "checkmark.circle.fill") {
+        var novo = AvisoSucesso(singular: singular, plural: plural ?? singular, icone: icone)
+        if let atual = sucesso, atual.singular == singular { novo.quantidade = atual.quantidade + 1 }
+        sucesso = novo
+        tarefaSucesso?.cancel()
+        tarefaSucesso = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled, let self, self.sucesso?.id == novo.id else { return }
+            self.sucesso = nil
         }
     }
 
@@ -761,6 +778,7 @@ final class TaskStore {
         let dueString = due.map(TaskItem.dueString)
         let notas = horario.map { HorarioNasNotas.juntar(notes ?? "", $0) } ?? notes
         taskMap[tempID] = TaskItem(id: tempID, listID: listID, title: title, notes: notas, due: dueString, position: "")
+        avisarSucesso("Tarefa adicionada", plural: "tarefas adicionadas")
         if !tagIDs.isEmpty { tagDB.assignments[tempID] = tagIDs }
 
         enfileirar(tempID) { [self] in
@@ -805,6 +823,7 @@ final class TaskStore {
         var provisoria = TaskItem(id: tempID, listID: parent.listID, title: title, position: "~")
         provisoria.parent = parent.id
         taskMap[tempID] = provisoria
+        avisarSucesso("Subtarefa adicionada", plural: "subtarefas adicionadas")
         enfileirar(tempID) { [self] in
             do {
                 let created = try await backend.insertTask(listID: parent.listID, title: title, notes: nil, due: nil,
@@ -1122,6 +1141,16 @@ struct IndentedTask: Identifiable {
 
 /// "Excluído — Desfazer". Roda a exclusão de verdade quando expira; nada se for desfeito.
 @MainActor
+struct AvisoSucesso: Identifiable, Equatable {
+    let id = UUID()
+    let singular: String
+    let plural: String
+    let icone: String
+    var quantidade = 1
+
+    var texto: String { quantidade == 1 ? singular : "\(quantidade) \(plural)" }
+}
+
 final class AvisoDesfazer: Identifiable {
     let id = UUID()
     let texto: String
