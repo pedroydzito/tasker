@@ -27,12 +27,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return nil
         }
 
-        let panel = QuickAddPanelController(store: model.store)
+        let panel = QuickAddPanelController(store: model.store, caderno: model.caderno)
         quickAdd = panel
         // ⌥Espaço: adicionar tarefa de qualquer lugar.
         hotKey = HotKey(keyCode: UInt32(kVK_Space), modifiers: UInt32(optionKey)) {
             MainActor.assumeIsolated { panel.toggle() }
         }
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        // O caderno grava com atraso enquanto se digita; ao sair, grava na hora.
+        AppModel.shared.caderno.salvarAgora(sincrono: true)
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {

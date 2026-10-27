@@ -18,6 +18,23 @@ jobs:
         run: ./scripts/build-app.sh
         env:
           BUILD_NUMBER: ${{ github.run_number }}
+      # Testa o app de ponta a ponta numa pasta isolada; se falhar, nada é publicado.
+      - name: Autoteste
+        run: |
+          export TASKER_HOME="$RUNNER_TEMP/tasker-autoteste"
+          rm -rf "$TASKER_HOME"
+          build/Tasker.app/Contents/MacOS/Tasker --autoteste
+      - name: Capturas de tela
+        run: |
+          export TASKER_HOME="$RUNNER_TEMP/tasker-capturas"
+          rm -rf "$TASKER_HOME"
+          build/Tasker.app/Contents/MacOS/Tasker --capturas build/capturas
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: capturas
+          path: build/capturas
+          if-no-files-found: ignore
       - run: cd build && ditto -c -k --keepParent Tasker.app Tasker.zip
       # DMG para instalar arrastando o app até o atalho de Aplicativos.
       - name: Criar DMG

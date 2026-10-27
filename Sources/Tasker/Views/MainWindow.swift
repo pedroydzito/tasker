@@ -19,6 +19,13 @@ struct MainWindow: View {
         .background(DS.fundo)
         .ignoresSafeArea()
         .frame(minWidth: 900, minHeight: 580)
+        .background {
+            // ⌘K abre a busca de qualquer tela da janela.
+            Button("") { abrirBusca(folhas) }
+                .keyboardShortcut("k", modifiers: .command)
+                .opacity(0)
+                .allowsHitTesting(false)
+        }
         .hospedaFolhas(folhas)
         .tint(DS.acento)
         // Com a janela aberta o app aparece no Dock e no ⌘Tab; fechada, volta a viver só na barra de menu.
@@ -75,13 +82,15 @@ struct MainWindow: View {
         case .list(let id): ListDetailView(listID: id)
         case .tag(let id): TagDetailView(tagID: id)
         case .settings: SettingsView()
+        case .despejo: DespejoView()
+        case .notas: NotasView()
         }
     }
 
     /// Barra flutuante de nova tarefa: a ação principal é da tela (cria na lista/dia da tela atual).
     @ViewBuilder private var floatingBar: some View {
         let selection = nav.selection ?? .today
-        if selection != .settings && selection != .calendar && selection != .completed {
+        if ![.settings, .calendar, .completed, .despejo, .notas].contains(selection) {
             let tomorrow = Calendar.current.adding(days: 1, to: store.today)
             let context: (due: Date?, list: String?, tag: String?) = switch selection {
             case .today: (store.today, nil, nil)

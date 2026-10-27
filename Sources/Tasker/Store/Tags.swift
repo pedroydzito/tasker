@@ -24,8 +24,7 @@ struct TagDatabase: Codable {
     }
 
     static var fileURL: URL {
-        let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("Tasker", isDirectory: true)
+        let dir = Pastas.base
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir.appendingPathComponent("tags.json")
     }

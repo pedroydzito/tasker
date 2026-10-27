@@ -7,6 +7,7 @@ struct Sidebar: View {
     @Environment(GoogleAuth.self) private var auth
     @Environment(Navigation.self) private var nav
     @Environment(Folhas.self) private var folhas
+    @Environment(Caderno.self) private var caderno
 
     @AppStorage("sidebar.listsCollapsed") private var listsCollapsed = false
     @AppStorage("sidebar.tagsCollapsed") private var tagsCollapsed = false
@@ -22,10 +23,14 @@ struct Sidebar: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: DS.e1) {
+                    BotaoBusca()
+                        .padding(.bottom, DS.e2)
+                    item(.despejo, "Despejo", "tray", caderno.despejo.count)
                     item(.today, "Hoje", "sun.max", store.badgeCount)
                     item(.tomorrow, "Amanhã", "sunrise", store.tasks(on: Calendar.current.adding(days: 1, to: store.today)).count)
                     item(.upcoming, "Próximas", "calendar.day.timeline.left")
                     item(.calendar, "Calendário", "calendar")
+                    item(.notas, "Notas", "note.text")
                     item(.all, "Todas", "tray.full", store.activeCount)
                     item(.completed, "Concluídas", "checkmark.circle")
 
@@ -371,4 +376,33 @@ struct ListaReordenavel<Row: View>: View {
             dy = 0
         }
     }
+}
+
+/// "Buscar  ⌘K" no topo da barra lateral.
+struct BotaoBusca: View {
+    @Environment(Folhas.self) private var folhas
+
+    var body: some View {
+        Button { abrirBusca(folhas) } label: {
+            HStack(spacing: DS.e3) {
+                Image(systemName: "magnifyingglass").font(.system(size: 13, weight: .medium))
+                    .frame(width: 24, height: 22)
+                Text("Buscar").txt(.sm, .medium)
+                Spacer(minLength: DS.e1)
+                Text("⌘K").txt(.xs, .semibold)
+            }
+            .foregroundStyle(DS.texto3)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .background(DS.superficie2.opacity(0.7), in: RoundedRectangle(cornerRadius: DS.raioM, style: .continuous))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(Pressionavel(raio: DS.raioM, escala: 0.99))
+        .accessibilityIdentifier("botaoBusca")
+    }
+}
+
+@MainActor
+func abrirBusca(_ folhas: Folhas) {
+    folhas.abrir("Buscar", largura: 560) { BuscaView() }
 }

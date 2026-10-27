@@ -47,7 +47,7 @@ enum AppAppearance: String, CaseIterable, Identifiable {
 /// Preferências do usuário, persistidas no UserDefaults e observáveis pela UI.
 @MainActor @Observable
 final class Preferences {
-    @ObservationIgnored private let d = UserDefaults.standard
+    @ObservationIgnored private let d = Pastas.defaults
 
     init() {
         d.register(defaults: [

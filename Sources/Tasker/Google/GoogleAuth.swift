@@ -62,10 +62,10 @@ final class GoogleAuth {
     @ObservationIgnored private var loopback: LoopbackServer?
 
     init() {
-        clientID = UserDefaults.standard.string(forKey: Keys.clientID) ?? ""
+        clientID = Pastas.defaults.string(forKey: Keys.clientID) ?? ""
         clientSecret = SecretStore.get(Keys.clientSecret) ?? ""
         refreshToken = SecretStore.get(Keys.refreshToken)
-        if let data = UserDefaults.standard.data(forKey: Keys.profile) {
+        if let data = Pastas.defaults.data(forKey: Keys.profile) {
             profile = try? JSONDecoder().decode(Profile.self, from: data)
         }
         avatar = NSImage(contentsOf: Self.avatarURL)
@@ -75,8 +75,7 @@ final class GoogleAuth {
     }
 
     private static var avatarURL: URL {
-        let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("Tasker", isDirectory: true)
+        let dir = Pastas.base
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir.appendingPathComponent("avatar.png")
     }
@@ -93,7 +92,7 @@ final class GoogleAuth {
     func saveCredentials(clientID: String, clientSecret: String) {
         self.clientID = clientID.trimmingCharacters(in: .whitespacesAndNewlines)
         self.clientSecret = clientSecret.trimmingCharacters(in: .whitespacesAndNewlines)
-        UserDefaults.standard.set(self.clientID, forKey: Keys.clientID)
+        Pastas.defaults.set(self.clientID, forKey: Keys.clientID)
         SecretStore.set(self.clientSecret, for: Keys.clientSecret)
     }
 
@@ -174,7 +173,7 @@ final class GoogleAuth {
         refreshTask?.cancel()
         refreshTask = nil
         SecretStore.set(nil, for: Keys.refreshToken)
-        UserDefaults.standard.removeObject(forKey: Keys.profile)
+        Pastas.defaults.removeObject(forKey: Keys.profile)
         refreshToken = nil
         accessToken = nil
         accessTokenExpiry = .distantPast
@@ -222,7 +221,7 @@ final class GoogleAuth {
         let (data, _) = try await URLSession.shared.data(for: request)
         let profile = try JSONDecoder().decode(Profile.self, from: data)
         self.profile = profile
-        UserDefaults.standard.set(try? JSONEncoder().encode(profile), forKey: Keys.profile)
+        Pastas.defaults.set(try? JSONEncoder().encode(profile), forKey: Keys.profile)
         await loadAvatar()
     }
 

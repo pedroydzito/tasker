@@ -5,8 +5,7 @@ import Foundation
 /// e o macOS passaria a pedir a senha a cada nova versão.
 enum SecretStore {
     private static var fileURL: URL {
-        let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("Tasker", isDirectory: true)
+        let dir = Pastas.base
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         // A pasta pode ter sido criada antes por outra parte do app com permissão aberta.
         try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: dir.path)

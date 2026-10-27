@@ -3,7 +3,7 @@ import SwiftUI
 /// Menu da barra (base KiteTasks, com o design system): mesmo fundo do app, altura fixa
 /// (abre sempre do mesmo tamanho), abas internas e botão para abrir em tela grande.
 struct MenuBarPopover: View {
-    enum Tab: Hashable { case today, calendar, lists }
+    enum Tab: Hashable { case today, calendar, lists, despejo }
 
     @Environment(TaskStore.self) private var store
     @Environment(GoogleAuth.self) private var auth
@@ -76,6 +76,7 @@ struct MenuBarPopover: View {
         case .today: "Hoje"
         case .calendar: "Calendário"
         case .lists: "Listas"
+        case .despejo: "Despejo"
         }
     }
 
@@ -84,6 +85,7 @@ struct MenuBarPopover: View {
         case .today: .today
         case .calendar: .calendar
         case .lists: openListID.map { .list($0) } ?? .all
+        case .despejo: .despejo
         }
     }
 
@@ -110,6 +112,7 @@ struct MenuBarPopover: View {
             switch tab {
             case .today: todayTab.transition(.opacity)
             case .calendar: PopoverCalendarView(day: $day).transition(.opacity)
+            case .despejo: DespejoDoMenu { openApp(.despejo) }.transition(.opacity)
             case .lists:
                 if let id = openListID {
                     listTab(id).transition(.asymmetric(insertion: .offset(x: 56).combined(with: .opacity), removal: .opacity))
@@ -239,6 +242,7 @@ struct MenuBarPopover: View {
             aba(.today, "sun.max", "Hoje")
             aba(.calendar, "calendar", "Calendário")
             aba(.lists, "list.bullet", "Listas")
+            aba(.despejo, "tray", "Despejo")
             Rectangle().fill(DS.borda).frame(width: 1, height: 22).padding(.horizontal, 2)
             BotaoIcone(simbolo: "gearshape", rotulo: "Abrir ajustes", tamanho: 40, tamanhoIcone: 15) {
                 openApp(.settings)
@@ -367,4 +371,42 @@ struct PopoverCalendarView: View {
 private struct AlturaDoConteudo: PreferenceKey {
     static let defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
+}
+
+/// Aba do despejo no menu: captura rápida e os itens; organizar é na janela (precisa de espaço).
+struct DespejoDoMenu: View {
+    @Environment(Caderno.self) private var caderno
+    let organizarNaJanela: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DS.e3) {
+            CampoDespejo(style: .compacto).padding(.horizontal, DS.e4)
+            ScrollView {
+                VStack(alignment: .leading, spacing: DS.e3) {
+                    if caderno.despejo.isEmpty {
+                        EstadoVazio(icone: "tray", titulo: "Cabeça leve",
+                                    descricao: "Despeje aqui o que estiver ocupando espaço. Organize depois.")
+                            .padding(.top, DS.e4)
+                    } else {
+                        HStack {
+                            Text("\(caderno.despejo.count) para organizar").txt(.xs, .semibold).foregroundStyle(DS.texto3)
+                            Spacer()
+                            Button("Organizar na janela", action: organizarNaJanela).buttonStyle(Botao(variante: .fantasma))
+                        }
+                        CartaoDeLinhas(recuoDoFio: DS.e4) {
+                            ForEach(caderno.despejo.reversed()) { item in
+                                LinhaDespejo(item: item, compacta: true, organizar: organizarNaJanela)
+                            }
+                        }
+                    }
+                }
+                .padding(.horizontal, DS.e4)
+                .padding(.bottom, DS.e4)
+                .animation(DS.curva, value: caderno.despejo.map(\.id))
+            }
+            .scrollIndicators(.never)
+            .indicadorDeRolagem()
+            .frame(maxHeight: .infinity)
+        }
+    }
 }

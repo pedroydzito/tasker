@@ -72,8 +72,8 @@ final class TaskStore {
 
     /// A lista principal do Google ("Minhas tarefas"), sempre a primeira.
     var pinnedListID: String? {
-        get { UserDefaults.standard.string(forKey: "pinnedListID") }
-        set { UserDefaults.standard.set(newValue, forKey: "pinnedListID") }
+        get { Pastas.defaults.string(forKey: "pinnedListID") }
+        set { Pastas.defaults.set(newValue, forKey: "pinnedListID") }
     }
 
     init(auth: GoogleAuth, api: GoogleAPI, prefs: Preferences) {
@@ -365,8 +365,7 @@ final class TaskStore {
     }
 
     private static func photoURL(_ listID: String) -> URL {
-        let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("Tasker/ListPhotos", isDirectory: true)
+        let dir = Pastas.pasta("ListPhotos")
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let safe = listID.replacingOccurrences(of: "/", with: "_")
         return dir.appendingPathComponent("\(safe).png")
@@ -963,6 +962,18 @@ final class TaskStore {
         }
     }
 
+    /// Espera todas as operações em andamento terminarem (autoteste e encerramento).
+    func aguardarOperacoes() async {
+        while let (id, fila) = filas.first {
+            await fila.task.value
+            // A fila se remove sozinha ao terminar; se ainda estiver aqui, não espera de novo.
+            if filas[id]?.token == fila.token {
+                filas[id] = nil
+                pendingIDs.remove(id)
+            }
+        }
+    }
+
     /// Roda `op` depois das operações anteriores da mesma tarefa; a sync não a sobrescreve enquanto houver fila.
     private func enfileirar(_ id: String, _ op: @escaping @MainActor () async -> Void) {
         let anterior = filas[id]?.task
@@ -992,8 +1003,7 @@ final class TaskStore {
     }
 
     private static var cacheURL: URL {
-        let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("Tasker", isDirectory: true)
+        let dir = Pastas.base
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir.appendingPathComponent("cache.json")
     }

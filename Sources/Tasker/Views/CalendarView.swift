@@ -3,6 +3,7 @@ import SwiftUI
 /// Calendário: mês à esquerda (cartões por dia) e agenda do dia escolhido à direita.
 struct CalendarView: View {
     @Environment(TaskStore.self) private var store
+    @Environment(Caderno.self) private var caderno
     @State private var month = Calendar.current.dateInterval(of: .month, for: .now)?.start ?? .now
     @State private var selected = Calendar.current.startOfDay(for: .now)
     @State private var monthEvents: [CalendarEvent]?
@@ -96,6 +97,7 @@ struct CalendarView: View {
 
     private var grid: some View {
         let days = gridDays
+        let comNota = caderno.diasComNota
         return VStack(spacing: 6) {
             ForEach(0..<6, id: \.self) { week in
                 HStack(spacing: 6) {
@@ -104,6 +106,7 @@ struct CalendarView: View {
                                 inMonth: cal.isDate(day, equalTo: month, toGranularity: .month),
                                 isToday: day == store.today,
                                 isSelected: day == selected,
+                                temNota: comNota.contains(day),
                                 events: events(on: day),
                                 tasks: store.tasks(on: day) + store.completedTasks(on: day)) {
                             withAnimation(DS.curvaRapida) { selected = day }
@@ -121,6 +124,7 @@ private struct DayCell: View {
     let inMonth: Bool
     let isToday: Bool
     let isSelected: Bool
+    var temNota = false
     let events: [CalendarEvent]
     let tasks: [TaskItem]
     let action: () -> Void
@@ -149,6 +153,16 @@ private struct DayCell: View {
                     .foregroundStyle(isToday ? DS.acentoSolidoTexto : (inMonth ? DS.texto : DS.texto3))
                     .frame(width: 24, height: 24)
                     .background(Circle().fill(isToday ? DS.acentoSolido : .clear))
+                    .overlay(alignment: .trailing) {
+                        // Dia com nota: um ícone discreto ao lado do número.
+                        if temNota {
+                            Image(systemName: "note.text")
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundStyle(DS.texto3)
+                                .offset(x: 14)
+                                .help("Tem nota do dia")
+                        }
+                    }
                     .padding(.bottom, 1)
 
                 ForEach(visiveis) { item in
@@ -207,6 +221,7 @@ private struct DayAgenda: View {
                     Text(DayLabel.short(day, today: store.today)).display(.titulo).foregroundStyle(DS.texto)
                 }
                 QuickAddField(defaultDue: day, style: .inline)
+                NotaDoDiaCartao(dia: day)
                 EventsCard(events: events, compacto: true)
                 if tasks.isEmpty && events.isEmpty {
                     EstadoVazio(icone: "calendar", titulo: "Dia livre")
@@ -221,5 +236,37 @@ private struct DayAgenda: View {
         }
         .scrollIndicators(.never)
         .indicadorDeRolagem(fundo: DS.superficie)
+    }
+}
+
+/// Na agenda do dia: a nota do dia (trecho) ou o convite para escrever. Abre em Notas.
+struct NotaDoDiaCartao: View {
+    @Environment(Caderno.self) private var caderno
+    @Environment(Navigation.self) private var nav
+    let dia: Date
+
+    var body: some View {
+        let nota = caderno.notaDoDia(dia)
+        Button {
+            nav.notaAberta = .dia(dia)
+            nav.selection = .notas
+        } label: {
+            HStack(alignment: .top, spacing: DS.e3) {
+                Image(systemName: "note.text").font(.system(size: 13, weight: .medium)).foregroundStyle(DS.texto3)
+                    .padding(.top, 1)
+                if let nota {
+                    Text(nota.texto.trimmingCharacters(in: .whitespacesAndNewlines))
+                        .txt(.sm).foregroundStyle(DS.texto2).lineLimit(3)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    Text("Escrever a nota do dia").txt(.sm, .medium).foregroundStyle(DS.texto3)
+                    Spacer()
+                }
+            }
+            .padding(DS.e3)
+            .background(DS.superficie2, in: RoundedRectangle(cornerRadius: DS.raioM, style: .continuous))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(Pressionavel(raio: DS.raioM, escala: 0.99))
     }
 }

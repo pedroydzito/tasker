@@ -52,8 +52,7 @@ final class Updater: NSObject {
     private static let pendingVersionKey = "update.pendingVersion"
 
     private static var updateDir: URL {
-        let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("Tasker/Update", isDirectory: true)
+        let dir = Pastas.pasta("Update")
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir
     }

@@ -12,11 +12,13 @@ private final class KeyPanel: NSPanel {
 @MainActor
 final class QuickAddPanelController {
     private let store: TaskStore
+    private let caderno: Caderno
     private var panel: KeyPanel?
     private var resignObserver: NSObjectProtocol?
 
-    init(store: TaskStore) {
+    init(store: TaskStore, caderno: Caderno) {
         self.store = store
+        self.caderno = caderno
     }
 
     func toggle() {
@@ -30,6 +32,7 @@ final class QuickAddPanelController {
 
         let root = QuickAddPanelView { [weak self] in self?.close() }
             .environment(store)
+            .environment(caderno)
         let hosting = NSHostingView(rootView: root)
         panel.contentView = hosting
 
@@ -90,16 +93,29 @@ final class QuickAddPanelController {
 
 struct QuickAddPanelView: View {
     @Environment(TaskStore.self) private var store
+    @AppStorage("atalho.modoDespejo", store: Pastas.defaults) private var modoDespejo = false
     let onClose: () -> Void
 
     var body: some View {
         VStack {
-            QuickAddField(defaultDue: store.today, style: .large, onAdded: onClose, onEscape: onClose)
-                .padding(DS.e2)
-                .background(DS.superficie, in: RoundedRectangle(cornerRadius: DS.raioCartao, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: DS.raioCartao, style: .continuous).strokeBorder(DS.borda))
-                .sombraAlta()
-                .padding(DS.e5)
+            VStack(alignment: .leading, spacing: DS.e2) {
+                Segmentado(selecao: $modoDespejo, opcoes: [(false, "Tarefa"), (true, "Despejo")])
+                    .padding(.leading, DS.e2)
+                    .padding(.top, DS.e1)
+                Group {
+                    if modoDespejo {
+                        CampoDespejo(style: .large, onEscape: onClose)
+                    } else {
+                        QuickAddField(defaultDue: store.today, style: .large, onAdded: onClose, onEscape: onClose)
+                    }
+                }
+                .id(modoDespejo)
+            }
+            .padding(DS.e2)
+            .background(DS.superficie, in: RoundedRectangle(cornerRadius: DS.raioCartao, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: DS.raioCartao, style: .continuous).strokeBorder(DS.borda))
+            .sombraAlta()
+            .padding(DS.e5)
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)

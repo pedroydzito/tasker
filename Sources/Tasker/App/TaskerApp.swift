@@ -16,6 +16,12 @@ enum Entry {
             }
             exit(ok ? 0 : 1)
         }
+        if args.contains("--autoteste") {
+            MainActor.assumeIsolated { Autoteste.iniciar() }
+        }
+        if let index = args.firstIndex(of: "--capturas"), index + 1 < args.count {
+            MainActor.assumeIsolated { Capturas.iniciar(pasta: args[index + 1]) }
+        }
         TaskerApp.main()
     }
 }
@@ -31,6 +37,7 @@ struct TaskerApp: App {
                 .environment(model.auth)
                 .environment(model.nav)
                 .environment(model.updater)
+                .environment(model.caderno)
         } label: {
             MenuBarLabel(store: model.store)
         }
@@ -42,6 +49,7 @@ struct TaskerApp: App {
                 .environment(model.auth)
                 .environment(model.nav)
                 .environment(model.updater)
+                .environment(model.caderno)
         }
         .defaultSize(width: 1080, height: 720)
         .windowStyle(.hiddenTitleBar)
