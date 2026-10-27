@@ -42,7 +42,9 @@ final class QuickAddPanelController {
             // transparente e os cliques nela passam para o que está atrás.
             let size = NSSize(width: 580, height: 640)
             let frame = screen.visibleFrame
-            panel.setFrame(NSRect(x: frame.midX - size.width / 2, y: frame.maxY - frame.height * 0.22 - size.height + 380,
+            // O campo fica no topo da janela: o topo a 20% da altura da tela, crescendo para baixo.
+            let topo = frame.maxY - frame.height * 0.2
+            panel.setFrame(NSRect(x: frame.midX - size.width / 2, y: max(frame.minY, topo - size.height),
                                   width: size.width, height: size.height), display: true)
         }
         NSApp.activate()
