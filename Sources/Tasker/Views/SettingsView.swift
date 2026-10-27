@@ -82,6 +82,7 @@ struct SettingsView: View {
                         .menuStyle(.borderlessButton)
                         .menuIndicator(.hidden)
                         .fixedSize()
+                        .animacaoDeClique()
                     }
                     LinhaAjuste("Som ao concluir") {
                         Toggle("", isOn: $prefs.completionSound).toggleStyle(.chave).labelsHidden()

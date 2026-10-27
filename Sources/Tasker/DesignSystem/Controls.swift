@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 // Componentes do design system. Antes de escrever estilo numa tela, use um destes.
 
@@ -174,16 +175,56 @@ struct Pressionavel: ButtonStyle {
     }
 }
 
-/// Sem véu (o item já responde de outro jeito), só afunda.
+/// Sem véu (o item já responde de outro jeito): cresce um pouco no hover e afunda no clique.
 struct SoAfunda: ButtonStyle {
     var escala: CGFloat = 0.97
 
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed ? escala : 1)
-            .animation(configuration.isPressed ? DS.toque : DS.curvaRapida, value: configuration.isPressed)
+        configuration.label.modifier(Escala(escala: escala, pressionado: configuration.isPressed))
+    }
+}
+
+/// Hover (cresce) + clique (afunda), proporcional ao tamanho do afundar.
+struct Escala: ViewModifier {
+    var escala: CGFloat = 0.97
+    var pressionado = false
+    @State private var hovering = false
+    @Environment(\.isEnabled) private var isEnabled
+
+    func body(content: Content) -> some View {
+        // Itens grandes (escala perto de 1) quase não crescem; ícones pequenos crescem mais.
+        let hover = 1 + max(0.006, (1 - escala) * 0.6)
+        content
+            .scaleEffect(pressionado ? escala : (hovering && isEnabled ? hover : 1))
+            .brightness(hovering && isEnabled && !pressionado ? -0.03 : 0)
+            .animation(pressionado ? DS.toque : DS.curvaRapida, value: pressionado)
+            .animation(DS.curvaRapida, value: hovering)
+            .onHover { hovering = $0 }
             .pointerStyle(.link)
     }
+}
+
+/// Para Menu (não é Button): hover que cresce e "clique" que afunda quando o menu abre.
+/// Não usa gesto por cima, para não atrapalhar o menu do AppKit de abrir.
+struct EscalaDeMenu: ViewModifier {
+    var escala: CGFloat = 0.92
+    @State private var pressionado = false
+    @State private var sobre = false
+
+    func body(content: Content) -> some View {
+        content
+            .modifier(Escala(escala: escala, pressionado: pressionado))
+            .onHover { sobre = $0 }
+            .onReceive(NotificationCenter.default.publisher(for: NSMenu.didBeginTrackingNotification)) { _ in
+                guard sobre else { return }
+                pressionado = true
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) { pressionado = false }
+            }
+    }
+}
+
+extension View {
+    func animacaoDeClique(escala: CGFloat = 0.92) -> some View { modifier(EscalaDeMenu(escala: escala)) }
 }
 
 // MARK: Campo

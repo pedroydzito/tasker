@@ -1,20 +1,23 @@
 import AppKit
+import QuartzCore
 
 /// Rolagem suave para a roda do mouse. O trackpad já é suave e passa direto;
 /// a roda (que pula de linha em linha) vira um deslizamento animado até o alvo.
 @MainActor
-final class RolagemSuave {
+final class RolagemSuave: NSObject {
     static let shared = RolagemSuave()
 
     private var monitor: Any?
-    private var timer: Timer?
+    /// Sincronizado com a taxa de atualização da tela em que o ScrollView está (60, 75, 120 Hz...).
+    private var link: CADisplayLink?
+    private var ultimoQuadro: CFTimeInterval = 0
     private weak var alvoScroll: NSScrollView?
     private var destinoY: CGFloat = 0
 
     /// Pixels por "dente" da roda.
     private let passo: CGFloat = 46
-    /// Fração da distância percorrida a cada quadro (maior = mais rápido).
-    private let suavidade: CGFloat = 0.2
+    /// Velocidade do deslize (independe da taxa da tela: conta o tempo real entre quadros).
+    private let rapidez: Double = 16
 
     func instalar() {
         guard monitor == nil else { return }
@@ -34,7 +37,7 @@ final class RolagemSuave {
 
         let clip = scroll.contentView
         let limites = faixa(scroll)
-        if scroll !== alvoScroll || timer == nil {
+        if scroll !== alvoScroll || link == nil {
             alvoScroll = scroll
             destinoY = clip.bounds.origin.y
         }
@@ -42,7 +45,7 @@ final class RolagemSuave {
         let sentido: CGFloat = clip.isFlipped ? -1 : 1
         destinoY += evento.scrollingDeltaY * passo * sentido
         destinoY = min(max(destinoY, limites.lowerBound), limites.upperBound)
-        iniciarAnimacao()
+        iniciarAnimacao(em: scroll)
         return true
     }
 
@@ -54,29 +57,32 @@ final class RolagemSuave {
         return minimo...maximo
     }
 
-    private func iniciarAnimacao() {
-        guard timer == nil else { return }
-        let t = Timer(timeInterval: 1.0 / 120, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.quadro() }
-        }
-        RunLoop.main.add(t, forMode: .common)
-        timer = t
+    private func iniciarAnimacao(em scroll: NSScrollView) {
+        guard link == nil else { return }
+        let novo = scroll.displayLink(target: self, selector: #selector(quadro(_:)))
+        novo.add(to: .main, forMode: .common)
+        link = novo
+        ultimoQuadro = 0
     }
 
-    private func quadro() {
+    @objc private func quadro(_ link: CADisplayLink) {
         guard let scroll = alvoScroll else { parar(); return }
+        // Tempo real desde o último quadro, limitado para não dar saltos após uma pausa.
+        let dt = ultimoQuadro == 0 ? link.targetTimestamp - link.timestamp : min(link.timestamp - ultimoQuadro, 1.0 / 20)
+        ultimoQuadro = link.timestamp
+        let fator = CGFloat(1 - exp(-rapidez * max(dt, 0.001)))
         let clip = scroll.contentView
         let atual = clip.bounds.origin.y
         let falta = destinoY - atual
-        let novo = abs(falta) < 0.5 ? destinoY : atual + falta * suavidade
+        let novo = abs(falta) < 0.5 ? destinoY : atual + falta * fator
         clip.scroll(to: NSPoint(x: clip.bounds.origin.x, y: novo))
         scroll.reflectScrolledClipView(clip)
         if novo == destinoY { parar() }
     }
 
     private func parar() {
-        timer?.invalidate()
-        timer = nil
+        link?.invalidate()
+        link = nil
     }
 
     /// O ScrollView mais próximo do cursor que de fato rola na vertical.

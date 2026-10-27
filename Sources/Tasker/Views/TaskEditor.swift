@@ -183,6 +183,7 @@ struct PropriedadesDaTarefa: View {
                 .menuStyle(.borderlessButton)
                 .menuIndicator(.hidden)
                 .fixedSize()
+                .animacaoDeClique()
                 .help("Etiquetas (só no Tasker)")
             }
 

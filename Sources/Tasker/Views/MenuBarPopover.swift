@@ -100,6 +100,7 @@ struct MenuBarPopover: View {
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
         .fixedSize()
+        .animacaoDeClique()
     }
 
     // MARK: Conteúdo
