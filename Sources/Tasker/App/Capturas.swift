@@ -47,6 +47,17 @@ enum Capturas {
                 return AnyView(ambiente(MainWindow()))
             }),
         ]
+        if let tcc = store.tasks.values.first(where: { $0.title.hasPrefix("Revisar capítulo") }) {
+            cenas.append(("11-menu-detalhe", CGSize(width: MenuBarPopover.largura, height: 520), {
+                AnyView(ambiente(Moldura {
+                    CartaoDeLinhas(recuoDoFio: 44) {
+                        TaskRow(task: tcc, style: .compact)
+                        DetalheNoMenu(task: tcc)
+                    }
+                    .environment(\.noMenuDaBarra, true)
+                }))
+            }))
+        }
         if let ideia = caderno.notas.first(where: { $0.dia == nil }) {
             cenas.append(("05-nota-solta", janela, { nav.selection = .notas; nav.notaAberta = .nota(ideia.id); return AnyView(ambiente(MainWindow())) }))
         }
@@ -94,7 +105,7 @@ enum Capturas {
         @ViewBuilder var conteudo: C
         var body: some View {
             conteudo
-                .padding(DS.e6)
+                .padding(DS.e4)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .background(DS.fundo)
                 .hospedaFolhas(folhas)
