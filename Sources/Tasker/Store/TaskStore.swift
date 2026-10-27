@@ -45,7 +45,10 @@ final class TaskStore {
     private(set) var today = Calendar.current.startOfDay(for: .now)
     private(set) var tagDB = TagDatabase.load()
     /// Tempo gasto por tarefa e o cronômetro ativo.
-    private(set) var tempoDB = TempoDB.load()
+    private(set) var tempoDB = TempoDB.load() { didSet { ajustarTique() } }
+    /// Muda a cada segundo enquanto um cronômetro roda (o ícone da barra observa isto).
+    private(set) var tique = Date()
+    @ObservationIgnored private var timerTique: Timer?
     /// Aviso de "excluído — Desfazer" (some sozinho em 3 s).
     private(set) var aviso: AvisoDesfazer?
     /// Aviso de sucesso ("✓ Tarefa adicionada"), some em 2 s. Ações seguidas se somam.
@@ -432,6 +435,7 @@ final class TaskStore {
     // MARK: Ciclo de vida
 
     func start() {
+        ajustarTique() // cronômetro que já estava rodando quando o app fechou
         loadCache()
         loadPhotos()
         scheduleTimer()
@@ -770,6 +774,22 @@ final class TaskStore {
     }
 
     // MARK: Tempo
+
+    private func ajustarTique() {
+        if tempoDB.ativo != nil {
+            guard timerTique == nil else { return }
+            let t = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
+                MainActor.assumeIsolated { self?.tique = Date() }
+            }
+            t.tolerance = 0.1
+            RunLoop.main.add(t, forMode: .common)
+            timerTique = t
+            tique = Date()
+        } else {
+            timerTique?.invalidate()
+            timerTique = nil
+        }
+    }
 
     /// Tarefa com o cronômetro rodando agora (só uma por vez).
     var cronometroAtivo: String? { tempoDB.ativo }

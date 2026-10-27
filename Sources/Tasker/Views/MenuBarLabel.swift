@@ -14,12 +14,9 @@ struct MenuBarLabel: View {
         Group {
             if let ativo = store.cronometroAtivo {
                 // Cronômetro rodando: o número de tarefas dá lugar ao tempo correndo.
-                TimelineView(.periodic(from: .now, by: 1)) { contexto in
-                    HStack(spacing: 4) {
-                        Image(nsImage: Self.icon(count: nil, style: store.prefs.menuBarStyle))
-                        Text(Duracao.relogio(store.tempo(de: ativo, agora: contexto.date))).monospacedDigit()
-                    }
-                }
+                // Uma imagem só (ícone + tempo), de largura fixa: o item da barra não muda de
+                // tamanho a cada segundo (mudar o conteúdo do label com o menu aberto travava a janela).
+                Image(nsImage: Self.cronometro(Duracao.relogio(store.tempo(de: ativo, agora: store.tique))))
             } else {
                 Image(nsImage: Self.icon(count: show ? count : nil, style: store.prefs.menuBarStyle))
             }
@@ -27,6 +24,29 @@ struct MenuBarLabel: View {
             .onReceive(NotificationCenter.default.publisher(for: AppDelegate.abrirJanelaPrincipal)) { _ in
                 openWindow(id: WindowID.main)
             }
+    }
+
+    /// Ícone da barra com o cronômetro: "◷ 12:34" desenhado numa imagem template.
+    @MainActor static func cronometro(_ texto: String) -> NSImage {
+        let symbol = NSImage(systemSymbolName: "timer", accessibilityDescription: "Cronômetro")?
+            .withSymbolConfiguration(.init(pointSize: 13, weight: .semibold)) ?? NSImage()
+        let font = NSFont.monospacedDigitSystemFont(ofSize: 13, weight: .semibold)
+        let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor.black]
+        // Largura do maior texto do mesmo formato: não varia de um segundo para o outro.
+        let molde = texto.count > 5 ? "0:00:00" : "00:00"
+        let largura = (molde as NSString).size(withAttributes: attrs).width
+        let altura = max(symbol.size.height, font.boundingRectForFont.height)
+        let size = NSSize(width: (symbol.size.width + 4 + largura).rounded(.up), height: max(18, altura.rounded(.up)))
+        let image = NSImage(size: size, flipped: false) { rect in
+            symbol.draw(in: NSRect(x: 0, y: (rect.height - symbol.size.height) / 2,
+                                   width: symbol.size.width, height: symbol.size.height))
+            let t = (texto as NSString).size(withAttributes: attrs)
+            (texto as NSString).draw(at: NSPoint(x: symbol.size.width + 4, y: (rect.height - t.height) / 2),
+                                     withAttributes: attrs)
+            return true
+        }
+        image.isTemplate = true
+        return image
     }
 
     @MainActor private static var iconCache: [String: NSImage] = [:]
