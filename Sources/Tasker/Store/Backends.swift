@@ -5,13 +5,19 @@ import Foundation
 protocol TaskBackend: AnyObject {
     func fetchTaskLists() async throws -> [GTaskList]
     func fetchTasks(listID: String, updatedMin: Date?) async throws -> [GTask]
-    func insertTask(listID: String, title: String, notes: String?, due: String?) async throws -> GTask
+    func insertTask(listID: String, title: String, notes: String?, due: String?, parent: String?) async throws -> GTask
     func patchTask(listID: String, taskID: String, fields: [String: Any]) async throws -> GTask
     func deleteTask(listID: String, taskID: String) async throws
     func moveTask(listID: String, taskID: String, toList: String) async throws -> GTask
     func insertList(title: String) async throws -> GTaskList
     func renameList(id: String, title: String) async throws -> GTaskList
     func deleteList(id: String) async throws
+}
+
+extension TaskBackend {
+    func insertTask(listID: String, title: String, notes: String?, due: String?) async throws -> GTask {
+        try await insertTask(listID: listID, title: title, notes: notes, due: due, parent: nil)
+    }
 }
 
 extension GoogleAPI: TaskBackend {}
@@ -60,9 +66,9 @@ final class LocalBackend: TaskBackend {
         banco.tasks[listID] ?? []
     }
 
-    func insertTask(listID: String, title: String, notes: String?, due: String?) async throws -> GTask {
+    func insertTask(listID: String, title: String, notes: String?, due: String?, parent: String?) async throws -> GTask {
         let task = GTask(id: "t-\(UUID().uuidString)", title: title, notes: notes, status: "needsAction", due: due,
-                         completed: nil, updated: Self.agora(), parent: nil, position: Self.posicaoNoTopo(),
+                         completed: nil, updated: Self.agora(), parent: parent, position: Self.posicaoNoTopo(),
                          deleted: nil, hidden: nil, webViewLink: nil)
         banco.tasks[listID, default: []].append(task)
         salvar()

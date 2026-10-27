@@ -31,6 +31,7 @@ struct RascunhoDeTarefa: Equatable {
 /// Painel de detalhes da tarefa (janela principal). Só salva ao clicar em "Salvar".
 struct TaskInspector: View {
     @Environment(TaskStore.self) private var store
+    @Environment(Navigation.self) private var nav
     @Environment(Folhas.self) private var folhas
     let task: TaskItem
     let onClose: () -> Void
@@ -64,6 +65,17 @@ struct TaskInspector: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: DS.e6) {
                         VStack(alignment: .leading, spacing: DS.e3) {
+                            if let mae = current.parent.flatMap({ store.tasks[$0] }) {
+                                Button { withAnimation(DS.curva) { nav.selectedTaskID = mae.id } } label: {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "arrow.turn.left.up").font(.system(size: 10, weight: .semibold))
+                                        Text("Subtarefa de \(mae.displayTitle)").txt(.xs, .medium).lineLimit(1)
+                                    }
+                                    .foregroundStyle(DS.texto3)
+                                }
+                                .buttonStyle(SoAfunda())
+                                .help("Abrir a tarefa-mãe")
+                            }
                             HStack(alignment: .firstTextBaseline, spacing: DS.e3) {
                                 // Concluir: o mesmo círculo da lista de tarefas.
                                 CheckCircle(color: store.color(forList: current.listID), checked: current.isCompleted, size: 22) {
@@ -84,9 +96,23 @@ struct TaskInspector: View {
                             TextEditor(text: binding.notes)
                                 .txt(.md)
                                 .scrollContentBackground(.hidden)
-                                .frame(minHeight: 180)
+                                .frame(minHeight: 90)
+                                .overlay(alignment: .topLeading) {
+                                    if binding.wrappedValue.notes.isEmpty {
+                                        Text("Adicione detalhes, links ou anotações…")
+                                            .txt(.md)
+                                            .foregroundStyle(DS.texto3)
+                                            .padding(.leading, 5)
+                                            .allowsHitTesting(false)
+                                    }
+                                }
                                 .padding(DS.e3)
                                 .background(DS.superficie2, in: RoundedRectangle(cornerRadius: DS.raioM, style: .continuous))
+                        }
+
+                        // O Google Tasks só tem um nível de subtarefas.
+                        if current.parent == nil {
+                            Subtarefas(mae: current)
                         }
                     }
                     .padding(.horizontal, DS.e6)
@@ -149,7 +175,7 @@ struct PropriedadesDaTarefa: View {
                 Button {
                     withAnimation(DS.curva) { dataAberta.toggle(); listasAbertas = false }
                 } label: {
-                    Chip(rascunho.due.map { DayLabel.short($0, today: store.today) + (rascunho.horario.map { " · \($0)" } ?? "") } ?? "Sem data",
+                    Chip(rascunho.due.map { DayLabel.comAtraso($0, today: store.today) + (rascunho.horario.map { " · \($0)" } ?? "") } ?? "Sem data",
                          cor: rascunho.due.map { $0 < store.today ? DS.perigoTexto : DS.texto2 }) {
                         Image(systemName: "calendar").font(.system(size: 10, weight: .semibold))
                     }
@@ -327,5 +353,102 @@ struct EditorRapido: View {
         guard let rascunho else { return }
         rascunho.aplicar(em: store.tasks[task.id] ?? task, store: store)
         withAnimation(DS.curvaSaida) { folhas.fechar() }
+    }
+}
+
+/// Subtarefas no detalhe: concluir, abrir e adicionar na hora (sincronizam com o Google Tasks).
+struct Subtarefas: View {
+    @Environment(TaskStore.self) private var store
+    @Environment(Navigation.self) private var nav
+    let mae: TaskItem
+    @State private var nova = ""
+    @FocusState private var foco: Bool
+
+    var body: some View {
+        let filhas = store.subtarefas(de: mae.id)
+        let feitas = filhas.filter(\.isCompleted).count
+        VStack(alignment: .leading, spacing: DS.e2) {
+            HStack {
+                Text("Subtarefas").rotulo()
+                if !filhas.isEmpty {
+                    Text("\(feitas)/\(filhas.count)").txt(.xs, .semibold).foregroundStyle(DS.texto3)
+                }
+            }
+            if !filhas.isEmpty {
+                ProgressView(value: Double(feitas), total: Double(max(filhas.count, 1)))
+                    .tint(store.color(forList: mae.listID))
+                    .animation(DS.curva, value: feitas)
+            }
+            VStack(spacing: 1) {
+                ForEach(filhas) { filha in
+                    LinhaSubtarefa(tarefa: filha, cor: store.color(forList: mae.listID)) {
+                        withAnimation(DS.curva) { nav.selectedTaskID = filha.id }
+                    }
+                }
+                HStack(spacing: DS.e3) {
+                    Image(systemName: "plus").font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(foco ? DS.acento : DS.texto3)
+                        .frame(width: 18)
+                    TextField("Adicionar subtarefa", text: $nova)
+                        .textFieldStyle(.plain)
+                        .txt(.sm)
+                        .focused($foco)
+                        .onSubmit(adicionar)
+                }
+                .padding(.horizontal, DS.e3)
+                .padding(.vertical, 9)
+            }
+            .background(DS.superficie2, in: RoundedRectangle(cornerRadius: DS.raioM, style: .continuous))
+        }
+        .animation(DS.curva, value: filhas.map(\.id))
+    }
+
+    private func adicionar() {
+        store.addSubtask(title: nova, parent: mae)
+        nova = ""
+        foco = true
+    }
+}
+
+private struct LinhaSubtarefa: View {
+    @Environment(TaskStore.self) private var store
+    @Environment(Folhas.self) private var folhas
+    let tarefa: TaskItem
+    let cor: Color
+    let abrir: () -> Void
+    @State private var sobre = false
+
+    var body: some View {
+        HStack(spacing: DS.e3) {
+            CheckCircle(color: cor, checked: tarefa.isCompleted, size: 18) {
+                store.setCompleted(tarefa, !tarefa.isCompleted)
+            }
+            Button(action: abrir) {
+                HStack {
+                    Text(tarefa.displayTitle)
+                        .txt(.sm)
+                        .strikethrough(tarefa.isCompleted, color: DS.texto3)
+                        .foregroundStyle(tarefa.isCompleted ? DS.texto3 : DS.texto)
+                        .lineLimit(2)
+                    Spacer(minLength: 0)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(SoAfunda(escala: 0.99))
+            .disabled(tarefa.isLocal)
+            if sobre && !tarefa.isLocal {
+                BotaoIcone(simbolo: "trash", rotulo: "Excluir subtarefa") {
+                    folhas.confirmar("Excluir subtarefa", mensagem: "“\(tarefa.displayTitle)” será excluída. Dá para desfazer logo depois.") {
+                        store.delete(tarefa)
+                    }
+                }
+                .transition(.opacity)
+            }
+        }
+        .padding(.horizontal, DS.e3)
+        .padding(.vertical, 7)
+        .background(RoundedRectangle(cornerRadius: DS.raioM, style: .continuous).fill(sobre ? DS.veuHover : .clear))
+        .onHover { sobre = $0 && !RolagemSuave.shared.rolando }
+        .animation(DS.curvaRapida, value: sobre)
     }
 }

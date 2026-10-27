@@ -792,6 +792,41 @@ final class TaskStore {
         }
     }
 
+    /// Subtarefas de uma tarefa, na ordem do Google.
+    func subtarefas(de id: String) -> [TaskItem] {
+        index.byID.values.filter { $0.parent == id }.sorted { ($0.position ?? "") < ($1.position ?? "") }
+    }
+
+    /// Cria uma subtarefa (no Google também). Aparece na hora; some se o Google recusar.
+    func addSubtask(title: String, parent: TaskItem) {
+        let title = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !title.isEmpty, !parent.isLocal else { return }
+        let tempID = "local-\(UUID().uuidString)"
+        // Posição alta: entra no fim das subtarefas até o Google devolver a real.
+        var provisoria = TaskItem(id: tempID, listID: parent.listID, title: title, position: "~")
+        provisoria.parent = parent.id
+        taskMap[tempID] = provisoria
+        enfileirar(tempID) { [self] in
+            do {
+                let created = try await backend.insertTask(listID: parent.listID, title: title, notes: nil, due: nil,
+                                                           parent: parent.id)
+                idsCriados[tempID] = created.id
+                var item = TaskItem(created, listID: parent.listID)
+                if let local = taskMap[tempID] {
+                    item.title = local.title
+                    item.isCompleted = local.isCompleted
+                    item.completed = local.completed
+                }
+                taskMap[tempID] = nil
+                taskMap[created.id] = item
+                saveCache()
+            } catch {
+                taskMap[tempID] = nil
+                lastError = "Não foi possível criar a subtarefa: \(error.localizedDescription)"
+            }
+        }
+    }
+
     func setCompleted(_ task: TaskItem, _ done: Bool) {
         if done && prefs.completionSound { NSSound(named: "Pop")?.play() }
         let fields: [String: Any] = done

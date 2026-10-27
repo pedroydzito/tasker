@@ -121,7 +121,7 @@ struct Sidebar: View {
             .menuStyle(.borderlessButton)
             .menuIndicator(.hidden)
             .fixedSize()
-            .animacaoDeClique()
+            .animacaoDeClique(circulo: true)
             .help(auth.profile?.name ?? "Conta")
         }
         .padding(.horizontal, 10)

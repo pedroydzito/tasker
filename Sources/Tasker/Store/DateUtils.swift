@@ -34,6 +34,13 @@ enum DayLabel {
     @MainActor private static var memo: [Date: [Date: String]] = [:]
 
     /// "Hoje", "Amanhã", "Ontem", "qua." ou "26 de out." — memorizado (a mesma data aparece em muitas linhas).
+    /// Como `short`, mas data passada diz há quantos dias: "12 dias atrás · 15 de out.".
+    @MainActor static func comAtraso(_ day: Date, today: Date) -> String {
+        let dias = Calendar.current.dateComponents([.day], from: day, to: today).day ?? 0
+        guard dias > 1 else { return short(day, today: today) }
+        return "\(dias) dias atrás · \(day.formatted(.dateTime.day().month(.abbreviated)))"
+    }
+
     @MainActor static func short(_ day: Date, today: Date) -> String {
         if let pronto = memo[today]?[day] { return pronto }
         if memo[today] == nil { memo = [:] }

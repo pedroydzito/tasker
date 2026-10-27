@@ -162,11 +162,12 @@ final class GoogleAPI {
         }
     }
 
-    func insertTask(listID: String, title: String, notes: String?, due: String?) async throws -> GTask {
+    func insertTask(listID: String, title: String, notes: String?, due: String?, parent: String?) async throws -> GTask {
         var body: [String: Any] = ["title": title]
         if let notes, !notes.isEmpty { body["notes"] = notes }
         if let due { body["due"] = due }
-        let data = try await send("POST", Self.url(Self.tasksBase, ["lists", listID, "tasks"]), json: body)
+        // Subtarefa: o Google recebe a tarefa-mãe pela query.
+        let data = try await send("POST", Self.url(Self.tasksBase, ["lists", listID, "tasks"], ["parent": parent]), json: body)
         return try JSONDecoder().decode(GTask.self, from: data)
     }
 

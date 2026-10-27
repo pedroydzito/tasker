@@ -209,16 +209,20 @@ struct Escala: ViewModifier {
 /// não usa gesto por cima, para não atrapalhar o menu de abrir.
 struct EscalaDeMenu: ViewModifier {
     var raio: CGFloat = 999
+    var circulo = false
     @State private var pressionado = false
     @State private var sobre = false
 
     func body(content: Content) -> some View {
         content
             .background {
-                RoundedRectangle(cornerRadius: raio, style: .continuous)
-                    .fill(pressionado ? DS.veuAtivo : (sobre ? DS.veuHover : .clear))
-                    .padding(-4)
-                    .allowsHitTesting(false)
+                let cor = pressionado ? DS.veuAtivo : (sobre ? DS.veuHover : Color.clear)
+                Group {
+                    // Círculo: ocupa a altura e fica com a mesma largura (redondo, centralizado).
+                    if circulo { Circle().fill(cor) } else { RoundedRectangle(cornerRadius: raio, style: .continuous).fill(cor) }
+                }
+                .padding(-4)
+                .allowsHitTesting(false)
             }
             .animation(DS.curvaRapida, value: sobre)
             .animation(pressionado ? DS.toque : DS.curvaRapida, value: pressionado)
@@ -236,7 +240,9 @@ struct EscalaDeMenu: ViewModifier {
 }
 
 extension View {
-    func animacaoDeClique(raio: CGFloat = 999) -> some View { modifier(EscalaDeMenu(raio: raio)) }
+    func animacaoDeClique(raio: CGFloat = 999, circulo: Bool = false) -> some View {
+        modifier(EscalaDeMenu(raio: raio, circulo: circulo))
+    }
 }
 
 // MARK: Campo
