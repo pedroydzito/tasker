@@ -76,7 +76,12 @@ extension TaskStore {
                 setPhoto(from: tmp, forList: listID)
                 try? FileManager.default.removeItem(at: tmp)
             }
+            // Importar o mesmo arquivo de novo não duplica: pula o que já existe (mesmo título e data).
+            var existentes = Set(tasks.values.filter { $0.listID == listID }
+                .map { "\($0.title.lowercased())|\($0.due?.prefix(10) ?? "")" })
             for tarefa in lista.tarefas {
+                let chave = "\(tarefa.titulo.lowercased())|\(tarefa.prazo?.prefix(10) ?? "")"
+                guard existentes.insert(chave).inserted else { continue }
                 var criada = try await backend.insertTask(listID: listID, title: tarefa.titulo, notes: tarefa.notas, due: tarefa.prazo)
                 if tarefa.concluida {
                     criada = try await backend.patchTask(listID: listID, taskID: criada.id, fields: ["status": "completed"])

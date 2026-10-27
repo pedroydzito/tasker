@@ -301,7 +301,7 @@ struct PopoverCalendarView: View {
             weekStrip.padding(.horizontal, DS.e4)
             QuickAddField(defaultDue: day).padding(.horizontal, DS.e4)
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: DS.e4) {
+                VStack(alignment: .leading, spacing: DS.e4) {
                     let events = store.events(on: day)
                     let tasks = store.tasks(on: day)
                     EventsCard(events: events, compacto: true)

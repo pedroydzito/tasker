@@ -42,7 +42,7 @@ struct TaskRow: View {
         )
         .scaleEffect(pressed ? 0.995 : 1)
         .contentShape(Rectangle())
-        .onHover { hovering = $0 }
+        .onHover { hovering = $0 && !RolagemSuave.shared.rolando }
         .animation(DS.curvaRapida, value: hovering)
         .animation(DS.curvaRapida, value: isSelected)
         .onTapGesture(perform: open)

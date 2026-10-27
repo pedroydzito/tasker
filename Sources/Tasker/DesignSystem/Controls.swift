@@ -19,7 +19,7 @@ struct Veu: ViewModifier {
             .scaleEffect(pressionado ? escala : 1)
             .animation(pressionado ? DS.toque : DS.curvaRapida, value: pressionado)
             .animation(DS.curvaRapida, value: hovering)
-            .onHover { hovering = $0 }
+            .onHover { hovering = $0 && !RolagemSuave.shared.rolando }
             .pointerStyle(.link)
     }
 }
@@ -62,7 +62,7 @@ struct Botao: ButtonStyle {
                 .opacity(isEnabled ? 1 : 0.4)
                 .animation(configuration.isPressed ? DS.toque : DS.curvaRapida, value: configuration.isPressed)
                 .animation(DS.curvaRapida, value: hovering)
-                .onHover { hovering = $0 }
+                .onHover { hovering = $0 && !RolagemSuave.shared.rolando }
                 .pointerStyle(isEnabled ? .link : nil)
         }
 
@@ -154,7 +154,7 @@ struct IconeQueReage: View {
             .font(.system(size: tamanho, weight: .medium))
             .scaleEffect(hovering ? 1.12 : 1)
             .animation(DS.curvaRapida, value: hovering)
-            .onHover { hovering = $0 }
+            .onHover { hovering = $0 && !RolagemSuave.shared.rolando }
     }
 }
 
@@ -199,32 +199,44 @@ struct Escala: ViewModifier {
             .brightness(hovering && isEnabled && !pressionado ? -0.03 : 0)
             .animation(pressionado ? DS.toque : DS.curvaRapida, value: pressionado)
             .animation(DS.curvaRapida, value: hovering)
-            .onHover { hovering = $0 }
+            .onHover { hovering = $0 && !RolagemSuave.shared.rolando }
             .pointerStyle(.link)
     }
 }
 
-/// Para Menu (não é Button): hover que cresce e "clique" que afunda quando o menu abre.
-/// Não usa gesto por cima, para não atrapalhar o menu do AppKit de abrir.
+/// Para Menu (não é Button): véu atrás no hover e mais escuro quando o menu abre.
+/// Não muda o tamanho nem a posição (o botão de menu do AppKit não escala bem) e
+/// não usa gesto por cima, para não atrapalhar o menu de abrir.
 struct EscalaDeMenu: ViewModifier {
-    var escala: CGFloat = 0.92
+    var raio: CGFloat = 999
     @State private var pressionado = false
     @State private var sobre = false
 
     func body(content: Content) -> some View {
         content
-            .modifier(Escala(escala: escala, pressionado: pressionado))
+            .background {
+                RoundedRectangle(cornerRadius: raio, style: .continuous)
+                    .fill(pressionado ? DS.veuAtivo : (sobre ? DS.veuHover : .clear))
+                    .padding(-4)
+                    .allowsHitTesting(false)
+            }
+            .animation(DS.curvaRapida, value: sobre)
+            .animation(pressionado ? DS.toque : DS.curvaRapida, value: pressionado)
             .onHover { sobre = $0 }
+            .pointerStyle(.link)
             .onReceive(NotificationCenter.default.publisher(for: NSMenu.didBeginTrackingNotification)) { _ in
                 guard sobre else { return }
                 pressionado = true
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) { pressionado = false }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: NSMenu.didEndTrackingNotification)) { _ in
+                pressionado = false
+                sobre = false
             }
     }
 }
 
 extension View {
-    func animacaoDeClique(escala: CGFloat = 0.92) -> some View { modifier(EscalaDeMenu(escala: escala)) }
+    func animacaoDeClique(raio: CGFloat = 999) -> some View { modifier(EscalaDeMenu(raio: raio)) }
 }
 
 // MARK: Campo
@@ -471,7 +483,7 @@ struct Pasta<Content: View>: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(SoAfunda(escala: 0.995))
-            .onHover { hovering = $0 }
+            .onHover { hovering = $0 && !RolagemSuave.shared.rolando }
 
             if aberta {
                 Rectangle().fill(DS.borda).frame(height: 1)

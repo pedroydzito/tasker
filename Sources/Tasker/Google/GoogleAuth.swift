@@ -160,10 +160,19 @@ final class GoogleAuth {
 
     func signOut() {
         if let token = refreshToken {
-            var request = URLRequest(url: URL(string: "https://oauth2.googleapis.com/revoke?token=\(token)")!)
+            // O token vai no corpo (codificado), nunca na URL, onde poderia parar em logs.
+            var request = URLRequest(url: URL(string: "https://oauth2.googleapis.com/revoke")!)
             request.httpMethod = "POST"
+            request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+            var corpo = URLComponents()
+            corpo.queryItems = [URLQueryItem(name: "token", value: token)]
+            request.httpBody = corpo.percentEncodedQuery?
+                .replacingOccurrences(of: "+", with: "%2B")
+                .data(using: .utf8)
             URLSession.shared.dataTask(with: request).resume()
         }
+        refreshTask?.cancel()
+        refreshTask = nil
         SecretStore.set(nil, for: Keys.refreshToken)
         UserDefaults.standard.removeObject(forKey: Keys.profile)
         refreshToken = nil

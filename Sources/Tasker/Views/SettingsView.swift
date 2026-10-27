@@ -139,6 +139,8 @@ struct SettingsView: View {
                     LinhaAjuste("Abrir ao iniciar o Mac") {
                         Toggle("", isOn: $launchAtLogin).toggleStyle(.chave).labelsHidden()
                             .onChange(of: launchAtLogin) { _, enabled in
+                                // Ao desfazer a chave depois de um erro, não tenta de novo.
+                                guard enabled != (SMAppService.mainApp.status == .enabled) else { return }
                                 do {
                                     if enabled { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
                                 } catch {

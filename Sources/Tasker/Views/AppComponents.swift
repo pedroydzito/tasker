@@ -149,7 +149,7 @@ struct CheckCircle: View {
             .contentShape(Circle().inset(by: -6))
         }
         .buttonStyle(SoAfunda(escala: 0.85))
-        .onHover { hovering = $0 }
+        .onHover { hovering = $0 && !RolagemSuave.shared.rolando }
         .animation(DS.curvaRapida, value: hovering)
         .animation(.spring(response: 0.3, dampingFraction: 0.6), value: checked)
         .help(checked ? "Reabrir" : "Concluir")

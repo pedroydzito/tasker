@@ -60,7 +60,7 @@ struct EventRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(SoAfunda(escala: 0.99))
-        .onHover { hovering = $0 }
+        .onHover { hovering = $0 && !RolagemSuave.shared.rolando }
         .animation(DS.curvaRapida, value: hovering)
         .help("Abrir no Google Calendar")
     }

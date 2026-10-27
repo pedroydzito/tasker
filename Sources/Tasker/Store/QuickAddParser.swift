@@ -103,7 +103,10 @@ struct QuickAddParser {
         let cal = Calendar.current
         var year = parts.count == 3 ? parts[2] : cal.component(.year, from: today)
         if year < 100 { year += 2000 }
-        guard var date = cal.date(from: DateComponents(year: year, month: parts[1], day: parts[0])) else { return nil }
+        // Recusa datas que não existem ("31/02" não vira 3 de março).
+        guard var date = cal.date(from: DateComponents(year: year, month: parts[1], day: parts[0])),
+              cal.component(.day, from: date) == parts[0], cal.component(.month, from: date) == parts[1]
+        else { return nil }
         if parts.count == 2, date < today, let next = cal.date(byAdding: .year, value: 1, to: date) { date = next }
         return date
     }

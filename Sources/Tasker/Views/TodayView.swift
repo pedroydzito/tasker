@@ -9,7 +9,7 @@ struct PageScaffold<Leading: View, Content: View>: View {
 
     var body: some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: DS.e5) {
+            VStack(alignment: .leading, spacing: DS.e5) {
                 CabecalhoTela(rotulo: rotulo, titulo: title) { leading }
                     .encadeado(0)
                 Avisos()

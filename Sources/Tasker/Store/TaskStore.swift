@@ -62,6 +62,10 @@ final class TaskStore {
     @ObservationIgnored private var filas: [String: (token: UUID, task: Task<Void, Never>)] = [:]
     /// Sincronização forçada pedida enquanto outra rodava: roda de novo ao terminar.
     @ObservationIgnored private var syncPendente = false
+    /// Muda a cada reset (sair, trocar de conta ou de modo): respostas de antes são descartadas.
+    @ObservationIgnored private var geracao = 0
+    /// Id provisório ("local-…") → id definitivo, para edições feitas antes de a tarefa ser criada.
+    @ObservationIgnored private var idsCriados: [String: String] = [:]
     @ObservationIgnored private var eventosPorDia: [Date: [CalendarEvent]] = [:]
     @ObservationIgnored private var cacheAgendado: DispatchWorkItem?
     @ObservationIgnored private var tarefaAviso: Task<Void, Never>?
@@ -243,6 +247,11 @@ final class TaskStore {
             do {
                 try await self.backend.deleteList(id: id)
                 self.listasSaindo.remove(id)
+                self.removePhoto(forList: id)
+                self.prefs.listSymbols[id] = nil
+                self.prefs.listColors[id] = nil
+                self.prefs.listOrder.removeAll { $0 == id }
+                if self.prefs.defaultListID == id { self.prefs.defaultListID = nil }
                 self.saveCache()
             } catch {
                 self.listasSaindo.remove(id)
@@ -298,7 +307,8 @@ final class TaskStore {
 
     /// Move uma lista para a posição de outra (arrastar na barra lateral).
     func moveList(_ id: String, to targetID: String) {
-        guard id != targetID, let from = lists.firstIndex(where: { $0.id == id }),
+        guard id != targetID, id != pinnedListID, targetID != pinnedListID,
+              let from = lists.firstIndex(where: { $0.id == id }),
               let to = lists.firstIndex(where: { $0.id == targetID }) else { return }
         var reordered = lists
         let item = reordered.remove(at: from)
@@ -442,6 +452,16 @@ final class TaskStore {
     }
 
     func reset() {
+        geracao += 1
+        tarefaAviso?.cancel()
+        aviso = nil
+        pendingIDs = []
+        filas = [:]
+        idsCriados = [:]
+        syncPendente = false
+        eventRange = nil
+        lastFullSync = .distantPast
+        listPhotos = [:]
         lists = []
         listsChanged()
         taskMap = [:]
@@ -490,7 +510,9 @@ final class TaskStore {
     }
 
     private func syncTasks(full: Bool) async throws {
+        let geracaoInicial = geracao
         let remoteLists = try await backend.fetchTaskLists()
+        guard geracao == geracaoInicial else { return }
         let hadLists = !lists.isEmpty
         // O Google devolve a lista principal primeiro; ela fica fixa no topo.
         if let first = remoteLists.first?.id { pinnedListID = first }
@@ -520,6 +542,7 @@ final class TaskStore {
             for try await (id, tarefas) in group { todas[id] = tarefas }
             return todas
         }
+        guard geracao == geracaoInicial else { return }
         for (listID, since) in pedidos {
             let remote = respostas[listID] ?? []
 
@@ -579,7 +602,9 @@ final class TaskStore {
     }
 
     private func syncEventsNow() async throws {
+        let geracaoInicial = geracao
         let remote = try await api.fetchCalendars()
+        guard geracao == geracaoInicial else { return }
         calendars = remote
             .filter { $0.hidden != true }
             .map {
@@ -595,7 +620,9 @@ final class TaskStore {
         let month = cal.dateInterval(of: .month, for: today)?.start ?? today
         let from = cal.adding(days: -7, to: cal.date(byAdding: .month, value: -1, to: month) ?? month)
         let to = cal.adding(days: 14, to: cal.date(byAdding: .month, value: 3, to: month) ?? month)
-        events = await loadEvents(from: from, to: to)
+        let novos = await loadEvents(from: from, to: to)
+        guard geracao == geracaoInicial else { return }
+        events = novos
         eventRange = from..<to
         lastEventSync = .now
     }
@@ -737,11 +764,21 @@ final class TaskStore {
         taskMap[tempID] = TaskItem(id: tempID, listID: listID, title: title, notes: notas, due: dueString, position: "")
         if !tagIDs.isEmpty { tagDB.assignments[tempID] = tagIDs }
 
-        Task {
+        enfileirar(tempID) { [self] in
             do {
                 let created = try await backend.insertTask(listID: listID, title: title, notes: notas, due: dueString)
+                idsCriados[tempID] = created.id
+                // Mantém o que foi mudado aqui enquanto o Google criava (as mudanças seguem na fila).
+                var item = TaskItem(created, listID: listID)
+                if let local = taskMap[tempID] {
+                    item.title = local.title
+                    item.notes = local.notes
+                    item.due = local.due
+                    item.isCompleted = local.isCompleted
+                    item.completed = local.completed
+                }
                 taskMap[tempID] = nil
-                taskMap[created.id] = TaskItem(created, listID: listID)
+                taskMap[created.id] = item
                 if let tags = tagDB.assignments.removeValue(forKey: tempID) {
                     tagDB.assignments[created.id] = tags
                 }
@@ -814,11 +851,20 @@ final class TaskStore {
     /// Exclui a tarefa: some na hora; só é apagada de verdade se não houver "Desfazer" em 3 s.
     func delete(_ task: TaskItem) {
         guard !task.isLocal, let original = taskMap[task.id] else { return }
-        taskMap[task.id] = nil
+        // O Google apaga as subtarefas junto; aqui elas somem (e voltam no Desfazer) também.
+        let filhas = taskMap.values.filter { $0.parent == task.id }
+        var semElas = taskMap
+        semElas[task.id] = nil
+        for filha in filhas { semElas[filha.id] = nil }
+        taskMap = semElas
         pendingIDs.insert(task.id)
         mostrarAviso("Tarefa excluída") { [weak self] in
-            self?.taskMap[task.id] = original
-            self?.pendingIDs.remove(task.id)
+            guard let self else { return }
+            var de_volta = self.taskMap
+            de_volta[task.id] = original
+            for filha in filhas { de_volta[filha.id] = filha }
+            self.taskMap = de_volta
+            self.pendingIDs.remove(task.id)
         } confirmar: { [weak self] in
             guard let self else { return }
             defer { self.pendingIDs.remove(task.id) }
@@ -836,7 +882,10 @@ final class TaskStore {
     }
 
     private func mutate(_ task: TaskItem, fields: [String: Any], local: (inout TaskItem) -> Void) {
-        guard !task.isLocal else { return }
+        if task.isLocal {
+            mutarRecemCriada(task, fields: fields, local: local)
+            return
+        }
         let original = taskMap[task.id] ?? task
         var updated = original
         local(&updated)
@@ -858,6 +907,22 @@ final class TaskStore {
                 saveCache()
             } catch {
                 taskMap[task.id] = original
+                lastError = "Não foi possível salvar: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    /// Tarefa ainda sendo criada: muda na hora e envia depois que o Google devolver o id definitivo.
+    private func mutarRecemCriada(_ task: TaskItem, fields: [String: Any], local: (inout TaskItem) -> Void) {
+        guard var atual = taskMap[task.id] else { return }
+        local(&atual)
+        taskMap[task.id] = atual
+        let tempID = task.id
+        enfileirar(tempID) { [self] in
+            guard let id = idsCriados[tempID], let criada = taskMap[id] else { return }
+            do {
+                _ = try await backend.patchTask(listID: criada.listID, taskID: id, fields: fields)
+            } catch {
                 lastError = "Não foi possível salvar: \(error.localizedDescription)"
             }
         }
