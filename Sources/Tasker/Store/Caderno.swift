@@ -9,7 +9,7 @@ struct ItemDespejo: Identifiable, Codable, Hashable {
 }
 
 /// Nota livre ou nota do dia (diário de planejamento). Fica só no Tasker.
-struct Nota: Identifiable, Codable, Hashable {
+struct Anotacao: Identifiable, Codable, Hashable {
     let id: String
     var titulo: String
     var texto: String
@@ -47,7 +47,7 @@ struct ResultadoBusca: Identifiable, Hashable {
 final class Caderno {
     /// Ordem de chegada: o mais antigo primeiro (é o primeiro da triagem).
     private(set) var despejo: [ItemDespejo] = []
-    private(set) var notas: [Nota] = []
+    private(set) var notas: [Anotacao] = []
 
     @ObservationIgnored let store: TaskStore
     @ObservationIgnored private let arquivo: URL
@@ -55,9 +55,9 @@ final class Caderno {
 
     private struct Arquivo: Codable {
         var despejo: [ItemDespejo] = []
-        var notas: [Nota] = []
+        var notas: [Anotacao] = []
 
-        init(despejo: [ItemDespejo], notas: [Nota]) {
+        init(despejo: [ItemDespejo], notas: [Anotacao]) {
             self.despejo = despejo
             self.notas = notas
         }
@@ -65,7 +65,7 @@ final class Caderno {
         init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
             despejo = try c.decodeIfPresent([ItemDespejo].self, forKey: .despejo) ?? []
-            notas = try c.decodeIfPresent([Nota].self, forKey: .notas) ?? []
+            notas = try c.decodeIfPresent([Anotacao].self, forKey: .notas) ?? []
         }
     }
 
@@ -161,13 +161,13 @@ final class Caderno {
     // MARK: Notas
 
     /// Mais recentes primeiro.
-    var notasOrdenadas: [Nota] { notas.sorted { $0.editada > $1.editada } }
+    var notasOrdenadas: [Anotacao] { notas.sorted { $0.editada > $1.editada } }
 
     var diasComNota: Set<Date> { Set(notas.compactMap(\.dia)) }
 
-    func nota(_ id: String) -> Nota? { notas.first { $0.id == id } }
+    func nota(_ id: String) -> Anotacao? { notas.first { $0.id == id } }
 
-    func notaDoDia(_ dia: Date) -> Nota? {
+    func notaDoDia(_ dia: Date) -> Anotacao? {
         let d = Calendar.current.startOfDay(for: dia)
         return notas.first { $0.dia == d }
     }
@@ -184,14 +184,14 @@ final class Caderno {
                 notas[i].editada = .now
             }
         } else if !vazio {
-            notas.append(Nota(id: UUID().uuidString, titulo: "", texto: texto, dia: d, criada: .now, editada: .now))
+            notas.append(Anotacao(id: UUID().uuidString, titulo: "", texto: texto, dia: d, criada: .now, editada: .now))
         }
         salvar()
     }
 
     @discardableResult
     func novaNota(titulo: String = "", texto: String = "") -> String {
-        let nota = Nota(id: UUID().uuidString, titulo: titulo, texto: texto, dia: nil, criada: .now, editada: .now)
+        let nota = Anotacao(id: UUID().uuidString, titulo: titulo, texto: texto, dia: nil, criada: .now, editada: .now)
         notas.append(nota)
         salvar()
         return nota.id

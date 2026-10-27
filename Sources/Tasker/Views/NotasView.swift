@@ -89,7 +89,7 @@ struct NotasView: View {
         .background(DS.fundo)
     }
 
-    private func resumo(_ nota: Nota) -> String {
+    private func resumo(_ nota: Anotacao) -> String {
         let corpo = nota.texto.split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) }
             .first { !$0.isEmpty && $0 != nota.tituloExibido } ?? ""
         let quando = nota.dia.map { DayLabel.short($0, today: store.today) }
@@ -97,7 +97,7 @@ struct NotasView: View {
         return corpo.isEmpty ? quando : "\(quando) · \(corpo)"
     }
 
-    private func excluir(_ nota: Nota) {
+    private func excluir(_ nota: Anotacao) {
         let alvo: AlvoNota = nota.dia.map { .dia($0) } ?? .nota(nota.id)
         if nav.notaAberta == alvo { nav.notaAberta = nil }
         withAnimation(DS.curva) { caderno.excluirNota(nota.id) }
@@ -155,7 +155,7 @@ struct EditorDeNota: View {
         return nil
     }
 
-    private var nota: Nota? {
+    private var nota: Anotacao? {
         switch alvo {
         case .dia(let d): caderno.notaDoDia(d)
         case .nota(let id): caderno.nota(id)
@@ -257,7 +257,7 @@ struct EditorDeNota: View {
 private struct TarefasDaNota: View {
     @Environment(Caderno.self) private var caderno
     @Environment(TaskStore.self) private var store
-    let nota: Nota
+    let nota: Anotacao
     let pendentes: [Caderno.Pendente]
 
     var body: some View {
