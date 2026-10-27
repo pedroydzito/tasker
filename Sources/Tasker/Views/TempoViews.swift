@@ -26,8 +26,10 @@ struct ControleDeTempo: View {
                 .frame(height: 22)
                 .background(Capsule().fill(DS.acentoSolido))
                 .contentShape(Capsule())
+                .fixedSize()
             }
             .buttonStyle(SoAfunda(escala: 0.92))
+            .layoutPriority(2)
             .help("Pausar o cronômetro")
             .transition(.opacity.combined(with: .scale(scale: 0.9)))
         } else if visivel {
