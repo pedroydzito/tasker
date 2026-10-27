@@ -12,6 +12,8 @@ final class Navigation {
     var selection: SidebarItem? = .today
     /// Tarefa aberta no painel de detalhes da janela principal.
     var selectedTaskID: String?
+    /// Tarefas-mãe com as subtarefas abertas embaixo (vale para o menu e para a janela).
+    var subtarefasAbertas: Set<String> = []
 }
 
 /// Objetos compartilhados entre a barra de menu, a janela principal e o atalho global.

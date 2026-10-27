@@ -12,7 +12,7 @@ struct AllTasksView: View {
 
                 if groupByList {
                     ForEach(store.lists) { list in
-                        let items = store.hierarchy(store.tasks(inList: list.id))
+                        let items = store.hierarchy(store.tasks(inList: list.id)).filter { $0.depth == 0 }
                         if !items.isEmpty {
                             SecaoTarefas(store.displayName(list.id), contagem: items.count, tom: store.color(forList: list.id)) {
                                 ForEach(items) { TaskRow(task: $0.task, showList: false, depth: $0.depth) }
@@ -46,7 +46,7 @@ struct ListDetailView: View {
     let listID: String
 
     var body: some View {
-        let items = store.hierarchy(store.tasks(inList: listID))
+        let items = store.hierarchy(store.tasks(inList: listID)).filter { $0.depth == 0 }
         let done = store.completedTasks(inList: listID)
         let cor = store.color(forList: listID)
         PageScaffold(rotulo: taskCountText(items.count), title: store.displayName(listID)) {

@@ -332,6 +332,13 @@ struct EditorRapido: View {
                     TextField("Detalhes", text: binding.notes, axis: .vertical).lineLimit(2...6).campo()
                 }
                 PropriedadesDaTarefa(rascunho: binding)
+                // Subtarefas: concluir e criar direto daqui (salvam na hora, como no detalhe da janela).
+                let atual = store.tasks[task.id] ?? task
+                if atual.parent == nil && !atual.isLocal {
+                    Subtarefas(mae: atual) { filha in
+                        folhas.abrir("Editar subtarefa") { EditorRapido(task: filha).id(filha.id) }
+                    }
+                }
             }
             RodapeFolha {
                 Button("Excluir") {
@@ -361,6 +368,8 @@ struct Subtarefas: View {
     @Environment(TaskStore.self) private var store
     @Environment(Navigation.self) private var nav
     let mae: TaskItem
+    /// Como abrir uma subtarefa (padrão: no painel de detalhes da janela).
+    var abrir: ((TaskItem) -> Void)?
     @State private var nova = ""
     @FocusState private var foco: Bool
 
@@ -382,7 +391,7 @@ struct Subtarefas: View {
             VStack(spacing: 1) {
                 ForEach(filhas) { filha in
                     LinhaSubtarefa(tarefa: filha, cor: store.color(forList: mae.listID)) {
-                        withAnimation(DS.curva) { nav.selectedTaskID = filha.id }
+                        if let abrir { abrir(filha) } else { withAnimation(DS.curva) { nav.selectedTaskID = filha.id } }
                     }
                 }
                 HStack(spacing: DS.e3) {

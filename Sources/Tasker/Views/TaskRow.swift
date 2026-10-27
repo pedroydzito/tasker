@@ -21,7 +21,26 @@ struct TaskRow: View {
     private var checked: Bool { task.isCompleted || checking }
     private var isSelected: Bool { style == .full && nav.selectedTaskID == task.id }
 
+    /// Subtarefas (só no primeiro nível: o Google Tasks não tem netas).
+    private var filhas: [TaskItem] { depth == 0 ? store.subtarefas(de: task.id) : [] }
+    private var aberta: Bool { nav.subtarefasAbertas.contains(task.id) && !filhas.isEmpty }
+
     var body: some View {
+        let filhas = self.filhas
+        let aberta = self.aberta
+        VStack(spacing: 0) {
+            linha
+            if aberta {
+                ForEach(filhas) { filha in
+                    TaskRow(task: filha, style: style, showDate: showDate, showList: false, depth: depth + 1)
+                }
+                .transition(.opacity.combined(with: .offset(y: -4)))
+            }
+        }
+        .animation(DS.curva, value: aberta)
+    }
+
+    private var linha: some View {
         Group {
             if style == .compact {
                 linhaCompacta
@@ -61,6 +80,18 @@ struct TaskRow: View {
         .opacity(task.isLocal ? 0.55 : 1)
     }
 
+    /// "▸ 1/3": abre as subtarefas embaixo, sem entrar na tarefa.
+    @ViewBuilder private var seta: some View {
+        let filhas = self.filhas
+        if !filhas.isEmpty {
+            SetaSubtarefas(aberta: aberta, feitas: filhas.filter(\.isCompleted).count, total: filhas.count) {
+                withAnimation(DS.curva) {
+                    if aberta { nav.subtarefasAbertas.remove(task.id) } else { nav.subtarefasAbertas.insert(task.id) }
+                }
+            }
+        }
+    }
+
     private var circulo: some View {
         CheckCircle(color: store.color(forList: task.listID), checked: checked, size: 18, action: toggle)
     }
@@ -78,6 +109,7 @@ struct TaskRow: View {
         HStack(spacing: DS.e3) {
             circulo
             titulo
+            seta
             Spacer(minLength: DS.e2)
             if task.hasNotes {
                 Image(systemName: "text.alignleft").font(.system(size: 10.5)).foregroundStyle(DS.texto3)
@@ -95,6 +127,7 @@ struct TaskRow: View {
         HStack(spacing: DS.e3) {
             circulo
             titulo.fixedSize()
+            seta
             metadadosSemData.fixedSize()
             Spacer(minLength: 120)
             dataComHora
@@ -106,7 +139,7 @@ struct TaskRow: View {
         HStack(spacing: DS.e3) {
             circulo
             VStack(alignment: .leading, spacing: 2) {
-                titulo
+                HStack(spacing: DS.e1) { titulo; seta }
                 HStack(spacing: 6) {
                     dataComHora
                     metadadosSemData
@@ -208,5 +241,31 @@ struct TaskRow: View {
                 store.delete(alvo)
             }
         }
+    }
+}
+
+/// Seta à esquerda da tarefa-mãe: abre/fecha as subtarefas embaixo dela.
+struct SetaSubtarefas: View {
+    let aberta: Bool
+    let feitas: Int
+    let total: Int
+    let acao: () -> Void
+
+    var body: some View {
+        Button(action: acao) {
+            HStack(spacing: 3) {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 8, weight: .bold))
+                    .rotationEffect(.degrees(aberta ? 90 : 0))
+                Text("\(feitas)/\(total)").txt(.xs, .semibold).monospacedDigit()
+            }
+            .foregroundStyle(aberta ? DS.texto2 : DS.texto3)
+            .padding(.horizontal, 6)
+            .frame(height: 20)
+            .background(Capsule().fill(DS.superficie2))
+            .contentShape(Capsule())
+        }
+        .buttonStyle(SoAfunda(escala: 0.9))
+        .help(aberta ? "Esconder subtarefas (\(feitas)/\(total))" : "Mostrar subtarefas (\(feitas)/\(total))")
     }
 }

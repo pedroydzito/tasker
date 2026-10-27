@@ -794,7 +794,7 @@ final class TaskStore {
 
     /// Subtarefas de uma tarefa, na ordem do Google.
     func subtarefas(de id: String) -> [TaskItem] {
-        index.byID.values.filter { $0.parent == id }.sorted { ($0.position ?? "") < ($1.position ?? "") }
+        index.filhas[id] ?? []
     }
 
     /// Cria uma subtarefa (no Google também). Aparece na hora; some se o Google recusar.
@@ -1056,6 +1056,8 @@ struct TaskIndex {
     var completedToday: [TaskItem] = []
     var completedByList: [String: [TaskItem]] = [:]
     var completedByDay: [Date: [TaskItem]] = [:]
+    /// Subtarefas (abertas e concluídas) de cada tarefa-mãe, na ordem do Google.
+    var filhas: [String: [TaskItem]] = [:]
 
     init() {}
 
@@ -1066,6 +1068,10 @@ struct TaskIndex {
         open.reserveCapacity(map.count)
         for task in map.values {
             if task.isCompleted { done.append(task) } else { open.append(task) }
+            if let mae = task.parent { filhas[mae, default: []].append(task) }
+        }
+        for (mae, lista) in filhas {
+            filhas[mae] = lista.sorted { ($0.position ?? "") < ($1.position ?? "") }
         }
 
         // Ordem: data, depois ordem das listas, depois posição dentro da lista.
