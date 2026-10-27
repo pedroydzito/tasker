@@ -3,7 +3,7 @@ import SwiftUI
 /// Menu da barra (base KiteTasks, com o design system): mesmo fundo do app, altura fixa
 /// (abre sempre do mesmo tamanho), abas internas e botão para abrir em tela grande.
 struct MenuBarPopover: View {
-    enum Tab: Hashable { case today, calendar, lists, despejo }
+    enum Tab: Hashable { case today, calendar, despejo }
 
     @Environment(TaskStore.self) private var store
     @Environment(GoogleAuth.self) private var auth
@@ -11,7 +11,6 @@ struct MenuBarPopover: View {
     @Environment(\.openWindow) private var openWindow
 
     @State private var tab: Tab = .today
-    @State private var openListID: String?
     @State private var day = Calendar.current.startOfDay(for: .now)
     @State private var folhas = Folhas()
     @Namespace private var trilho
@@ -38,8 +37,20 @@ struct MenuBarPopover: View {
         .frame(width: Self.largura, height: Self.altura)
         .background(DS.fundo)
         .overlay(alignment: .bottom) { ToastDesfazer().padding(.bottom, 70) }
+        .environment(\.noMenuDaBarra, true)
         .hospedaFolhas(folhas)
         .tint(DS.acento)
+        // Ao fechar uma folha, devolve o foco à janela do menu (o hover das linhas volta na hora).
+        .onChange(of: folhas.atual == nil) { _, fechou in
+            if fechou {
+                // A janela do menu é a que tem este tamanho fixo.
+                let janela = NSApp.windows.first {
+                    $0.isVisible && abs($0.frame.width - Self.largura) < 2 && abs($0.frame.height - Self.altura) < 2
+                }
+                janela?.makeFirstResponder(nil)
+                janela?.makeKey()
+            }
+        }
         .background(PopoverWindowConfigurator(
             appearance: store.prefs.appearance.resolved,
             onOpen: { Task { await store.sync() } }
@@ -50,16 +61,7 @@ struct MenuBarPopover: View {
 
     private var header: some View {
         HStack(alignment: .center, spacing: DS.e2) {
-            if tab == .lists, let id = openListID {
-                BotaoIcone(simbolo: "chevron.left", rotulo: "Voltar às listas") {
-                    withAnimation(DS.curva) { openListID = nil }
-                }
-                .padding(.leading, -6)
-                ListIconComAnel(listID: id, size: 24, folga: 3, espessura: 1.5)
-                Text(store.displayName(id)).display(.titulo).foregroundStyle(DS.texto).lineLimit(1)
-            } else {
-                Text(titulo).display(.titulo).foregroundStyle(DS.texto)
-            }
+            Text(titulo).display(.titulo).foregroundStyle(DS.texto)
             Spacer()
             BotaoIcone(simbolo: "arrow.up.left.and.arrow.down.right", rotulo: "Abrir em tela grande") {
                 openApp(destination)
@@ -75,7 +77,6 @@ struct MenuBarPopover: View {
         switch tab {
         case .today: "Hoje"
         case .calendar: "Calendário"
-        case .lists: "Listas"
         case .despejo: "Despejo"
         }
     }
@@ -84,7 +85,6 @@ struct MenuBarPopover: View {
         switch tab {
         case .today: .today
         case .calendar: .calendar
-        case .lists: openListID.map { .list($0) } ?? .all
         case .despejo: .despejo
         }
     }
@@ -113,16 +113,9 @@ struct MenuBarPopover: View {
             case .today: todayTab.transition(.opacity)
             case .calendar: PopoverCalendarView(day: $day).transition(.opacity)
             case .despejo: DespejoDoMenu { openApp(.despejo) }.transition(.opacity)
-            case .lists:
-                if let id = openListID {
-                    listTab(id).transition(.asymmetric(insertion: .offset(x: 56).combined(with: .opacity), removal: .opacity))
-                } else {
-                    listsIndex.transition(.asymmetric(insertion: .offset(x: -14).combined(with: .opacity), removal: .opacity))
-                }
             }
         }
         .animation(DS.curva, value: tab)
-        .animation(DS.curva, value: openListID)
     }
 
     private var todayTab: some View {
@@ -168,48 +161,6 @@ struct MenuBarPopover: View {
         }
     }
 
-    private var listsIndex: some View {
-        scroll {
-            VStack(spacing: 0) {
-                ForEach(store.lists) { list in
-                    Button {
-                        withAnimation(DS.curva) { openListID = list.id }
-                    } label: {
-                        HStack(spacing: DS.e3) {
-                            ListIconView(listID: list.id, size: 26)
-                            Text(store.displayName(list.id)).txt(.sm, .medium).foregroundStyle(DS.texto)
-                            Spacer()
-                            let count = store.tasks(inList: list.id).count
-                            if count > 0 { Text("\(count)").txt(.xs, .medium).foregroundStyle(DS.texto3) }
-                            Image(systemName: "chevron.right").font(.system(size: 10, weight: .semibold)).foregroundStyle(DS.texto3)
-                        }
-                        .padding(.horizontal, DS.e3)
-                        .padding(.vertical, 9)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(Pressionavel(raio: DS.raioM))
-                }
-            }
-            .padding(DS.e1)
-            .background(DS.superficie, in: RoundedRectangle(cornerRadius: DS.raioCartao, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: DS.raioCartao, style: .continuous).strokeBorder(DS.borda))
-        }
-    }
-
-    private func listTab(_ id: String) -> some View {
-        VStack(alignment: .leading, spacing: DS.e3) {
-            QuickAddField(fixedListID: id).padding(.horizontal, DS.e4)
-            scroll {
-                let items = store.tasks(inList: id)
-                if items.isEmpty {
-                    EstadoVazio(icone: "checklist", titulo: "Lista vazia")
-                } else {
-                    CartaoDeLinhas(recuoDoFio: 44) { ForEach(items) { TaskRow(task: $0, style: .compact) } }
-                }
-            }
-        }
-    }
-
     /// Área rolável que cresce com o conteúdo, até a altura máxima.
     private func scroll<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
         ScrollView {
@@ -241,7 +192,6 @@ struct MenuBarPopover: View {
         HStack(spacing: DS.e1) {
             aba(.today, "sun.max", "Hoje")
             aba(.calendar, "calendar", "Calendário")
-            aba(.lists, "list.bullet", "Listas")
             aba(.despejo, "brain.head.profile", "Despejo")
             Rectangle().fill(DS.borda).frame(width: 1, height: 22).padding(.horizontal, 2)
             BotaoIcone(simbolo: "gearshape", rotulo: "Abrir ajustes", tamanho: 40, tamanhoIcone: 15) {
@@ -260,7 +210,6 @@ struct MenuBarPopover: View {
     private func aba(_ valor: Tab, _ simbolo: String, _ rotulo: String) -> some View {
         let ativa = tab == valor
         return Button {
-            if valor == .lists && tab == .lists { openListID = nil }
             tab = valor
         } label: {
             HStack(spacing: DS.e2) {

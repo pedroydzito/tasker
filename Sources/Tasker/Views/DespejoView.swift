@@ -362,15 +362,6 @@ struct OpcoesDeTarefaDespejo: View {
                 }
                 .buttonStyle(SoAfunda(escala: 0.95))
                 .help("Escolher data e horário")
-                ForEach([("Hoje", 0), ("Amanhã", 1)], id: \.1) { rotulo, dias in
-                    let dia = Calendar.current.adding(days: dias, to: store.today)
-                    Button(rotulo) { due = dia }
-                        .buttonStyle(Botao(variante: due == dia ? .primario : .superficie))
-                        .help("Data: \(rotulo.lowercased())")
-                }
-                Button("Sem data") { due = nil; horario = nil }
-                    .buttonStyle(Botao(variante: due == nil ? .primario : .superficie))
-                    .help("Tarefa sem data")
             }
             if listasAbertas {
                 DropdownDeListas(atual: listID ?? store.defaultList?.id) { id in

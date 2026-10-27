@@ -14,6 +14,9 @@ struct TaskRow: View {
     var showList = true
     var depth = 0
 
+    /// No menu da barra, clicar abre os detalhes embaixo da linha (em vez de outra folha).
+    @Environment(\.noMenuDaBarra) private var noMenu
+    @State private var expandida = false
     @State private var checking = false
     @State private var hovering = false
     @State private var pressed = false
@@ -30,7 +33,12 @@ struct TaskRow: View {
         let aberta = self.aberta
         VStack(spacing: 0) {
             linha
-            if aberta {
+            if expandida {
+                DetalheNoMenu(task: task, depth: depth)
+                    .transition(.opacity.combined(with: .offset(y: -4)))
+            }
+            // Com os detalhes abertos, as subtarefas já aparecem lá dentro.
+            if aberta && !expandida {
                 ForEach(filhas) { filha in
                     TaskRow(task: filha, style: style, showDate: showDate, showList: false, depth: depth + 1)
                 }
@@ -38,6 +46,7 @@ struct TaskRow: View {
             }
         }
         .animation(DS.curva, value: aberta)
+        .animation(DS.curva, value: expandida)
     }
 
     private var linha: some View {
@@ -66,7 +75,7 @@ struct TaskRow: View {
         .animation(DS.curvaRapida, value: isSelected)
         .onTapGesture(perform: open)
         .pointerStyle(.link)
-        .help("Abrir “\(task.displayTitle)”")
+        .help(noMenu ? (expandida ? "Fechar detalhes" : "Ver detalhes") : "Abrir “\(task.displayTitle)”")
         // Arraste até uma lista da barra lateral para mudar a tarefa de lista.
         .draggable("tarefa:\(task.id)") {
             HStack(spacing: DS.e2) {
@@ -195,6 +204,10 @@ struct TaskRow: View {
     }
 
     private func open() {
+        if noMenu {
+            withAnimation(DS.curva) { expandida.toggle() }
+            return
+        }
         if style == .full {
             withAnimation(DS.curva) { nav.selectedTaskID = task.id }
         } else {
@@ -268,5 +281,120 @@ struct SetaSubtarefas: View {
         }
         .buttonStyle(SoAfunda(escala: 0.9))
         .help(aberta ? "Esconder subtarefas (\(feitas)/\(total))" : "Mostrar subtarefas (\(feitas)/\(total))")
+    }
+}
+
+private struct NoMenuDaBarraKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    /// Verdadeiro dentro do menu da barra (popover).
+    var noMenuDaBarra: Bool {
+        get { self[NoMenuDaBarraKey.self] }
+        set { self[NoMenuDaBarraKey.self] = newValue }
+    }
+}
+
+/// Detalhes da tarefa abertos embaixo da linha, no menu: ver, renomear, mudar a data,
+/// marcar e criar subtarefas. O resto (descrição, lista, etiquetas) é na janela.
+struct DetalheNoMenu: View {
+    @Environment(TaskStore.self) private var store
+    @Environment(Navigation.self) private var nav
+    @Environment(Folhas.self) private var folhas
+    @Environment(\.openWindow) private var openWindow
+    let task: TaskItem
+    var depth = 0
+
+    @State private var renomeando = false
+    @State private var nome = ""
+    @FocusState private var focoNome: Bool
+
+    var body: some View {
+        let atual = store.tasks[task.id] ?? task
+        VStack(alignment: .leading, spacing: DS.e3) {
+            if renomeando {
+                TextField("Nome da tarefa", text: $nome)
+                    .campo()
+                    .focused($focoNome)
+                    .onSubmit { salvarNome(atual) }
+                    .onExitCommand { renomeando = false }
+                    .onChange(of: focoNome) { _, focado in if !focado { salvarNome(atual) } }
+                    .help("Enter salva; Esc cancela")
+            }
+
+            let notas = atual.notasVisiveis.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !notas.isEmpty {
+                Text(notas)
+                    .txt(.sm)
+                    .foregroundStyle(DS.texto2)
+                    .lineLimit(8)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            HStack(spacing: DS.e2) {
+                ListChip(listID: atual.listID)
+                Chip(atual.dueDay.map { DayLabel.comAtraso($0, today: store.today) + (atual.horario.map { " · \($0)" } ?? "") } ?? "Sem data",
+                     cor: (atual.dueDay ?? .distantFuture) < store.today ? DS.perigoTexto : nil) {
+                    Image(systemName: "calendar").font(.system(size: 10, weight: .semibold))
+                }
+                ForEach(store.tags(for: atual)) { TagChip(tag: $0) }
+            }
+
+            if atual.parent == nil && !atual.isLocal {
+                Subtarefas(mae: atual) { _ in }
+            }
+
+            HStack(spacing: 2) {
+                BotaoIcone(simbolo: "pencil", rotulo: "Renomear aqui", tamanho: 28, tamanhoIcone: 13) {
+                    nome = atual.title
+                    renomeando = true
+                    DispatchQueue.main.async { focoNome = true }
+                }
+                Menu {
+                    Button("Hoje") { store.setDue(atual, store.today) }
+                    Button("Amanhã") { store.setDue(atual, Calendar.current.adding(days: 1, to: store.today)) }
+                    Button("Próxima semana") { store.setDue(atual, Calendar.current.adding(days: 7, to: store.today)) }
+                    Divider()
+                    Button("Sem data") { store.setDue(atual, nil) }
+                } label: {
+                    Image(systemName: "calendar.badge.clock")
+                }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .frame(width: 28, height: 28)
+                .animacaoDeClique(circulo: true)
+                .help("Mudar a data")
+                BotaoIcone(simbolo: "arrow.up.left.and.arrow.down.right", rotulo: "Abrir no app (descrição, lista, etiquetas)",
+                           tamanho: 28, tamanhoIcone: 13) {
+                    nav.selection = atual.isCompleted ? .completed : .list(atual.listID)
+                    nav.selectedTaskID = atual.id
+                    NSApp.setActivationPolicy(.regular)
+                    NSApp.activate()
+                    openWindow(id: WindowID.main)
+                }
+                Spacer()
+                BotaoIcone(simbolo: "trash", rotulo: "Excluir tarefa", tamanho: 28, tamanhoIcone: 13) {
+                    folhas.confirmar("Excluir tarefa", mensagem: "“\(atual.displayTitle)” será excluída. Dá para desfazer logo depois.") {
+                        store.delete(atual)
+                    }
+                }
+            }
+            .foregroundStyle(DS.texto2)
+        }
+        .padding(.leading, 12 + CGFloat(depth) * 26 + 30)
+        .padding(.trailing, 12)
+        .padding(.top, 2)
+        .padding(.bottom, DS.e3)
+    }
+
+    private func salvarNome(_ atual: TaskItem) {
+        guard renomeando else { return }
+        renomeando = false
+        let limpo = nome.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !limpo.isEmpty, limpo != atual.title else { return }
+        store.save(atual, title: limpo, notes: atual.notes ?? "", due: atual.dueDay)
     }
 }
