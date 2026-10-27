@@ -107,9 +107,9 @@ struct CampoDespejo: View {
     private var placeholder: String {
         if foto != nil { return "Por que salvou esta foto?" }
         switch style {
-        case .large: "O que está ocupando a sua cabeça?"
-        case .compacto: "Despejar algo…"
-        case .inline: "Escreva o que vier — uma coisa por vez, ou cole uma lista"
+        case .large: return "O que está ocupando a sua cabeça?"
+        case .compacto: return "Despejar algo…"
+        case .inline: return "Escreva o que vier — uma coisa por vez, ou cole uma lista"
         }
     }
 
