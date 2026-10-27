@@ -93,6 +93,7 @@ struct TaskInspector: View {
                     .padding(.vertical, DS.e3)
                 }
                 .scrollIndicators(.never)
+                .indicadorDeRolagem(fundo: DS.superficie)
             }
 
             if alterado {

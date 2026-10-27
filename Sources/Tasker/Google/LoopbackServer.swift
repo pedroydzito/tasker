@@ -66,7 +66,11 @@ final class LoopbackServer {
             else { conn.cancel(); return }
 
             let parts = requestLine.split(separator: " ")
-            guard parts.count >= 2, let url = URL(string: "http://127.0.0.1\(parts[1])"), url.path != "/favicon.ico" else {
+            guard parts.count >= 2, let url = URL(string: "http://127.0.0.1\(parts[1])"), url.path != "/favicon.ico",
+                  // Só o retorno do Google (com state ou error) encerra a espera; qualquer outra visita é ignorada.
+                  let itens = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems,
+                  itens.contains(where: { $0.name == "state" || $0.name == "error" })
+            else {
                 self.respond(conn, status: "404 Not Found", html: "")
                 return
             }

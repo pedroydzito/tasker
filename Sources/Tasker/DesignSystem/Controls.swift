@@ -543,16 +543,24 @@ struct IndicadorDeRolagem: ViewModifier {
     func body(content: Content) -> some View {
         content
             .onScrollGeometryChange(for: [Bool].self) { g in
-                [g.contentOffset.y > 2, g.contentOffset.y + g.containerSize.height < g.contentSize.height - 2]
+                // visibleRect já conta as margens internas (contentInsets) do ScrollView.
+                [g.visibleRect.minY > -g.contentInsets.top + 2,
+                 g.visibleRect.maxY < g.contentSize.height + g.contentInsets.bottom - 2]
             } action: { _, valor in
                 temAcima = valor[0]
                 temAbaixo = valor[1]
             }
             .overlay(alignment: .top) {
-                LinearGradient(colors: [fundo, fundo.opacity(0)], startPoint: .top, endPoint: .bottom)
-                    .frame(height: 16)
-                    .opacity(temAcima ? 1 : 0)
-                    .allowsHitTesting(false)
+                ZStack(alignment: .top) {
+                    LinearGradient(colors: [fundo, fundo.opacity(0)], startPoint: .top, endPoint: .bottom)
+                    Image(systemName: "chevron.compact.up")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(DS.texto3)
+                        .padding(.top, 2)
+                }
+                .frame(height: 26)
+                .opacity(temAcima ? 1 : 0)
+                .allowsHitTesting(false)
             }
             .overlay(alignment: .bottom) {
                 ZStack(alignment: .bottom) {

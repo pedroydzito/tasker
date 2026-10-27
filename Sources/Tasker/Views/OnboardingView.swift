@@ -48,6 +48,7 @@ struct OnboardingView: View {
             .frame(maxWidth: .infinity)
         }
         .scrollIndicators(.never)
+        .indicadorDeRolagem()
     }
 }
 

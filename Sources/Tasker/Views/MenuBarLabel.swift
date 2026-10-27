@@ -17,7 +17,19 @@ struct MenuBarLabel: View {
             }
     }
 
-    static func icon(count: Int?, style: MenuBarStyle) -> NSImage {
+    @MainActor private static var iconCache: [String: NSImage] = [:]
+
+    /// O label é redesenhado a cada mudança do store; a imagem só é refeita quando o número ou o estilo mudam.
+    @MainActor static func icon(count: Int?, style: MenuBarStyle) -> NSImage {
+        let chave = "\(count.map(String.init) ?? "-")|\(style)"
+        if let pronta = iconCache[chave] { return pronta }
+        let nova = desenharIcone(count: count, style: style)
+        if iconCache.count > 40 { iconCache.removeAll() }
+        iconCache[chave] = nova
+        return nova
+    }
+
+    private static func desenharIcone(count: Int?, style: MenuBarStyle) -> NSImage {
         let symbolConfig = NSImage.SymbolConfiguration(pointSize: 15, weight: .medium)
         let symbol = NSImage(systemSymbolName: "checkmark.circle", accessibilityDescription: "Tarefas")?
             .withSymbolConfiguration(symbolConfig) ?? NSImage()

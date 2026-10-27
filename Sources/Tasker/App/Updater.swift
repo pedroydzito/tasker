@@ -121,7 +121,10 @@ final class Updater: NSObject {
 
             guard let build = Self.build(fromTag: latest.tag_name),
                   let asset = latest.assets.first(where: { $0.name == Self.assetName }),
-                  let url = URL(string: asset.browser_download_url)
+                  let url = URL(string: asset.browser_download_url),
+                  // Só baixa de release deste repositório no GitHub, por HTTPS.
+                  url.scheme == "https", url.host == "github.com",
+                  url.path.hasPrefix("/\(Self.repository)/releases/download/")
             else {
                 if userInitiated { state = .upToDate }
                 return
@@ -189,6 +192,10 @@ final class Updater: NSObject {
         guard fm.fileExists(atPath: newApp.appendingPathComponent("Contents/MacOS/Tasker").path) else {
             throw UpdateError.invalidPackage
         }
+        // Confere que o pacote é mesmo o Tasker antes de tirar a quarentena.
+        guard let info = NSDictionary(contentsOf: newApp.appendingPathComponent("Contents/Info.plist")),
+              info["CFBundleIdentifier"] as? String == Bundle.main.bundleIdentifier
+        else { throw UpdateError.invalidPackage }
         try? await Self.run("/usr/bin/xattr", ["-cr", newApp.path])
 
         // Script separado: espera o app fechar, guarda o antigo, move o novo e reabre.

@@ -11,6 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         DSFonts.register()
+        RolagemSuave.shared.instalar()
         NSApp.applicationIconImage = AppIcon.make()
         let model = AppModel.shared
         NSApp.appearance = model.prefs.appearance.nsAppearance
