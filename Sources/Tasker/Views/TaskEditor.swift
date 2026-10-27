@@ -275,7 +275,7 @@ struct SeletorDeDataEmbutido: View {
                 }
                 Spacer(minLength: DS.e2)
                 Button("Pronto", action: fechar).buttonStyle(.superficie).fixedSize()
-                    .keyboardShortcut(.defaultAction)
+                    .help("Fechar o calendário")
             }
         }
         .padding(DS.e3)

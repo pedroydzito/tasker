@@ -38,9 +38,11 @@ final class QuickAddPanelController {
 
         if let screen = NSScreen.main {
             // Altura com folga para o dropdown de listas; a área vazia é transparente.
-            let size = NSSize(width: 580, height: 380)
+            // Altura com folga para o calendário e o dropdown de listas; a área vazia é
+            // transparente e os cliques nela passam para o que está atrás.
+            let size = NSSize(width: 580, height: 640)
             let frame = screen.visibleFrame
-            panel.setFrame(NSRect(x: frame.midX - size.width / 2, y: frame.maxY - frame.height * 0.28,
+            panel.setFrame(NSRect(x: frame.midX - size.width / 2, y: frame.maxY - frame.height * 0.22 - size.height + 380,
                                   width: size.width, height: size.height), display: true)
         }
         NSApp.activate()
