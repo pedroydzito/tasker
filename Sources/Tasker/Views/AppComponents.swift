@@ -772,7 +772,8 @@ struct CriadorDeEtiqueta: View {
 /// Janela do popover da barra de menu: tema escolhido (não o da barra), cantos
 /// arredondados, abre instantâneo e avisa quando abre.
 struct PopoverWindowConfigurator: NSViewRepresentable {
-    let appearance: NSAppearance?
+    /// Tema escolhido; "Sistema" é lido de novo a cada abertura e quando o macOS troca de tema.
+    let tema: AppAppearance
     var cornerRadius: CGFloat = 16
     var onOpen: () -> Void = {}
 
@@ -786,12 +787,14 @@ struct PopoverWindowConfigurator: NSViewRepresentable {
 
     func updateNSView(_ view: NSView, context: Context) {
         context.coordinator.onOpen = onOpen
+        context.coordinator.tema = tema
         DispatchQueue.main.async { configure(view, context.coordinator) }
     }
 
     private func configure(_ view: NSView, _ coordinator: Coordinator) {
         guard let window = view.window else { return }
-        window.appearance = appearance
+        coordinator.tema = tema
+        coordinator.aplicarTema()
         coordinator.onOpen = onOpen
         coordinator.attach(window, from: view, cornerRadius: cornerRadius)
     }
@@ -799,8 +802,16 @@ struct PopoverWindowConfigurator: NSViewRepresentable {
     @MainActor
     final class Coordinator {
         var onOpen: () -> Void = {}
+        var tema: AppAppearance = .system
         private weak var window: NSWindow?
         private var token: NSObjectProtocol?
+        private var tokenTema: NSObjectProtocol?
+
+        /// O menu não herda o tema do sistema (a barra pode estar escura com papel de parede escuro):
+        /// resolve na hora, a partir do tema atual do macOS.
+        func aplicarTema() {
+            window?.appearance = tema.resolved
+        }
 
         func attach(_ window: NSWindow, from view: NSView, cornerRadius: CGFloat) {
             // Os cantos são os do próprio sistema: o nosso fundo cobre a janela inteira,
@@ -812,8 +823,19 @@ struct PopoverWindowConfigurator: NSViewRepresentable {
             token = NotificationCenter.default.addObserver(
                 forName: NSWindow.didBecomeKeyNotification, object: window, queue: .main
             ) { [weak self] _ in
-                MainActor.assumeIsolated { self?.onOpen() }
+                MainActor.assumeIsolated {
+                    self?.aplicarTema()
+                    self?.onOpen()
+                }
             }
+            if tokenTema == nil {
+                tokenTema = DistributedNotificationCenter.default().addObserver(
+                    forName: Notification.Name("AppleInterfaceThemeChangedNotification"), object: nil, queue: .main
+                ) { [weak self] _ in
+                    MainActor.assumeIsolated { self?.aplicarTema() }
+                }
+            }
+            aplicarTema()
             onOpen()
         }
     }

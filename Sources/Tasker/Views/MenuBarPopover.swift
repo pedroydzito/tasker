@@ -11,7 +11,9 @@ struct MenuBarPopover: View {
     @Environment(\.openWindow) private var openWindow
 
     @State private var tab: Tab = .today
-    @State private var day = Calendar.current.startOfDay(for: .now)
+    @State private var day = Calendar.current.adding(days: 1, to: Calendar.current.startOfDay(for: .now))
+
+    private var amanha: Date { Calendar.current.adding(days: 1, to: store.today) }
     @State private var folhas = Folhas()
     @Namespace private var trilho
     /// Altura do conteúdo rolável (guardada para o menu já abrir no tamanho certo).
@@ -52,8 +54,13 @@ struct MenuBarPopover: View {
             }
         }
         .background(PopoverWindowConfigurator(
-            appearance: store.prefs.appearance.resolved,
-            onOpen: { Task { await store.sync() } }
+            tema: store.prefs.appearance,
+            onOpen: {
+                // O calendário do menu sempre abre no dia seguinte (com o "hoje" atualizado).
+                store.refreshToday()
+                day = amanha
+                Task { await store.sync() }
+            }
         ))
     }
 
@@ -211,6 +218,8 @@ struct MenuBarPopover: View {
     private func aba(_ valor: Tab, _ simbolo: String, _ rotulo: String) -> some View {
         let ativa = tab == valor
         return Button {
+            // Entrar no Calendário (vindo de outra aba ou de novo) volta para amanhã.
+            if valor == .calendar { day = amanha }
             tab = valor
         } label: {
             HStack(spacing: DS.e2) {
