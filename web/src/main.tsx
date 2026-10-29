@@ -1,4 +1,5 @@
 import { createRoot } from "react-dom/client";
+import { ligarFavicon } from "./ui/favicon";
 import "./estilo/base.css";
 import { iniciar, concluirLoginDoMac, ponteMac, recarregarDoEspelho, puxar } from "./dados/sync";
 import { assinar, ler } from "./dados/armazem";
@@ -38,6 +39,7 @@ if (ponte) {
   });
 }
 
+ligarFavicon();
 void iniciar();
 createRoot(document.getElementById("raiz")!).render(<App />);
 
