@@ -24,6 +24,7 @@ jobs:
         working-directory: web
         run: |
           npm ci
+          npm test
           npm run build
           npx -y playwright@1.49.1 install chromium
           npm i --no-save playwright@1.49.1

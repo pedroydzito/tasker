@@ -1,7 +1,7 @@
 {
   "name": "tasker-web",
   "private": true,
-  "version": "0.2.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,6 +10,7 @@
     "typecheck": "tsc -b --noEmit",
     "test": "vitest run",
     "e2e": "node e2e/rodar.mjs",
+    "desempenho": "node e2e/desempenho.mjs",
     "conferir:bundle": "node scripts/conferir-bundle.mjs"
   },
   "dependencies": {

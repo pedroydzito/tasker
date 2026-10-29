@@ -505,3 +505,4 @@ input:focus-visible, textarea:focus-visible { outline: none; }
 .campo-segmentado input { border: 0; outline: 0; background: transparent; text-align: center; font-size: var(--t-sm); font-weight: 500; color: var(--texto); border-radius: var(--raio-p); padding: 2px 0; }
 .campo-segmentado input:focus { background: var(--superficie-hover); }
 .campo-segmentado input::placeholder { color: var(--texto3); }
+.lista-novidades { margin: 0; padding-left: 1.1em; display: flex; flex-direction: column; gap: 6px; line-height: 1.5; }

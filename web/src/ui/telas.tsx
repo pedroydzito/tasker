@@ -1,10 +1,12 @@
+import { NOVIDADES } from "../novidades";
+import { urlDoArquivo } from "../dados/urls";
 import { MenuSuspenso } from "./suspenso";
 import { AvisoAtualizacao, procurarAtualizacao, useAtualizacao } from "./atualizacao";
 import { Rolagem } from "./comuns";
 import { CampoTarefa } from "./campo";
 import { EditorDeEtiqueta, EditorDeLista, Nota, folhas } from "./folhas";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { CircleUserRound, HardDrive, Laptop, Paintbrush, Settings, ArchiveRestore, BadgeCheck, Brain, Check, CircleCheck, CircleX, Clock, Ellipsis, Hand, ImagePlus, Layers2, Zap, CalendarCheck, Circle, SquarePen, ChevronLeft, ChevronRight, NotepadText, Calendar, ChevronDown, Hash, ListChecks, Pencil, Plus, Sun, Trash2 } from "lucide-react";
+import { Sparkles, CircleUserRound, HardDrive, Laptop, Paintbrush, Settings, ArchiveRestore, BadgeCheck, Brain, Check, CircleCheck, CircleX, Clock, Ellipsis, Hand, ImagePlus, Layers2, Zap, CalendarCheck, Circle, SquarePen, ChevronLeft, ChevronRight, NotepadText, Calendar, ChevronDown, Hash, ListChecks, Pencil, Plus, Sun, Trash2 } from "lucide-react";
 import { mesmaLista, usar } from "../dados/armazem";
 import {
   apagarDespejo, despejar, despejoParaNota, despejoParaTarefa, esvaziarNao, excluirNota, fazerAgora, guardarFoto,
@@ -14,8 +16,6 @@ import { contagemHoje, tempoDe, listaPadrao, tituloDe, corDaLista, eventosDoDia,
 import { entrarComGoogle, puxar, reconectarGoogle, sair, usarSemConta } from "../dados/sync";
 import { ler as lerEstado } from "../dados/armazem";
 import type { EstadoDespejo, ItemDespejo, Tarefa, Tema } from "../dados/tipos";
-import { lerArquivo } from "../dados/espelho";
-import { supabase } from "../dados/nuvem";
 import { duracaoCurta, lerCriacaoRapida, deISO, diaISO, hojeISO, primeiraMaiuscula, rotuloCurto, rotuloLongo, somarDias } from "../dados/util";
 import { Chave, useCelular, Segmentado, DropdownListas, Cabecalho, CartaoLinhas, ChipLista, EstadoVazio, LadrilhoLista, LinhaTarefa, Secao, SeletorData } from "./comuns";
 import { abrirNota, abrirNotaDoDia, irPara, useNotaAberta, type AlvoNota } from "./rota";
@@ -403,21 +403,13 @@ export function Miniatura({ caminho, lado = 40 }: { caminho: string; lado?: numb
   const [url, setUrl] = useState<string | null>(null);
   useEffect(() => {
     let vivo = true;
-    let criada: string | null = null;
-    void (async () => {
-      const blob = await lerArquivo(`fotos/${caminho}`);
-      if (blob) { criada = URL.createObjectURL(blob); if (vivo) setUrl(criada); return; }
-      try {
-        const { data } = await (await supabase()).storage.from("fotos").createSignedUrl(caminho, 3600);
-        if (vivo && data) setUrl(data.signedUrl);
-      } catch { /* offline e sem cópia local */ }
-    })();
-    return () => { vivo = false; if (criada) URL.revokeObjectURL(criada); };
+    void urlDoArquivo("fotos", caminho).then((u) => { if (vivo) setUrl(u); });
+    return () => { vivo = false; };
   }, [caminho]);
   return (
     <a className="afunda" href={url ?? undefined} target="_blank" rel="noreferrer" title="Abrir a foto" onClick={(e) => e.stopPropagation()}
       style={{ width: lado, height: lado, flex: "none", borderRadius: "var(--raio-p)", border: "1px solid var(--borda)", overflow: "hidden", background: "var(--superficie2)", display: "block" }}>
-      {url && <img src={url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />}
+      {url && <img src={url} alt="" width={lado} height={lado} loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />}
     </a>
   );
 }
@@ -908,7 +900,9 @@ export function TelaAjustes() {
                   <span className="t-sm p-semi">{e.nome ?? "Conta Google"}</span>
                   <span className="t-xs c3 uma-linha">{e.email}</span>
                 </span>
-                <button className="botao b-superficie" style={{ flex: "none" }} onClick={() => folhas.confirmar("Sair da conta", "As tarefas continuam no Google e o resto no servidor. Neste aparelho, tudo sai até você entrar de novo.", () => void sair(), "Sair")}>Sair</button>
+                <button className="botao b-superficie" style={{ flex: "none" }} onClick={() => folhas.confirmar("Sair da conta", e.pendencias
+                  ? `${e.pendencias} ${e.pendencias === 1 ? "alteração ainda não subiu" : "alterações ainda não subiram"} — sem rede, elas se perdem ao sair. As outras continuam no Google e no servidor.`
+                  : "As tarefas continuam no Google e o resto no servidor. Neste aparelho, tudo sai até você entrar de novo.", () => void sair(), e.pendencias ? "Sair mesmo assim" : "Sair")}>Sair</button>
               </div>
               {e.googlePendente && (
                 <Nota tom="aviso" texto="O Google precisa ser reconectado para as tarefas e a agenda voltarem a sincronizar.">
@@ -968,6 +962,15 @@ export function TelaAjustes() {
             </label>
           </LinhaAjuste>
           {msgDados && <Nota texto={msgDados[0]} tom={msgDados[1]} />}
+        </Pasta>
+
+        <Pasta Icone={Sparkles} titulo="Novidades" subtitulo={`Você está na versão ${NOVIDADES[0].versao}`}>
+          {NOVIDADES.map((n) => (
+            <div key={n.versao} style={{ display: "flex", flexDirection: "column", gap: "var(--e2)" }}>
+              <span className="rotulo">Versão {n.versao} · {new Date(n.data + "T12:00").toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric" })}</span>
+              <ul className="lista-novidades">{n.itens.map((i) => <li key={i} className="t-sm c2">{i}</li>)}</ul>
+            </div>
+          ))}
         </Pasta>
 
         <Pasta Icone={Settings} titulo="Geral" subtitulo={`Atalhos e versão ${versao}`}>

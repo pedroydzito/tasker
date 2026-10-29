@@ -21,6 +21,8 @@ function serviceWorker(): Plugin {
 // Caminhos relativos: o mesmo build roda na Vercel, como PWA e empacotado dentro do app do Mac (sem servidor).
 export default defineConfig({
   base: "./",
+  // A versão que a interface mostra é a do package.json (o build cobra pela nota de novidades).
+  define: { "import.meta.env.VITE_VERSAO": JSON.stringify(JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8")).version) },
   plugins: [react(), serviceWorker()],
   build: {
     target: "es2022",

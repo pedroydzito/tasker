@@ -1,3 +1,4 @@
+import { urlDoArquivo } from "../dados/urls";
 import { CampoSugestoes, MenuSuspenso } from "./suspenso";
 import { Rolagem } from "./comuns";
 import { folhas } from "./folhas";
@@ -6,20 +7,13 @@ import { ChevronLeft, ArrowUpRight, CornerLeftUp, Download, Hash, Paperclip, Pau
 import { mesmaLista, usar } from "../dados/armazem";
 import { anexar, concluir, criarTarefa, definirEtiquetas, definirTempo, excluirTarefa, alternarCronometro, moverTarefa, removerAnexo, salvarTarefa, criarEtiqueta } from "../dados/acoes";
 import { corDaLista, etiquetasOrdenadas, horarioDe, indice, notasVisiveis, tempoDe, tituloDe } from "../dados/consultas";
-import { lerArquivo } from "../dados/espelho";
-import { supabase } from "../dados/nuvem";
 import { hojeISO, lerDuracao, relogio, rotuloComAtraso } from "../dados/util";
 import { DigitosRolando, Chip, ChipLista, Circulo, DropdownListas, SeletorData } from "./comuns";
 import { selecionar } from "./rota";
 
 async function abrirAnexo(caminho: string, nome: string) {
   // Primeiro o que está no aparelho (offline); senão uma URL assinada do bucket privado.
-  const blob = await lerArquivo(`anexos/${caminho}`);
-  let url: string | null = blob ? URL.createObjectURL(blob) : null;
-  if (!url) {
-    const { data } = await (await supabase()).storage.from("anexos").createSignedUrl(caminho, 60, { download: nome });
-    url = data?.signedUrl ?? null;
-  }
+  const url = await urlDoArquivo("anexos", caminho, nome);
   if (url) window.open(url, "_blank", "noopener");
 }
 

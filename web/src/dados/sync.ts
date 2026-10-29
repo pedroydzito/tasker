@@ -1,3 +1,4 @@
+import { esquecerUrls } from "./urls";
 import type { Session } from "@supabase/supabase-js";
 import { definir, espelhoAtual, ESTADO_INICIAL, gravarAgora, ler, substituir, usarEspelho } from "./armazem";
 import { confirmarPendente } from "./avisos";
@@ -197,6 +198,7 @@ export async function sair() {
 }
 
 async function sairLocalmente() {
+  esquecerUrls();
   await descartarFila();
   await limparTudo();
   usarEspelho(null);

@@ -1,7 +1,7 @@
 import { definir, ler } from "./armazem";
 import { avisar } from "./avisos";
 import { apagarOperacao, gravarOperacao, lerArquivo, lerFila, type Operacao } from "./espelho";
-import { ErroDeRede, ErroDoPedido, ErroReconectar, ehErroDeRede, google, supabase } from "./nuvem";
+import { ErroDeRede, ErroDoPedido, ErroReconectar, comPrazo, ehErroDeRede, google, supabase } from "./nuvem";
 import { uuid } from "./util";
 
 // A fila: o que foi feito no aparelho e ainda não subiu (desempenho §8.3).
@@ -98,6 +98,15 @@ export async function processarFila(): Promise<void> {
 async function executar(op: Operacao) {
   switch (op.tipo) {
     case "google": {
+      // Repetir não pode duplicar (operação §5.1): uma criação que já foi tentada pode ter chegado
+      // ao Google sem a resposta voltar. Antes de criar de novo, procura a tarefa recém-criada.
+      if (op.metodo === "POST" && op.provisorio && op.tentativas > 0) {
+        const ja = await jaCriada(op);
+        if (ja) {
+          if (ja !== op.provisorio) await trocarId(op.provisorio, ja);
+          return;
+        }
+      }
       const resposta = await google<{ id?: string }>(op.metodo ?? "GET", op.url ?? "", op.corpo);
       if (op.provisorio && resposta?.id && resposta.id !== op.provisorio) await trocarId(op.provisorio, resposta.id);
       return;
@@ -105,8 +114,8 @@ async function executar(op: Operacao) {
     case "tabela": {
       const sb = await supabase();
       const q = sb.from(op.tabela ?? "");
-      const { error } =
-        op.acao === "delete" ? await q.delete().match(op.chave ?? {}) : await q.upsert(op.linha ?? {});
+      // Toda escrita tem prazo e confere o erro (operação §5.1).
+      const { error } = await comPrazo(op.acao === "delete" ? q.delete().match(op.chave ?? {}) : q.upsert(op.linha ?? {}), 15_000);
       if (error) throw erroSupabase(error);
       return;
     }
@@ -114,15 +123,16 @@ async function executar(op: Operacao) {
       const blob = await lerArquivo(op.arquivoId ?? "");
       if (!blob) return; // o arquivo saiu do aparelho antes de subir: nada a fazer
       const sb = await supabase();
-      const { error } = await sb.storage
+      // O prazo conta o tamanho: ~40 KB/s de envio num 4G ruim, mais uma folga.
+      const { error } = await comPrazo(sb.storage
         .from(op.bucket ?? "")
-        .upload(op.caminho ?? "", blob, { upsert: true, contentType: op.tipoArquivo ?? blob.type });
+        .upload(op.caminho ?? "", blob, { upsert: true, contentType: op.tipoArquivo ?? blob.type }), 15_000 + (blob.size / 40_000) * 1000);
       if (error) throw erroSupabase(error);
       return;
     }
     case "apagar_arquivo": {
       const sb = await supabase();
-      const { error } = await sb.storage.from(op.bucket ?? "").remove([op.caminho ?? ""]);
+      const { error } = await comPrazo(sb.storage.from(op.bucket ?? "").remove([op.caminho ?? ""]), 15_000);
       if (error) throw erroSupabase(error);
       return;
     }
@@ -152,4 +162,18 @@ async function trocarId(provisorio: string, definitivo: string) {
 export async function descartarFila() {
   filaEmMemoria = [];
   definir({ pendencias: 0 });
+}
+
+/** Uma tarefa com o mesmo título criada a partir de um pouco antes da primeira tentativa. */
+async function jaCriada(op: Operacao): Promise<string | null> {
+  const corpo = (op.corpo ?? {}) as { title?: string; notes?: string };
+  const base = (op.url ?? "").split("?")[0];
+  const desde = new Date(op.criadaEm - 60_000).toISOString();
+  try {
+    const r = await google<{ items?: { id: string; title?: string; notes?: string }[] }>("GET", `${base}?showCompleted=true&showHidden=true&updatedMin=${encodeURIComponent(desde)}&maxResults=100`);
+    const achada = (r?.items ?? []).find((t) => t.title === corpo.title && (t.notes ?? "") === (corpo.notes ?? ""));
+    return achada?.id ?? null;
+  } catch {
+    return null;
+  }
 }
