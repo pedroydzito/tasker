@@ -1,3 +1,4 @@
+import { AvisoAtualizacao, procurarAtualizacao, useAtualizacao } from "./atualizacao";
 import { Rolagem } from "./comuns";
 import { CampoTarefa } from "./campo";
 import { EditorDeEtiqueta, EditorDeLista, Nota, folhas } from "./folhas";
@@ -872,11 +873,13 @@ export function TelaAjustes() {
   const alternar = (k: "contarAtrasadas" | "mostrarEventosNoMenu" | "mostrarAtrasadasNoMenu" | "somAoConcluir" | "energiaBaixa") => mudarPrefs((x) => ({ [k]: !x[k] }));
   const n = contagemHoje(e);
   const padrao = listaPadrao(e);
-  const versao = (import.meta.env.VITE_VERSAO as string | undefined) ?? "web";
+  const atualizacao = useAtualizacao();
+  const versao = atualizacao?.atual ?? (import.meta.env.VITE_VERSAO as string | undefined) ?? "web";
   return (
     <>
       <Cabecalho titulo="Ajustes" sub={`Tasker ${versao}`} />
       <div data-encadeado className="bloco-tela" style={{ ["--i" as string]: 1, display: "flex", flexDirection: "column", gap: "var(--e3)" }}>
+        <AvisoAtualizacao />
         <Pasta Icone={CircleUserRound} titulo="Conta" subtitulo={e.modo === "local" ? "Usando só neste aparelho" : e.email ?? "Google"} aberta>
           {e.modo === "local" ? (
             <>
@@ -959,6 +962,14 @@ export function TelaAjustes() {
           <LinhaAjuste titulo="Nova tarefa"><span className="tecla">N</span></LinhaAjuste>
           <LinhaAjuste titulo="Buscar"><span className="tecla">⌘ K</span></LinhaAjuste>
           <LinhaAjuste titulo="Criação rápida" descricao="hoje · amanhã · sexta · 30/10 · ~lista · #etiqueta" />
+          {atualizacao && (
+            <>
+              <AvisoAtualizacao />
+              <LinhaAjuste titulo={`Versão ${atualizacao.atual}`} descricao={atualizacao.estado === "emDia" ? "Em dia" : atualizacao.estado === "procurando" ? "Procurando…" : atualizacao.estado === "erro" ? atualizacao.erro : undefined}>
+                <button className="botao b-superficie" onClick={procurarAtualizacao}>Procurar atualização</button>
+              </LinhaAjuste>
+            </>
+          )}
           <LinhaAjuste titulo="Funciona sem internet" descricao="Tudo fica guardado neste aparelho e sobe quando a rede voltar" />
         </Pasta>
       </div>

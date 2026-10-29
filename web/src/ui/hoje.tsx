@@ -31,13 +31,13 @@ export function Eventos({ dia, compacto = false, recolhivel = true }: { dia: str
     <div style={{ display: "flex", alignItems: "flex-start" }}>
       <div style={{ flex: 1, minWidth: 0 }}>
         {mostrar.map((ev) => (
-          <a key={ev.id} className="evento sem-veu" href={ev.link ?? undefined} target="_blank" rel="noreferrer" title="Abrir no Google Calendar"
+          <button key={ev.id} className="evento sem-veu sem-afundar" title="Abrir no Google Calendar" onClick={() => ev.link && abrirLink(ev.link)}
             style={{ ["--cor" as string]: ev.cor, padding: compacto ? "6px 0" : "7px 0", opacity: new Date(ev.fim).getTime() < agora ? 0.45 : 1 }}>
             <span className="evento-barra" />
             <span className="t-xs p-medio c3 numeros" style={{ minWidth: 74 }}>{ev.diaTodo ? "Dia todo" : `${hora(ev.inicio)}–${hora(ev.fim)}`}</span>
             <span className="t-sm p-medio uma-linha">{ev.titulo}</span>
             <ArrowUpRight size={10} strokeWidth={3} className="evento-seta" />
-          </a>
+          </button>
         ))}
       </div>
       {recolhivel && evs.length > 1 && (
@@ -142,4 +142,11 @@ export function aplicarTema() {
 /** No celular, o campo de nova tarefa fica no alto da tela (como no menu do Mac), não na navegação. */
 export function CampoCelular(p: { prazo?: string | null; listaId?: string | null; etiqueta?: string | null }) {
   return <div className="campo-celular"><CampoTarefa {...p} /></div>;
+}
+
+/** Link para fora: no app do Mac abre no navegador do sistema; na web, numa aba nova. */
+export function abrirLink(url: string) {
+  const p = (window as { webkit?: { messageHandlers?: { tasker?: { postMessage: (m: unknown) => void } } } }).webkit?.messageHandlers?.tasker;
+  if (p) p.postMessage({ acao: "abrirLink", url });
+  else window.open(url, "_blank", "noopener");
 }

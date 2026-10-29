@@ -49,14 +49,6 @@ input:focus-visible, textarea:focus-visible { outline: none; }
   .botao:active:not(:disabled) { transform: scale(0.98); }
   .linha-tarefa:active, .linha-nota:active, .linha-pilha:active, .resultado:active { transform: scale(0.995); transition-duration: var(--toque); }
 }
-@media (hover: hover) {
-  :is(button, [role="button"], summary, label[for], a[href]):not(:disabled, [aria-disabled="true"], .sem-veu):hover {
-    background-image: linear-gradient(var(--veu-hover), var(--veu-hover));
-  }
-}
-:is(button, [role="button"], summary, label[for], a[href]):not(:disabled, [aria-disabled="true"], .sem-veu):active {
-  background-image: linear-gradient(var(--veu-ativo), var(--veu-ativo));
-}
 /* No celular o hover gruda depois do toque: nada de hover fora de (hover: hover). */
 @media (hover: none) {
   .linha-tarefa:hover, .linha-nota:hover, .linha-pilha:hover, .linha-sub:hover, .item-lateral:hover,
@@ -414,3 +406,13 @@ input:focus-visible, textarea:focus-visible { outline: none; }
 .item-lateral { position: relative; }
 @media (hover: hover) { .item-lateral:not(.ativo):hover { background: var(--veu-hover); } }
 .item-lateral.alvo-soltar { box-shadow: inset 0 0 0 2px var(--cor-alvo); }
+
+/* Sem fundo recortado em texto: controles só de texto mudam a cor do texto no hover. */
+.evento { display: flex; width: 100%; text-align: left; background: none; }
+.cabecalho-secao, .secao-lateral > button:first-child, .secao-menu, .b-fantasma, .sync, .link-texto { background: none !important; }
+@media (hover: hover) {
+  .cabecalho-secao:hover, .cabecalho-secao:hover span, .secao-lateral > button:first-child:hover .rotulo, .secao-menu:hover .rotulo,
+  .b-fantasma:hover:not(:disabled), .sync:hover, .botao-busca:hover { color: var(--texto) !important; }
+  .cabecalho-secao:hover svg, .secao-lateral > button:first-child:hover svg, .secao-menu:hover svg { color: var(--texto2); }
+}
+.b-fantasma { transition: color var(--rapido) var(--curva), transform var(--toque) var(--curva); }

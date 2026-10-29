@@ -49,6 +49,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
             fundo = WebPonte.shared.novaWebView(rota: "menu")
+            WebPonte.shared.vigiarAtualizacao()
         } else {
             let panel = QuickAddPanelController(store: model.store, caderno: model.caderno)
             quickAdd = panel

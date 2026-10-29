@@ -1,3 +1,4 @@
+import { AvisoAtualizacao } from "./atualizacao";
 import { Rolagem } from "./comuns";
 import { CampoTarefa } from "./campo";
 import { useEffect, useState } from "react";
@@ -194,6 +195,7 @@ export function Menu() {
             )}
           </span>
         </div>
+        <div style={{ padding: "0 var(--e4)" }}><AvisoAtualizacao /></div>
         <div className="conteudo-menu" key={aba}>
           {aba === "hoje" && <AbaHoje />}
           {aba === "calendario" && <AbaCalendario dia={dia} setDia={setDia} />}

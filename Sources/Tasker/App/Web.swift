@@ -88,12 +88,50 @@ final class WebPonte: NSObject {
             if let s = m["url"] as? String, let url = URL(string: s) { entrar(url: url, view: view) }
         case "abrirJanela":
             abrirJanela(rota: m["rota"] as? String ?? "#/hoje", tarefa: m["tarefa"] as? String)
+        case "atualizar":
+            AppModel.shared.updater.installAvailableUpdate()
+        case "procurarAtualizacao":
+            Task { await AppModel.shared.updater.check(userInitiated: true) }
+        case "abrirAjustesDoSistema":
+            AppModel.shared.updater.openAppManagementSettings()
         case "encerrar":
             NSApp.terminate(nil)
         case "abrirLink":
             if let s = m["url"] as? String, let url = URL(string: s) { NSWorkspace.shared.open(url) }
         default:
             break
+        }
+    }
+
+    // MARK: Atualização (o Updater nativo continua; a web mostra o aviso e o botão)
+
+    @ObservationIgnored private var ultimaAtualizacao = ""
+
+    /// Conta à web o estado do atualizador (versão atual e se há versão nova).
+    func publicarAtualizacao() {
+        let u = AppModel.shared.updater
+        var estado = "nada", versao = "", erro = ""
+        switch u.state {
+        case .available(let r): estado = "disponivel"; versao = r.version
+        case .installing: estado = "instalando"
+        case .installFailed(let v, _, _): estado = "falhou"; versao = v
+        case .checking: estado = "procurando"
+        case .upToDate: estado = "emDia"
+        case .failed(let m): estado = "erro"; erro = m
+        default: break
+        }
+        let dados: [String: Any] = ["atual": u.currentVersion, "estado": estado, "versao": versao, "erro": erro]
+        guard let data = try? JSONSerialization.data(withJSONObject: dados) else { return }
+        let json = String(decoding: data, as: UTF8.self)
+        if json == ultimaAtualizacao { return }
+        ultimaAtualizacao = json
+        executar("window.taskerAtualizacao && taskerAtualizacao(\(json))")
+    }
+
+    /// Uma vez por segundo é barato e não perde nenhuma mudança do atualizador.
+    func vigiarAtualizacao() {
+        Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
+            MainActor.assumeIsolated { WebPonte.shared.publicarAtualizacao() }
         }
     }
 
@@ -132,6 +170,7 @@ final class WebPonte: NSObject {
     @ObservationIgnored var tarefaAoCarregar: String?
 
     func carregou(_ view: WKWebView) {
+        ultimaAtualizacao = ""
         guard view === janela, let tarefa = tarefaAoCarregar else { return }
         tarefaAoCarregar = nil
         view.evaluateJavaScript("setTimeout(() => window.taskerSelecionar && taskerSelecionar(\(Self.jsString(tarefa))), 150)")
