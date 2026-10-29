@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Tasker</title>
+    <meta name="description" content="Tarefas do Google, agenda, despejo e notas — no computador e no celular, também sem internet." />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" href="./icones/icone.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="./icones/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Tasker" />
+    <!-- A barra do sistema segue o tema (sem theme_color no manifesto). -->
+    <meta name="theme-color" content="#F7F7F7" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#151517" media="(prefers-color-scheme: dark)" />
+    <!-- Só as duas fontes do primeiro quadro. -->
+    <link rel="preload" href="./fonts/geist.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="./fonts/bricolage-700.woff2" as="font" type="font/woff2" crossorigin />
+    <style>
+      /* Caminhos relativos ao documento: valem na Vercel, no PWA e dentro do app do Mac. */
+      @font-face { font-family: "Geist"; src: url("./fonts/geist.woff2") format("woff2"); font-weight: 100 900; font-display: swap; }
+      @font-face { font-family: "Bricolage Grotesque"; src: url("./fonts/bricolage-700.woff2") format("woff2"); font-weight: 700; font-display: swap; }
+    </style>
+    <script>
+      // Tema antes do primeiro quadro (sem piscar claro → escuro).
+      (function () {
+        try {
+          var t = localStorage.getItem("tasker.tema") || "sistema";
+          var escuro = t === "escuro" || (t === "sistema" && matchMedia("(prefers-color-scheme: dark)").matches);
+          document.documentElement.dataset.tema = escuro ? "escuro" : "claro";
+        } catch (e) {
+          document.documentElement.dataset.tema = "claro";
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="raiz">
+      <!-- Esqueleto com o formato da tela enquanto o JavaScript chega. -->
+      <div class="esqueleto-casca" aria-hidden="true">
+        <div class="esqueleto-lateral"></div>
+        <div class="esqueleto-conteudo"><div></div><div></div><div></div></div>
+      </div>
+    </div>
+    <script type="module" src="./src/main.tsx"></script>
+  </body>
+</html>
