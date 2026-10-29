@@ -95,17 +95,18 @@ export function substituir(novo: Estado) {
  * derivadas por conteúdo (o seletor que monta um array novo a cada chamada não repinta à toa).
  */
 export function usar<T>(seletor: (e: Estado) => T, igual: (a: T, b: T) => boolean = Object.is): T {
-  const ultimo = useRef<{ entrada: Estado; saida: T } | null>(null);
+  // A chave inclui o seletor: um seletor novo (props mudaram) recalcula mesmo com o estado igual.
+  const ultimo = useRef<{ entrada: Estado; seletor: unknown; saida: T } | null>(null);
   const ler = () => {
     const atual = estado;
     const u = ultimo.current;
-    if (u && u.entrada === atual) return u.saida;
+    if (u && u.entrada === atual && u.seletor === seletor) return u.saida;
     const saida = seletor(atual);
     if (u && igual(u.saida, saida)) {
-      ultimo.current = { entrada: atual, saida: u.saida };
+      ultimo.current = { entrada: atual, seletor, saida: u.saida };
       return u.saida;
     }
-    ultimo.current = { entrada: atual, saida };
+    ultimo.current = { entrada: atual, seletor, saida };
     return saida;
   };
   return useSyncExternalStore(assinar, ler, ler);
