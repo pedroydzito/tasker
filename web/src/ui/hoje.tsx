@@ -1,3 +1,4 @@
+import { CampoTarefa } from "./campo";
 import { useState } from "react";
 import { ArrowUpRight, BatteryFull, BatteryLow, ChevronDown, ChevronUp, Sun, Sunrise } from "lucide-react";
 import { mesmaLista, usar } from "../dados/armazem";
@@ -30,7 +31,7 @@ export function Eventos({ dia, compacto = false, recolhivel = true }: { dia: str
     <div style={{ display: "flex", alignItems: "flex-start" }}>
       <div style={{ flex: 1, minWidth: 0 }}>
         {mostrar.map((ev) => (
-          <a key={ev.id} className="evento afunda" href={ev.link ?? undefined} target="_blank" rel="noreferrer" title="Abrir no Google Calendar"
+          <a key={ev.id} className="evento sem-veu" href={ev.link ?? undefined} target="_blank" rel="noreferrer" title="Abrir no Google Calendar"
             style={{ ["--cor" as string]: ev.cor, padding: compacto ? "6px 0" : "7px 0", opacity: new Date(ev.fim).getTime() < agora ? 0.45 : 1 }}>
             <span className="evento-barra" />
             <span className="t-xs p-medio c3 numeros" style={{ minWidth: 74 }}>{ev.diaTodo ? "Dia todo" : `${hora(ev.inicio)}–${hora(ev.fim)}`}</span>
@@ -74,6 +75,7 @@ export function TelaHoje() {
     <>
       <Cabecalho titulo="Hoje" sub={baixa ? rotuloLongo(hoje) : `${rotuloLongo(hoje)} · ${textoContagem(atrasadas.length + tarefas.length)}`} direita={<BotaoEnergia />} />
       <div data-encadeado className="bloco-tela" style={{ ["--i" as string]: 1, display: "flex", flexDirection: "column", gap: "var(--e5)" }}>
+        <CampoCelular prazo={hoje} />
         <Eventos dia={hoje} />
         {atrasadas.length > 0 && (
           <Secao titulo="Em atraso" contagem={atrasadas.length} tom="var(--perigo-texto)" acao={<button className="botao b-fantasma" onClick={adiarAtrasadas}>Mover para hoje</button>}>
@@ -101,6 +103,7 @@ function Dia({ titulo, dia }: { titulo: string; dia: string }) {
     <>
       <Cabecalho titulo={titulo} sub={`${rotuloLongo(dia)} · ${textoContagem(ts.length)}`} />
       <div data-encadeado className="bloco-tela" style={{ ["--i" as string]: 1, display: "flex", flexDirection: "column", gap: "var(--e4)" }}>
+        <CampoCelular prazo={dia} />
         {!ts.length && !temEventos ? (
           <EstadoVazio Icone={Sunrise} titulo="Dia livre" descricao={`Nada marcado para ${titulo.toLowerCase()}.`} />
         ) : (
@@ -135,3 +138,8 @@ export function aplicarTema() {
   if (fundo) meta.content = fundo;
 }
 
+
+/** No celular, o campo de nova tarefa fica no alto da tela (como no menu do Mac), não na navegação. */
+export function CampoCelular(p: { prazo?: string | null; listaId?: string | null; etiqueta?: string | null }) {
+  return <div className="campo-celular"><CampoTarefa {...p} /></div>;
+}

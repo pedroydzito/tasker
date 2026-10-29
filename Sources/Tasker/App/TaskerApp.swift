@@ -40,7 +40,7 @@ struct TaskerApp: App {
             if WebPonte.disponivel {
                 TelaWeb(rota: "menu")
                     .frame(width: MenuBarPopover.largura, height: MenuBarPopover.altura)
-                    .onAppear { WebPonte.shared.executar("window.taskerMenuAbriu && taskerMenuAbriu()") }
+                    .onAppear { WebPonte.shared.menuAbriu() }
             } else {
                 MenuBarPopover()
                     .environment(model.store)

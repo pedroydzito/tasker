@@ -57,7 +57,9 @@ const CENAS = [
   ["hoje", "#/hoje"], ["amanha", "#/amanha"], ["proximas", "#/proximas"], ["calendario", "#/calendario"], ["todas", "#/todas"],
   ["concluidas", "#/concluidas"], ["lista", "#/lista/local-inbox"], ["despejo", "#/despejo"], ["notas", "#/notas"], ["ajustes", "#/ajustes"],
   ["mais", "#/hoje", async (p) => { await p.getByLabel("Mais telas").click(); }],
-  ["nova-tarefa", "#/hoje", async (p) => { await p.getByRole("button", { name: "Nova tarefa" }).click(); }],
+  ["digitando", "#/hoje", async (p) => { await p.getByPlaceholder("Adicionar tarefa").first().fill("ligar pro banco amanhã #urgente"); }],
+  ["ajustes-aparencia", "#/ajustes", async (p) => { await p.getByRole("button", { name: /Aparência/ }).click(); await p.waitForTimeout(300); await p.locator(".pagina").evaluate((el) => el.scrollTo(0, 400)); }],
+  ["calendario-baixo", "#/calendario", async (p) => { await p.locator(".pagina").first().evaluate((el) => el.scrollTo(0, 600)); }],
   ["detalhe", "#/hoje", async (p) => { await p.locator("[data-tarefa]").first().click(); }],
   ["nota-aberta", "#/notas", async (p) => { await p.getByText("Ideias do app").click(); }],
 ];

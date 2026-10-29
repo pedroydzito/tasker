@@ -1,3 +1,5 @@
+import { Rolagem } from "./comuns";
+import { CampoTarefa } from "./campo";
 import { EditorDeEtiqueta, EditorDeLista, Nota, folhas } from "./folhas";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { CircleUserRound, HardDrive, Laptop, Paintbrush, Settings, ArchiveRestore, BadgeCheck, Brain, Check, CircleCheck, CircleX, Clock, Ellipsis, Hand, ImagePlus, Layers2, Zap, CalendarCheck, Circle, SquarePen, ChevronLeft, ChevronRight, NotepadText, Calendar, ChevronDown, Hash, ListChecks, Pencil, Plus, Sun, Trash2 } from "lucide-react";
@@ -16,7 +18,7 @@ import { duracaoCurta, lerCriacaoRapida, deISO, diaISO, hojeISO, primeiraMaiuscu
 import { useCelular, Segmentado, DropdownListas, Cabecalho, CartaoLinhas, ChipLista, EstadoVazio, LadrilhoLista, LinhaTarefa, Secao, SeletorData } from "./comuns";
 import { abrirNota, abrirNotaDoDia, irPara, useNotaAberta, type AlvoNota } from "./rota";
 
-import { Eventos, aplicarTema, linhas, raiz, textoContagem } from "./hoje";
+import { CampoCelular, Eventos, aplicarTema, linhas, raiz, textoContagem } from "./hoje";
 
 function DiaComItens({ dia }: { dia: string }) {
   const ts = usar((e) => raiz(indice(e).porDia.get(dia) ?? []), mesmaLista);
@@ -51,6 +53,7 @@ export function TelaProximas() {
     <>
       <Cabecalho titulo="Próximas" sub="Os próximos 14 dias" />
       <div data-encadeado className="bloco-tela" style={{ ["--i" as string]: 1, display: "flex", flexDirection: "column", gap: "var(--e6)" }}>
+        <CampoCelular prazo={somarDias(hoje, 1)} />
         {!dias.length && <EstadoVazio Icone={Calendar} titulo="Duas semanas livres" descricao="Tarefas e eventos dos próximos dias aparecem aqui." />}
         {dias.map((d) => <DiaComItens key={d} dia={d} />)}
       </div>
@@ -63,6 +66,7 @@ export function TelaCalendario() {
   const [mes, setMes] = useState(hoje.slice(0, 7));
   const [sel, setSel] = useState(hoje);
   const [altura, setAltura] = useState(84);
+  const celular = useCelular();
   const ref = useRef<HTMLDivElement>(null);
   const porDia = usar((e) => indice(e).porDia);
   const feitasPorDia = usar((e) => indice(e).concluidasPorDia);
@@ -85,8 +89,8 @@ export function TelaCalendario() {
   const agora = Date.now();
   return (
     <div className="tela-calendario" style={{ display: "flex", flex: 1, minWidth: 0, height: "100%" }}>
-      <div ref={ref} className="pagina" style={{ padding: "56px 32px 24px", display: "flex", flexDirection: "column", gap: "var(--e4)" }}>
-        <header style={{ display: "flex", alignItems: "flex-end", gap: 16 }}>
+      <Rolagem casca="casca-flex" rolagemRef={ref} className="pagina" style={{ padding: "56px 32px 24px", display: "flex", flexDirection: "column", gap: "var(--e4)" }}>
+        <header className="cabecalho-calendario">
           <div style={{ display: "flex", flexDirection: "column", gap: 3, flex: 1 }}>
             <h1 className="display d-display cabecalho-encolhe">{primeiraMaiuscula(primeiro.toLocaleDateString("pt-BR", { month: "long", year: "numeric" }))}</h1>
             <div className="t-sm c3 cabecalho-encolhe">Calendário</div>
@@ -98,7 +102,7 @@ export function TelaCalendario() {
           </span>
         </header>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: 6 }}>
-          {["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"].map((d) => <span key={d} className="rotulo" style={{ paddingLeft: 8 }}>{d}</span>)}
+          {["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"].map((d) => <span key={d} className="rotulo rotulo-semana" style={{ paddingLeft: 8 }}>{d}</span>)}
         </div>
         <div className="entrar" key={mes} style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: 6 }}>
           {dias.map((d) => {
@@ -113,31 +117,35 @@ export function TelaCalendario() {
             const extra = itens.length - visiveis.length;
             const ehHoje = d === hoje;
             return (
-              <button key={d} className="dia-cal" title={rotuloLongo(d)} onClick={() => setSel(d)}
-                style={{ height: altura, background: noMes ? "var(--superficie)" : "color-mix(in srgb, var(--superficie) 40%, transparent)", borderColor: d === sel ? "var(--acento)" : undefined, borderWidth: d === sel ? 1.5 : 1 }}>
+              <button key={d} className={"dia-cal" + (celular ? " compacto" : "")} title={rotuloLongo(d)} aria-pressed={d === sel} onClick={() => setSel(d)}
+                style={{ height: celular ? undefined : altura, background: noMes ? "var(--superficie)" : "color-mix(in srgb, var(--superficie) 40%, transparent)", borderColor: d === sel ? "var(--acento)" : undefined, borderWidth: d === sel ? 1.5 : 1 }}>
                 <span style={{ position: "relative", width: 24, height: 24, borderRadius: 99, display: "inline-flex", alignItems: "center", justifyContent: "center", marginBottom: 1, flex: "none",
                   background: ehHoje ? "var(--acento)" : undefined, color: ehHoje ? "#fff" : noMes ? "var(--texto)" : "var(--texto3)", fontWeight: ehHoje ? 700 : 500 }} className="t-sm">
                   {Number(d.slice(8))}
                   {comNota.has(d) && <NotepadText size={9} strokeWidth={2.6} className="c3" style={{ position: "absolute", left: 26 }} />}
                 </span>
-                {visiveis.map((it) => (
+                {celular ? (
+                  <span className="pontos-dia">
+                    {itens.slice(0, 3).map((it) => <span key={it.id} style={{ background: it.cor, opacity: it.passado ? 0.45 : 1 }} />)}
+                  </span>
+                ) : visiveis.map((it) => (
                   <span key={it.id} className="t-xs uma-linha" style={{ display: "flex", alignItems: "center", gap: 4, width: "100%", color: noMes ? "var(--texto2)" : "var(--texto3)", opacity: it.passado ? 0.45 : 1 }}>
                     {it.evento ? <span style={{ width: 2.5, height: 10, borderRadius: 9, background: it.cor, flex: "none" }} /> : <span style={{ width: 7, height: 7, borderRadius: 9, border: `1.3px solid ${it.cor}`, flex: "none" }} />}
                     <span className={"uma-linha" + (it.riscado ? " riscado" : "")}>{it.texto}</span>
                   </span>
                 ))}
-                {extra > 0 && <span className="t-xs p-semi c3" style={{ paddingLeft: 2 }}>+{extra}</span>}
+                {!celular && extra > 0 && <span className="t-xs p-semi c3" style={{ paddingLeft: 2 }}>+{extra}</span>}
               </button>
             );
           })}
         </div>
-      </div>
-      <div className="agenda-dia">
+      </Rolagem>
+      <Rolagem casca="casca-agenda" fundo="var(--superficie)" className="agenda-dia">
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <span className="rotulo">{rotuloLongo(sel)}</span>
           <span className="display d-titulo">{rotuloCurto(sel, hoje)}</span>
         </div>
-        <CampoRapidoInline prazo={sel} />
+        <CampoTarefa key={sel} prazo={sel} />
         <button className="nota-dia-cartao afunda" onClick={() => { abrirNotaDoDia(sel); irPara({ tela: "notas" }); }}>
           <NotepadText size={14} className="c3" style={{ marginTop: 1, flex: "none" }} />
           {e.notas.find((n) => n.dia === sel)?.texto.trim() ? <span className="t-sm c2 tres-linhas">{e.notas.find((n) => n.dia === sel)!.texto.trim()}</span> : <span className="t-sm p-medio c3">Escrever a nota do dia</span>}
@@ -148,7 +156,7 @@ export function TelaCalendario() {
           if (!ts.length && !eventos.some((ev) => eventosDoDia(e, sel).includes(ev))) return <EstadoVazio Icone={Calendar} titulo="Dia livre" />;
           return ts.length ? <CartaoLinhas>{ts.map((t) => <LinhaTarefa key={t.id} t={t} compacta mostrarData={false} />)}</CartaoLinhas> : null;
         })()}
-      </div>
+      </Rolagem>
     </div>
   );
 }
@@ -175,6 +183,7 @@ export function TelaTodas() {
     <>
       <Cabecalho titulo="Todas" sub={textoContagem(raiz(i.abertas).length)} />
       <div data-encadeado className="bloco-tela" style={{ ["--i" as string]: 1, display: "flex", flexDirection: "column", gap: "var(--e6)", alignItems: "stretch" }}>
+        <CampoCelular />
         <div style={{ alignSelf: "flex-start", display: "flex", width: "100%" }}><Segmentado rotulo="Agrupar" valor={porLista} aoMudar={mudar} opcoes={[[false, "Por data"], [true, "Por lista"]]} /></div>
         {porLista
           ? e.listas.map((l) => {
@@ -344,6 +353,7 @@ export function TelaLista({ id }: { id: string }) {
         </button>
       } />
       <div data-encadeado className="bloco-tela" style={{ ["--i" as string]: 1, display: "flex", flexDirection: "column", gap: "var(--e6)" }}>
+        <CampoCelular listaId={id} />
         <Secao titulo="Tarefas" contagem={ts.length} tom={cor}>
           {ts.length ? linhas(ts, { lista: false }) : <EstadoVazio Icone={ListChecks} titulo="Lista vazia" descricao="Use a barra abaixo para criar a primeira tarefa." />}
         </Secao>
@@ -362,6 +372,7 @@ export function TelaEtiqueta({ id }: { id: string }) {
       <Cabecalho titulo={"#" + g.nome} sub="Etiqueta · só no Tasker" />
       <div data-encadeado className="bloco-tela" style={{ ["--i" as string]: 1, display: "flex", flexDirection: "column", gap: "var(--e6)" }}>
         <div><button className="botao b-superficie" onClick={() => folhas.abrir("Editar etiqueta", <EditorDeEtiqueta id={id} />, { largura: 380 })}><Pencil size={13} /> Editar etiqueta</button></div>
+        <CampoCelular etiqueta={id} />
         <Secao titulo="Tarefas" contagem={ts.length}>
           {ts.length ? linhas(ts) : <EstadoVazio Icone={Hash} titulo="Nenhuma tarefa aqui" descricao="Clique com o botão direito numa tarefa → Etiquetas." />}
         </Secao>
@@ -722,13 +733,13 @@ export function TelaNotas({ id }: { id?: string }) {
           <button className="icone-botao" title="Revisão da semana (nota pronta com o que foi feito e o que ficou)" aria-label="Revisão da semana" onClick={() => abrirNota({ nota: revisaoDaSemana() })}><CalendarCheck size={14} /></button>
           <button className="icone-botao" title="Nova nota" aria-label="Nova nota" onClick={() => abrirNota({ nota: novaNota() })}><SquarePen size={14} /></button>
         </div>
-        <div style={{ flex: 1, overflow: "auto", padding: "0 12px 20px", display: "flex", flexDirection: "column", gap: 2 }}>
+        <Rolagem casca="casca-flex" style={{ flex: 1, overflow: "auto", padding: "0 12px 20px", display: "flex", flexDirection: "column", gap: 2 }}>
           {!notas.some((n) => n.dia === hoje) && <LinhaNota titulo="Hoje" detalhe="Escrever a nota do dia" Icone={Sun} selecionada={mesmoAlvo(alvo, { dia: hoje })} aoClicar={() => abrirNota({ dia: hoje })} />}
           {ordenadas.map((n) => {
             const a: AlvoNota = n.dia ? { dia: n.dia } : { nota: n.id };
             return <LinhaNota key={n.id} titulo={n.dia === hoje ? "Hoje" : tituloDaNota(n)} detalhe={resumo(n)} Icone={n.dia ? Calendar : NotepadText} selecionada={mesmoAlvo(alvo, a)} aoClicar={() => abrirNota(a)} />;
           })}
-        </div>
+        </Rolagem>
       </div>
       <div className="editor-nota">
         {existe && alvo ? <EditorDeNota key={"dia" in alvo ? "d" + alvo.dia : "n" + alvo.nota} alvo={alvo} /> : (
@@ -763,7 +774,7 @@ function EditorDeNota({ alvo }: { alvo: AlvoNota }) {
         <span style={{ flex: 1 }} />
         {nota && <button className="icone-botao" aria-label="Excluir nota" title="Excluir nota" onClick={() => folhas.confirmar("Excluir nota", `“${tituloDaNota(nota)}” será excluída. Dá para desfazer logo depois.`, () => { abrirNota(null); excluirNota(nota.id); })}><Trash2 size={14} /></button>}
       </div>
-      <div style={{ flex: 1, overflow: "auto", padding: "0 24px 32px", display: "flex", flexDirection: "column", gap: 16 }}>
+      <Rolagem casca="casca-flex" fundo="var(--superficie)" style={{ flex: 1, overflow: "auto", padding: "0 24px 32px", display: "flex", flexDirection: "column", gap: 16 }}>
         {dia ? (
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             <span className="rotulo">{rotuloLongo(dia)}</span>
@@ -792,7 +803,7 @@ function EditorDeNota({ alvo }: { alvo: AlvoNota }) {
             {listaPadraoNome && <span className="t-xs c3">Vão para “{listaPadraoNome}”{nota.dia ? `, com a data ${rotuloCurto(nota.dia, hoje).toLowerCase()}` : ""}.</span>}
           </div>
         )}
-      </div>
+      </Rolagem>
     </>
   );
 }
@@ -803,7 +814,7 @@ function Pasta({ Icone, titulo, subtitulo, aberta = false, children }: { Icone: 
   const [aberto, setAberto] = useState(aberta);
   return (
     <div className="pasta">
-      <button className="pasta-cabecalho" aria-expanded={aberto} onClick={() => setAberto(!aberto)}>
+      <button className="pasta-cabecalho sem-veu sem-afundar" aria-expanded={aberto} title={(aberto ? "Recolher " : "Mostrar ") + titulo.toLowerCase()} onClick={() => setAberto(!aberto)}>
         <Icone size={16} strokeWidth={1.9} className="c2" style={{ width: 22, flex: "none" }} />
         <span style={{ display: "flex", flexDirection: "column", gap: 1, flex: 1, minWidth: 0, textAlign: "left" }}>
           <span className="t-sm p-semi">{titulo}</span>
@@ -818,8 +829,8 @@ function Pasta({ Icone, titulo, subtitulo, aberta = false, children }: { Icone: 
 
 function LinhaAjuste({ titulo, descricao, children }: { titulo: string; descricao?: string; children?: ReactNode }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: "var(--e3)" }}>
-      <span style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, minWidth: 0 }}>
+    <div className="linha-ajuste">
+      <span className="linha-ajuste-texto">
         <span className="t-sm p-medio">{titulo}</span>
         {descricao && <span className="t-xs c3">{descricao}</span>}
       </span>
@@ -880,9 +891,9 @@ export function TelaAjustes() {
                 </span>
                 <span style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, minWidth: 0 }}>
                   <span className="t-sm p-semi">{e.nome ?? "Conta Google"}</span>
-                  <span className="t-xs c3">{e.email}</span>
+                  <span className="t-xs c3 uma-linha">{e.email}</span>
                 </span>
-                <button className="botao b-superficie" onClick={() => void sair()}>Sair da conta</button>
+                <button className="botao b-superficie" style={{ flex: "none" }} onClick={() => folhas.confirmar("Sair da conta", "As tarefas continuam no Google e o resto no servidor. Neste aparelho, tudo sai até você entrar de novo.", () => void sair(), "Sair")}>Sair</button>
               </div>
               {e.googlePendente && (
                 <Nota tom="aviso" texto="O Google precisa ser reconectado para as tarefas e a agenda voltarem a sincronizar.">
@@ -960,7 +971,7 @@ export function TelaAjustes() {
 export function TelaEntrar() {
   return (
     <div style={{ height: "100%", overflow: "auto" }}>
-      <div style={{ maxWidth: 560, margin: "0 auto", padding: "64px 32px", display: "flex", flexDirection: "column", gap: "var(--e6)" }}>
+      <div className="tela-entrar">
         <div className="entrar" style={{ display: "flex", flexDirection: "column", gap: "var(--e3)" }}>
           <span className="simbolo" style={{ width: 52, height: 52, borderRadius: 52 * 0.28 }}><Check size={26} strokeWidth={4} /></span>
           <h1 className="display d-display">Bem-vindo ao Tasker</h1>
@@ -976,9 +987,9 @@ export function TelaEntrar() {
           </div>
           <button className="botao m b-primario largo" onClick={() => void entrarComGoogle()}><CircleUserRound size={15} />Entrar com Google</button>
         </div>
-        <div className="cartao entrar-2" style={{ padding: "var(--e5)", display: "flex", alignItems: "center", gap: "var(--e3)" }}>
+        <div className="cartao entrar-2 cartao-opcao">
           <span style={{ width: 36, height: 36, borderRadius: "var(--raio-m)", background: "var(--superficie2)", color: "var(--texto2)", display: "inline-flex", alignItems: "center", justifyContent: "center", flex: "none" }}><Laptop size={16} strokeWidth={2.2} /></span>
-          <span style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1 }}>
+          <span className="cartao-opcao-texto">
             <span className="t-md p-semi">Usar sem conta</span>
             <span className="t-sm c3">Tudo fica só neste aparelho. Dá para exportar e conectar o Google depois.</span>
           </span>

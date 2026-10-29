@@ -1,3 +1,4 @@
+import { Rolagem } from "./comuns";
 import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import {
   Archive, Banknote, Bike, Book, Bookmark, Brain, Briefcase, BriefcaseMedical, Building2, Bus, Calendar, Camera, Car, ChartColumn, ChartPie, ChevronUp,
@@ -127,7 +128,7 @@ export function HospedeDeFolhas() {
           </div>
           <button className="icone-botao" style={{ width: 28, height: 28, marginTop: -2, marginRight: -4 }} aria-label="Fechar" onClick={folhas.fechar}><X size={14} /></button>
         </div>
-        <div className="folha-corpo">{a.conteudo}</div>
+        <Rolagem casca="casca-flex" fundo="var(--superficie)" className="folha-corpo">{a.conteudo}</Rolagem>
       </div>
     </>
   );

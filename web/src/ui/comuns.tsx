@@ -1,7 +1,7 @@
 import { iconePorNome } from "./folhas";
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import {
-  AlertCircle, AlignLeft, ChevronDown, Calendar, CalendarDays, Check, ChevronLeft, ChevronRight, Circle, Clock,
+  AlertCircle, AlignLeft, ChevronDown, ChevronUp, Calendar, CalendarDays, Check, ChevronLeft, ChevronRight, Circle, Clock,
   Inbox, Pause, Play, Sun, Tag, X, type LucideIcon,
 } from "lucide-react";
 import { usar } from "../dados/armazem";
@@ -443,4 +443,40 @@ export function useCelular() {
     return () => m.removeEventListener("change", f);
   }, []);
   return c;
+}
+
+/**
+ * Área rolável com o indicador do Mac (IndicadorDeRolagem): degradê na cor do fundo e uma seta
+ * em cima e embaixo, só quando há mais conteúdo daquele lado.
+ */
+export function Rolagem({ className, style, casca, fundo = "var(--fundo)", children, rolagemRef }: {
+  className?: string; style?: React.CSSProperties; casca?: string; fundo?: string; children: ReactNode; rolagemRef?: React.Ref<HTMLDivElement>;
+}) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const [acima, setAcima] = useState(false);
+  const [abaixo, setAbaixo] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const medir = () => {
+      setAcima(el.scrollTop > 2);
+      setAbaixo(el.scrollTop + el.clientHeight < el.scrollHeight - 2);
+    };
+    medir();
+    el.addEventListener("scroll", medir, { passive: true });
+    const o = new ResizeObserver(medir);
+    o.observe(el);
+    const m = new MutationObserver(medir);
+    m.observe(el, { childList: true, subtree: true });
+    return () => { el.removeEventListener("scroll", medir); o.disconnect(); m.disconnect(); };
+  }, []);
+  return (
+    <div className={"rolagem-casca " + (casca ?? "")} style={{ ["--fundo-rolagem" as string]: fundo }}>
+      <div ref={(el) => { ref.current = el; if (typeof rolagemRef === "function") rolagemRef(el); else if (rolagemRef) (rolagemRef as React.MutableRefObject<HTMLDivElement | null>).current = el; }} className={className} style={style}>
+        {children}
+      </div>
+      <span className={"ind-rolagem cima" + (acima ? " visivel" : "")} aria-hidden><ChevronUp size={14} strokeWidth={2.6} /></span>
+      <span className={"ind-rolagem baixo" + (abaixo ? " visivel" : "")} aria-hidden><ChevronDown size={14} strokeWidth={2.6} /></span>
+    </div>
+  );
 }

@@ -27,7 +27,7 @@ try {
   await p.getByRole("heading", { name: "Hoje" }).waitFor();
   ok(true, "entra sem conta");
 
-  const campo = p.getByPlaceholder("Adicionar tarefa");
+  const campo = p.locator(".barra-flutuante textarea");
   await campo.fill("Comprar pão");
   await campo.press("Enter");
   await campo.fill("Ligar pro dentista amanhã");

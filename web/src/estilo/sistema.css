@@ -233,7 +233,6 @@ input:focus-visible, textarea:focus-visible { outline: none; }
   .chave[aria-checked="true"]::after { transform: translateX(20px); }
   .toast { bottom: calc(var(--altura-nav) + env(safe-area-inset-bottom) + var(--e3)); }
   /* §4.4 — o iOS não dá zoom ao focar um campo */
-  input, textarea, select { font-size: max(16px, 1em) !important; }
 }
 
 /* ===== §8.4 Folha: subindo no celular, centrada a partir do tablet ===== */
@@ -297,3 +296,101 @@ input:focus-visible, textarea:focus-visible { outline: none; }
   .resumo-topo > .segmentado { order: 3; }
   .grafico-x span:nth-child(even) { visibility: hidden; }
 }
+
+/* ===== Campo de nova tarefa (QuickAddField.swift) ===== */
+.campo-tarefa { display: flex; flex-direction: column; gap: var(--e2); }
+.campo-tarefa-linha { display: flex; align-items: center; gap: var(--e3); min-height: 40px; padding: 9px var(--e3) 9px var(--e4); border-radius: var(--raio-m); background: var(--superficie2); }
+.campo-tarefa.flutuante .campo-tarefa-linha { background: transparent; min-height: 44px; padding: 8px 6px 8px var(--e4); }
+.campo-tarefa textarea { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; resize: none; padding: 0; font-size: var(--t-md); line-height: 22px; color: var(--texto); }
+.campo-tarefa textarea::placeholder { color: var(--texto3); }
+.campo-tarefa .mais-campo { flex: none; color: var(--texto3); transition: transform var(--normal) var(--curva), color var(--rapido); }
+.campo-tarefa.focado .mais-campo { color: var(--acento); transform: rotate(90deg); }
+.chips-campo { display: flex; align-items: center; flex-wrap: wrap; gap: var(--e2); padding: 0 var(--e3); }
+.campo-tarefa.flutuante .chips-campo { padding-bottom: 4px; }
+.enviar { flex: none; width: 28px; height: 28px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; background: var(--superficie2); color: var(--texto3); }
+.enviar.pronto { background: var(--acento); color: #fff; }
+.enviar:disabled { cursor: default; }
+
+/* SoAfunda (Controls.swift): sem véu; cresce um pouco no hover, escurece 3% e afunda no clique. */
+.so-afunda { display: inline-flex; transition: transform var(--rapido) var(--curva), filter var(--rapido) var(--curva); }
+@media (hover: hover) { .so-afunda:hover:not(:disabled) { transform: scale(1.02); filter: brightness(0.97); } }
+.so-afunda:active:not(:disabled) { transform: scale(0.95) !important; transition-duration: var(--toque); }
+.campo-celular { display: none; }
+@media (max-width: 760px) { .campo-celular { display: block; } }
+
+/* ===== Indicador de rolagem (IndicadorDeRolagem.swift) ===== */
+.rolagem-casca { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.rolagem-casca > :first-child { flex: 1; min-height: 0; overflow: auto; }
+.ind-rolagem {
+  position: absolute; left: 0; right: 0; height: 26px; z-index: 3; pointer-events: none; display: flex; justify-content: center;
+  color: var(--texto3); opacity: 0; transition: opacity var(--rapido) var(--curva);
+}
+.ind-rolagem.cima { top: 0; align-items: flex-start; padding-top: 2px; background: linear-gradient(var(--fundo-rolagem), transparent); }
+.ind-rolagem.baixo { bottom: 0; align-items: flex-end; padding-bottom: 2px; background: linear-gradient(transparent, var(--fundo-rolagem)); }
+.ind-rolagem.visivel { opacity: 1; }
+.ind-rolagem svg { transform: scaleX(1.6); }
+/* A página principal some debaixo da pílula no celular: o indicador fica acima dela. */
+@media (max-width: 760px) { .casca-pagina > .ind-rolagem.baixo { bottom: calc(var(--altura-nav) + env(safe-area-inset-bottom)); } }
+/* Barras de rolagem discretas: o indicador já diz que há mais. */
+.rolagem-casca > :first-child { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--texto3) 40%, transparent) transparent; }
+.casca-pagina { flex: 1; }
+.casca-pagina.cheia > :first-child { overflow: hidden; display: flex; }
+.casca-lateral { flex: 1; }
+.lateral .ind-rolagem { --fundo-rolagem: var(--fundo); }
+@media (max-width: 760px) { .casca-pagina.cheia > :first-child { overflow: auto; display: block; } }
+.casca-flex { flex: 1; }
+.casca-busca { max-height: 360px; }
+.casca-agenda { width: 340px; flex: none; border-left: 1px solid var(--borda); background: var(--superficie); }
+.casca-agenda > .agenda-dia { width: auto; border: 0; }
+@media (max-width: 760px) { .casca-agenda { width: auto; border: 0; background: none; } .casca-agenda > :first-child { overflow: visible; } .casca-agenda .ind-rolagem { display: none; } }
+.folha > .casca-flex { min-height: 0; }
+
+/* Eventos (EventRow.swift): sem sublinhado, sem fundo; no hover a barra engrossa e aparece a seta. */
+.evento, .evento:hover { text-decoration: none; color: var(--texto); background-image: none !important; }
+.evento:active { transform: scale(0.99) !important; }
+
+/* Pasta dos ajustes: o cartão inteiro responde; o cabeçalho não pinta um retângulo por cima. */
+.pasta { transition: transform var(--toque) var(--curva), border-color var(--rapido); }
+.pasta-cabecalho { border-radius: 0; background-clip: padding-box; transition: background-color var(--rapido) var(--curva); }
+@media (hover: hover) { .pasta-cabecalho:hover { background-color: var(--veu-hover); } }
+.pasta-cabecalho:active { background-color: var(--veu-ativo); }
+@media (prefers-reduced-motion: no-preference) { .pasta:has(> .pasta-cabecalho:active) { transform: scale(0.99); } }
+.pasta-cabecalho svg:last-child { transition: transform var(--normal) var(--curva); }
+
+/* Linha de ajuste: frase + descrição + controle; no estreito, o controle largo desce para baixo. */
+.linha-ajuste { display: flex; align-items: center; gap: var(--e3); flex-wrap: wrap; }
+.linha-ajuste-texto { display: flex; flex-direction: column; gap: 2px; flex: 1 1 180px; min-width: 0; }
+.linha-ajuste > .segmentado { flex: 1 1 100%; }
+@media (min-width: 761px) { .linha-ajuste { flex-wrap: nowrap; } .linha-ajuste > .segmentado { flex: none; } }
+
+/* Boas-vindas: no estreito o botão desce para baixo do texto (nada de três colunas espremidas). */
+.tela-entrar { max-width: 560px; margin: 0 auto; padding: 64px 32px; display: flex; flex-direction: column; gap: var(--e6); }
+.cartao-opcao { padding: var(--e5); display: flex; align-items: center; flex-wrap: wrap; gap: var(--e3); }
+.cartao-opcao-texto { display: flex; flex-direction: column; gap: 2px; flex: 1 1 200px; min-width: 0; }
+@media (max-width: 760px) {
+  .tela-entrar { padding: calc(var(--pagina-y) + env(safe-area-inset-top) + 24px) var(--pagina-x) calc(var(--e8) + env(safe-area-inset-bottom)); }
+  .cartao-opcao > .botao { flex: 1 1 100%; }
+}
+.menu-sem-conta { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--e3); padding: var(--e8); text-align: center; background: var(--fundo); }
+
+/* Calendário */
+.cabecalho-calendario { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+@media (max-width: 760px) {
+  .tela-calendario .casca-flex > :first-child { overflow: visible; }
+  .tela-calendario .casca-flex > .ind-rolagem { display: none; }
+  .tela-calendario .casca-flex > .pagina { padding: var(--e6) var(--pagina-x) var(--e4) !important; gap: var(--e3) !important; }
+  .cabecalho-calendario { align-items: center; }
+  .cabecalho-calendario > div { flex: 1 1 100%; }
+  .cabecalho-calendario > span { flex: 1 1 100%; justify-content: space-between; }
+  .cabecalho-calendario > span > .botao { flex: 1; }
+  .tela-calendario .rotulo-semana { padding-left: 0 !important; text-align: center; }
+  .dia-cal.compacto { height: 52px; padding: 6px 0; align-items: center; justify-content: flex-start; gap: 4px; }
+  .dia-cal.compacto > span:first-child { margin: 0 !important; }
+  .pontos-dia { display: flex; gap: 3px; height: 5px; }
+  .pontos-dia > span { width: 5px; height: 5px; border-radius: 999px; }
+  .agenda-dia { padding-top: var(--e4) !important; gap: var(--e4) !important; }
+}
+.secao-menu { display: flex; align-items: center; gap: 6px; padding: var(--e2) var(--e3) 2px; width: 100%; text-align: left; }
+.secao-menu svg { transition: transform var(--normal) var(--curva); }
+.secao-menu[aria-expanded="false"] svg { transform: rotate(-90deg); }
+.secao-menu .rotulo { padding: 0 !important; }

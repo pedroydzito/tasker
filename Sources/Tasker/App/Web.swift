@@ -23,6 +23,8 @@ final class WebPonte: NSObject {
 
     /// O que a web informa para a barra de menus.
     var contagemHoje = 0
+    /// Estado da web: "carregando", "entrar", "local" ou "conta".
+    var modo = "carregando"
     var cronometroInicio: Date?
     var cronometroAntes: Double = 0
     var tique = Date()
@@ -71,6 +73,7 @@ final class WebPonte: NSObject {
         switch acao {
         case "estado":
             contagemHoje = m["hoje"] as? Int ?? 0
+            if let novo = m["modo"] as? String { modo = novo }
             if let c = m["cronometro"] as? [String: Any], let inicio = c["inicio"] as? String {
                 cronometroInicio = ISO8601DateFormatter.comFracao.date(from: inicio) ?? ISO8601DateFormatter().date(from: inicio)
                 cronometroAntes = c["segundosAntes"] as? Double ?? 0
@@ -91,6 +94,16 @@ final class WebPonte: NSObject {
             if let s = m["url"] as? String, let url = URL(string: s) { NSWorkspace.shared.open(url) }
         default:
             break
+        }
+    }
+
+    /// O menu abriu: sem conta, quem aparece é a janela grande (é lá que se entra) e o menu fecha.
+    func menuAbriu() {
+        executar("window.taskerMenuAbriu && taskerMenuAbriu()")
+        guard modo == "entrar" else { return }
+        DispatchQueue.main.async {
+            for janela in NSApp.windows where String(describing: type(of: janela)).contains("MenuBarExtra") { janela.orderOut(nil) }
+            self.abrirJanela(rota: "#/hoje")
         }
     }
 

@@ -1,13 +1,13 @@
+import { CampoTarefa } from "./campo";
 import { CriadorDeEtiqueta, HospedeDeFolhas, NovaLista, folhas } from "./folhas";
-import { Suspense, lazy, useEffect, useRef, useState, type ComponentType } from "react";
-import { ChevronUp, ArrowUp, CircleAlert, Trash2, Circle, Brain, CalendarDays, ChartGantt, Check, ChevronDown, CircleCheck, CircleUserRound, CloudOff, Download, Hash, Inbox, NotepadText, Plus, RefreshCw, Search, Settings, Sun, Sunrise, X } from "lucide-react";
+import { Suspense, lazy, useEffect, useState, type ComponentType } from "react";
+import { ChevronUp, CircleAlert, Trash2, Circle, Brain, CalendarDays, ChartGantt, Check, ChevronDown, CircleCheck, CircleUserRound, CloudOff, Download, Hash, Inbox, NotepadText, Plus, RefreshCw, Search, Settings, Sun, Sunrise, X } from "lucide-react";
 import { usar } from "../dados/armazem";
-import { criarDoTexto, novaNota } from "../dados/acoes";
 import { desfazerAgora, textoDoAviso, useAviso } from "../dados/avisos";
 import { buscar, contagemHoje, corDaLista, etiquetasOrdenadas, indice, nomeDaLista } from "../dados/consultas";
 import { puxar } from "../dados/sync";
 import { diaISO, hojeISO, rotuloCurto, somarDias } from "../dados/util";
-import { LadrilhoLista, querMenosMovimento, useTrilho } from "./comuns";
+import { LadrilhoLista, Rolagem, querMenosMovimento, useTrilho } from "./comuns";
 import { Inspetor } from "./Inspetor";
 import { abrirNota, irPara, selecionar, useRota, useSelecionada, type Rota } from "./rota";
 import { TelaAmanha, TelaHoje } from "./hoje";
@@ -28,7 +28,6 @@ const TelaTodas = preguicosa("TelaTodas") as ComponentType;
 const TelaEtiqueta = preguicosa("TelaEtiqueta") as ComponentType<{ id: string }>;
 const TelaLista = preguicosa("TelaLista") as ComponentType<{ id: string }>;
 const TelaNotas = preguicosa("TelaNotas") as ComponentType<{ id?: string }>;
-const CampoDespejo = preguicosa("CampoDespejo") as ComponentType;
 const Menu = lazy(() => import("./Menu").then((m) => ({ default: m.Menu })));
 if (typeof window !== "undefined") ("requestIdleCallback" in window ? requestIdleCallback : setTimeout)(() => void telas());
 
@@ -155,7 +154,7 @@ function Lateral({ rota, aoBuscar }: { rota: Rota; aoBuscar: () => void }) {
           {e.avatar ? <img src={e.avatar} alt="" width={26} height={26} style={{ borderRadius: 999 }} /> : <CircleUserRound size={24} strokeWidth={1.8} fill="currentColor" stroke="var(--fundo)" />}
         </button>
       </div>
-      <div className="lateral-rolagem">
+      <Rolagem casca="casca-lateral" className="lateral-rolagem">
         <button className="botao-busca" onClick={aoBuscar}>
           <span className="icone"><Search size={14} /></span>
           <span style={{ flex: 1, textAlign: "left" }}>Buscar</span>
@@ -176,7 +175,7 @@ function Lateral({ rota, aoBuscar }: { rota: Rota; aoBuscar: () => void }) {
             icone={<Hash size={12} strokeWidth={3} color={g.cor} />} aoClicar={() => irPara({ tela: "etiqueta", id: g.id })} />
         ))}
         {!etiquetasFechadas && !e.etiquetas.length && <div className="dica-lateral">Digite #etiqueta ao criar uma tarefa</div>}
-      </div>
+      </Rolagem>
       <div className="rodape-lateral">
         <StatusSync />
         <span style={{ flex: 1 }} />
@@ -205,49 +204,16 @@ function FaixaCelular() {
   );
 }
 
-/** Ação principal da tela (§14.3): o "+" da pílula faz o que a tela atual cria. */
-function acaoPrincipal(rota: Rota): { rotulo: string; fazer: () => void } | null {
-  const hoje = hojeISO();
-  switch (rota.tela) {
-    case "ajustes": return null;
-    case "despejo": return { rotulo: "Despejar", fazer: () => folhas.abrir("Despejar", <CampoDespejo />) };
-    case "notas": case "nota": return { rotulo: "Nova nota", fazer: () => { abrirNota({ nota: novaNota() }); irPara({ tela: "notas" }); } };
-    default: {
-      const padrao = {
-        prazo: rota.tela === "hoje" ? hoje : rota.tela === "amanha" || rota.tela === "proximas" ? somarDias(hoje, 1) : null,
-        listaId: rota.tela === "lista" ? rota.id : null,
-        etiqueta: rota.tela === "etiqueta" ? rota.id : null,
-      };
-      return { rotulo: "Nova tarefa", fazer: () => folhas.abrir("Nova tarefa", <NovaTarefaFolha padrao={padrao} />) };
-    }
-  }
-}
-
-function NovaTarefaFolha({ padrao }: { padrao: { prazo: string | null; listaId: string | null; etiqueta: string | null } }) {
-  const [texto, setTexto] = useState("");
-  const criar = () => { if (texto.trim()) { criarDoTexto(texto, padrao); setTexto(""); } };
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "var(--e3)" }}>
-      <div className="campo-menu">
-        <Plus size={16} className="c3" />
-        <input autoFocus placeholder="Adicionar tarefa" aria-label="Adicionar tarefa" value={texto} enterKeyHint="done"
-          onChange={(e) => setTexto(e.target.value)} onKeyDown={(e) => e.key === "Enter" && criar()} />
-      </div>
-      <span className="t-xs c3">Entende hoje, amanhã, sexta, 30/10, ~lista e #etiqueta. Enter adiciona e deixa pronto para a próxima.</span>
-      <button className="botao m b-primario largo" disabled={!texto.trim()} onClick={criar}>Adicionar tarefa</button>
-    </div>
-  );
-}
-
 /** Navegação do celular (§9.6): pílula flutuante, três destinos fixos, "mais" e a ação da tela. */
 function NavCelular({ rota }: { rota: Rota }) {
   const [aberto, setAberto] = useState(false);
   const [saindo, setSaindo] = useState(false);
+  const [listasFechadas, alternarListas] = useRecolhida("sidebar.listsCollapsed");
+  const [etiquetasFechadas, alternarEtiquetas] = useRecolhida("sidebar.tagsCollapsed");
   const e = usar((x) => x);
   const fixos: [Rota["tela"], typeof Sun, string][] = [["hoje", Sun, "Hoje"], ["calendario", CalendarDays, "Calendário"], ["despejo", Brain, "Despejo"]];
   const noFixo = fixos.some(([t]) => t === rota.tela);
   const ref = useTrilho<HTMLElement>(rota.tela + String(aberto));
-  const acao = acaoPrincipal(rota);
   const fechar = () => {
     // Volta para o botão (150ms, o mesmo número do CSS) e só então desmonta.
     setSaindo(true);
@@ -283,14 +249,6 @@ function NavCelular({ rota }: { rota: Rota }) {
             onClick={() => (aberto ? fechar() : setAberto(true))}>
             <ChevronUp size={20} strokeWidth={2.1} />
           </button>
-          {acao && (
-            <>
-              <span className="sep-nav" />
-              <button className="item-nav so-icone acao sem-veu pressionavel" aria-label={acao.rotulo} title={acao.rotulo} onClick={acao.fazer}>
-                <Plus size={22} strokeWidth={2.5} />
-              </button>
-            </>
-          )}
           {aberto && (
             <div className={"menu-mais " + (saindo ? "volta-para-o-botao" : "brota-do-botao")} role="menu">
               {item({ tela: "amanha" }, Sunrise, "Amanhã")}
@@ -298,10 +256,10 @@ function NavCelular({ rota }: { rota: Rota }) {
               {item({ tela: "todas" }, Inbox, "Todas")}
               {item({ tela: "concluidas" }, CircleCheck, "Concluídas")}
               {item({ tela: "notas" }, NotepadText, "Notas")}
-              <span className="rotulo">Listas</span>
-              {e.listas.map((l) => item({ tela: "lista", id: l.id }, Inbox, nomeDaLista(e, l.id), <LadrilhoLista listaId={l.id} tamanho={22} />))}
-              {e.etiquetas.length > 0 && <span className="rotulo">Etiquetas</span>}
-              {etiquetasOrdenadas(e).map((g) => item({ tela: "etiqueta", id: g.id }, Hash, g.nome, <Hash size={16} strokeWidth={2.6} color={g.cor} />))}
+              <button className="secao-menu sem-veu" aria-expanded={!listasFechadas} onClick={alternarListas}><span className="rotulo">Listas</span><ChevronDown size={9} strokeWidth={3.2} className="c3" /></button>
+              {!listasFechadas && e.listas.map((l) => item({ tela: "lista", id: l.id }, Inbox, nomeDaLista(e, l.id), <LadrilhoLista listaId={l.id} tamanho={22} />))}
+              {e.etiquetas.length > 0 && <button className="secao-menu sem-veu" aria-expanded={!etiquetasFechadas} onClick={alternarEtiquetas}><span className="rotulo">Etiquetas</span><ChevronDown size={9} strokeWidth={3.2} className="c3" /></button>}
+              {!etiquetasFechadas && etiquetasOrdenadas(e).map((g) => item({ tela: "etiqueta", id: g.id }, Hash, g.nome, <Hash size={16} strokeWidth={2.6} color={g.cor} />))}
               <div style={{ height: 1, background: "var(--borda)", margin: "2px 0" }} />
               {item({ tela: "ajustes" }, Settings, "Ajustes")}
             </div>
@@ -312,48 +270,25 @@ function NavCelular({ rota }: { rota: Rota }) {
   );
 }
 
-/** Criação rápida: entende "amanhã", "sexta", "~lista", "#etiqueta". */
+/** Barra flutuante de nova tarefa: a ação principal é da tela (cria na lista/dia da tela atual). */
 function CriacaoRapida({ rota }: { rota: Rota }) {
-  const [texto, setTexto] = useState("");
-  const ref = useRef<HTMLInputElement>(null);
   useEffect(() => {
     const k = (e: KeyboardEvent) => {
       if (e.key === "n" && !e.metaKey && !e.ctrlKey && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) {
         e.preventDefault();
-        ref.current?.focus();
+        window.dispatchEvent(new Event("tasker:nova"));
       }
     };
-    const focar = () => ref.current?.focus();
     window.addEventListener("keydown", k);
-    window.addEventListener("tasker:nova", focar);
-    return () => {
-      window.removeEventListener("keydown", k);
-      window.removeEventListener("tasker:nova", focar);
-    };
+    return () => window.removeEventListener("keydown", k);
   }, []);
   if (["despejo", "notas", "nota", "ajustes", "calendario", "concluidas"].includes(rota.tela)) return null;
   const hoje = hojeISO();
-  const padrao = {
-    prazo: rota.tela === "hoje" ? hoje : rota.tela === "amanha" ? somarDias(hoje, 1) : null,
-    listaId: rota.tela === "lista" ? rota.id : null,
-    etiqueta: rota.tela === "etiqueta" ? rota.id : null,
-  };
-  const noMac = !!(window as { webkit?: { messageHandlers?: { tasker?: unknown } } }).webkit?.messageHandlers?.tasker;
-  const enviar = () => {
-    if (!texto.trim()) return;
-    criarDoTexto(texto, padrao);
-    setTexto("");
-  };
   return (
     <div className="barra-flutuante">
-      <div className="campo-rapido">
-        <Plus size={15} className="c3" />
-        <input ref={ref} placeholder={noMac ? "Adicionar tarefa  ·  ⌥Espaço de qualquer lugar" : "Adicionar tarefa"} aria-label="Adicionar tarefa"
-          value={texto} onChange={(e) => setTexto(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") enviar(); if (e.key === "Escape") e.currentTarget.blur(); }}
-          onPaste={(e) => { const t = e.clipboardData.getData("text"); if (t.includes("\n")) { e.preventDefault(); criarDoTexto(t, padrao); } }} />
-        <button className={"enviar" + (texto.trim() ? " pronto" : "")} aria-label="Adicionar" onClick={enviar}><ArrowUp size={14} strokeWidth={2.6} /></button>
-      </div>
+      <CampoTarefa key={rota.tela + ("id" in rota ? rota.id : "")} estilo="flutuante"
+        prazo={rota.tela === "hoje" ? hoje : rota.tela === "amanha" || rota.tela === "proximas" ? somarDias(hoje, 1) : null}
+        listaId={rota.tela === "lista" ? rota.id : null} etiqueta={rota.tela === "etiqueta" ? rota.id : null} />
     </div>
   );
 }
@@ -402,7 +337,7 @@ function ConteudoBusca() {
         ) : !r.length ? (
           <span className="t-sm c3" style={{ padding: 12 }}>Nada encontrado para “{q}”.</span>
         ) : (
-          <div style={{ maxHeight: 360, overflow: "auto", display: "flex", flexDirection: "column", gap: 1 }}>
+          <Rolagem casca="casca-busca" fundo="var(--superficie)" style={{ maxHeight: 360, overflow: "auto", display: "flex", flexDirection: "column", gap: 1 }}>
             {r.map((x, i) => {
               const I = Icone(x);
               return (
@@ -419,7 +354,7 @@ function ConteudoBusca() {
                 </button>
               );
             })}
-          </div>
+          </Rolagem>
         )}
       </div>
   );
@@ -537,6 +472,8 @@ export function App() {
   useEffect(() => () => selecionar(null), [rota]);
 
   if (modo === "carregando") return null;
+  // No menu da barra sem conta: o convite do menu nativo; entrar é na janela grande.
+  if (modo === "entrar" && rota.tela === "menu") return <MenuSemConta />;
   if (modo === "entrar") return <Suspense fallback={null}><TelaEntrar /></Suspense>;
   if (rota.tela === "menu") return <Suspense fallback={null}><Menu /></Suspense>;
   return (
@@ -544,7 +481,7 @@ export function App() {
       <Lateral rota={rota} aoBuscar={abrirBusca} />
       <main className="principal">
         {/* key: a tela nova monta de novo e a entrada roda a cada troca (§9.3). */}
-        <div key={rota.tela + ("id" in rota ? rota.id : "")} className={"pagina animar-tela" + (TELA_CHEIA.includes(rota.tela) ? " cheia" : "")}>
+        <Rolagem key={rota.tela + ("id" in rota ? rota.id : "")} casca={"casca-pagina" + (TELA_CHEIA.includes(rota.tela) ? " cheia" : "")} className={"pagina animar-tela" + (TELA_CHEIA.includes(rota.tela) ? " cheia" : "")}>
           {TELA_CHEIA.includes(rota.tela) ? (
             <>
               <div className="faixa-solta"><FaixaCelular /></div>
@@ -557,13 +494,29 @@ export function App() {
               <Suspense fallback={<EsperaTela />}><Tela rota={rota} /></Suspense>
             </div>
           )}
-        </div>
+        </Rolagem>
         <CriacaoRapida rota={rota} />
         {sel && <Inspetor key={sel} id={sel} />}
       </main>
       <NavCelular rota={rota} />
       <Toast />
       <HospedeDeFolhas />
+    </div>
+  );
+}
+
+function MenuSemConta() {
+  const abrir = () => {
+    const p = (window as { webkit?: { messageHandlers?: { tasker?: { postMessage: (m: unknown) => void } } } }).webkit?.messageHandlers?.tasker;
+    if (p) p.postMessage({ acao: "abrirJanela", rota: "#/hoje", tarefa: null });
+    else location.hash = "#/hoje";
+  };
+  return (
+    <div className="menu-sem-conta animar-surgir">
+      <span className="simbolo" style={{ width: 44, height: 44, borderRadius: 12 }}><Check size={22} strokeWidth={4} /></span>
+      <h1 className="display d-lg">Conecte sua conta</h1>
+      <p className="t-sm c3">Para ver as tarefas e os eventos de hoje.</p>
+      <button className="botao m b-primario" onClick={abrir}>Configurar</button>
     </div>
   );
 }

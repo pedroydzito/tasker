@@ -1,3 +1,4 @@
+import { Rolagem } from "./comuns";
 import { CriadorDeEtiqueta, folhas } from "./folhas";
 import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ArrowUpRight, CornerLeftUp, Download, Hash, Paperclip, Pause, Play, Plus, Trash2, X } from "lucide-react";
@@ -181,7 +182,7 @@ export function Inspetor({ id }: { id: string }) {
         <button className="icone-botao" title="Excluir tarefa" aria-label="Excluir tarefa" onClick={() => folhas.confirmar("Excluir tarefa", `“${tituloDe(t)}” será excluída. Dá para desfazer logo depois.`, () => { excluirTarefa(id); selecionar(null); })}><Trash2 size={14} /></button>
         <button className="icone-botao so-desktop" title="Fechar painel" aria-label="Fechar painel" onClick={() => selecionar(null)}><X size={14} /></button>
       </div>
-      <div style={{ flex: 1, overflow: "auto", padding: "12px 24px", display: "flex", flexDirection: "column", gap: "var(--e6)", scrollbarWidth: "none" }}>
+      <Rolagem casca="casca-flex" fundo="var(--superficie)" style={{ flex: 1, overflow: "auto", padding: "12px 24px", display: "flex", flexDirection: "column", gap: "var(--e6)", scrollbarWidth: "none" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--e3)" }}>
           {mae && (
             <button className="afunda t-xs p-medio c3" style={{ display: "inline-flex", alignItems: "center", gap: 4, alignSelf: "flex-start" }} title="Abrir a tarefa-mãe" onClick={() => selecionar(mae.id)}>
@@ -238,7 +239,7 @@ export function Inspetor({ id }: { id: string }) {
         {/* O Google Tasks só tem um nível de subtarefas. */}
         {!t.mae && <Subtarefas maeId={id} listaId={t.listaId} />}
         <Anexos id={id} />
-      </div>
+      </Rolagem>
       {alterado && (
         <div className="entrar" style={{ display: "flex", alignItems: "center", gap: "var(--e2)", padding: "12px 20px", borderTop: "1px solid var(--borda)" }}>
           <span className="t-xs c3" style={{ flex: 1 }}>Alterações não salvas</span>

@@ -1,7 +1,9 @@
-import { useEffect, useRef, useState } from "react";
-import { Brain, CalendarDays, ChevronLeft, ChevronRight, CircleCheck, CircleUserRound, Eye, Maximize2, Plus, Settings, Sun, Trash2 } from "lucide-react";
+import { Rolagem } from "./comuns";
+import { CampoTarefa } from "./campo";
+import { useEffect, useState } from "react";
+import { Brain, CalendarDays, ChevronLeft, ChevronRight, CircleCheck, CircleUserRound, Eye, Maximize2, Settings, Sun, Trash2 } from "lucide-react";
 import { mesmaLista, usar } from "../dados/armazem";
-import { adiarAtrasadas, criarDoTexto, excluirTarefa, moverTarefa, salvarTarefa } from "../dados/acoes";
+import { adiarAtrasadas, excluirTarefa, moverTarefa, salvarTarefa } from "../dados/acoes";
 import { eventosDoDia, horarioDe, indice, notasVisiveis, tituloDe } from "../dados/consultas";
 import { ponteMac, puxar } from "../dados/sync";
 import type { Tarefa } from "../dados/tipos";
@@ -24,23 +26,6 @@ export function abrirNaJanela(rota: Rota, tarefa?: string) {
   const ponte = ponteMac();
   if (ponte) ponte.postMessage({ acao: "abrirJanela", rota: r, tarefa: tarefa ?? null });
   else location.hash = r;
-}
-
-function CampoRapidoMenu({ prazo }: { prazo: string }) {
-  const [texto, setTexto] = useState("");
-  const ref = useRef<HTMLInputElement>(null);
-  useEffect(() => {
-    const f = () => ref.current?.focus();
-    window.addEventListener("tasker:nova", f);
-    return () => window.removeEventListener("tasker:nova", f);
-  }, []);
-  return (
-    <div className="campo-menu">
-      <Plus size={14} className="c3" />
-      <input ref={ref} placeholder="Adicionar tarefa" aria-label="Adicionar tarefa" value={texto} onChange={(e) => setTexto(e.target.value)}
-        onKeyDown={(e) => { if (e.key === "Enter" && texto.trim()) { criarDoTexto(texto, { prazo }); setTexto(""); } if (e.key === "Escape") setTexto(""); }} />
-    </div>
-  );
 }
 
 /** Detalhes abertos embaixo da linha: lista e data (clicáveis), tempo, notas e subtarefas. */
@@ -87,8 +72,8 @@ function AbaHoje() {
   const vazio = !tarefas.length && !atrasadas.length;
   return (
     <>
-      <div style={{ padding: "0 var(--e4)" }}><CampoRapidoMenu prazo={hoje} /></div>
-      <div className="rolagem-menu">
+      <div style={{ padding: "0 var(--e4)" }}><CampoTarefa prazo={hoje} /></div>
+      <Rolagem casca="casca-flex" className="rolagem-menu">
         {p.mostrarEventosNoMenu && <Eventos dia={hoje} compacto />}
         {atrasadas.length > 0 && (
           <Secao titulo="Em atraso" contagem={atrasadas.length} tom="var(--perigo-texto)" acao={<button className="botao b-fantasma" onClick={adiarAtrasadas}>Adiar p/ hoje</button>}>{linhas(atrasadas)}</Secao>
@@ -98,7 +83,7 @@ function AbaHoje() {
           : !atrasadas.length ? <CartaoLinhas>{linhas(tarefas)}</CartaoLinhas>
           : <Secao titulo="Hoje" contagem={tarefas.length}>{linhas(tarefas)}</Secao>}
         {!vazio && concluidas}
-      </div>
+      </Rolagem>
     </>
   );
 }
@@ -127,11 +112,11 @@ function AbaCalendario({ dia, setDia }: { dia: string; setDia: (d: string) => vo
         })}
         <button className="icone-botao" style={{ width: 26, height: 26 }} aria-label="Avançar uma semana" onClick={() => setDia(somarDias(dia, 7))}><ChevronRight size={11} /></button>
       </div>
-      <div style={{ padding: "0 var(--e4)" }}><CampoRapidoMenu prazo={dia} key={dia} /></div>
-      <div className="rolagem-menu">
+      <div style={{ padding: "0 var(--e4)" }}><CampoTarefa prazo={dia} key={dia} /></div>
+      <Rolagem casca="casca-flex" className="rolagem-menu">
         <Eventos dia={dia} compacto />
         {!ts.length && !nEventos ? <EstadoVazio Icone={CalendarDays} titulo="Dia livre" /> : ts.length > 0 && <CartaoLinhas>{ts.map((t) => <LinhaTarefa key={t.id} t={t} compacta mostrarData={false} />)}</CartaoLinhas>}
-      </div>
+      </Rolagem>
     </>
   );
 }
@@ -142,7 +127,7 @@ function AbaDespejo() {
   return (
     <>
       <div style={{ padding: "0 var(--e4)" }}><CampoDespejo compacto /></div>
-      <div className="rolagem-menu">
+      <Rolagem casca="casca-flex" className="rolagem-menu">
         {!caixa.length ? (
           <EstadoVazio Icone={Brain} titulo="Cabeça leve" descricao="Despeje aqui o que estiver ocupando espaço. Organize depois." />
         ) : (
@@ -162,7 +147,7 @@ function AbaDespejo() {
             </div>
           </>
         )}
-      </div>
+      </Rolagem>
     </>
   );
 }
