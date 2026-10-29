@@ -390,18 +390,18 @@ function gravarDespejo(i: ItemDespejo) {
 }
 
 /** Joga na caixa. Várias linhas = um item por linha. Com foto, é um item só (o texto é o porquê). */
-export function despejar(texto: string, foto?: string | null): number {
+export function despejar(texto: string, foto?: string | null, silencioso = false): number {
   const agora = Date.now();
   if (foto) {
     gravarDespejo({ id: uuid(), texto: texto.trim(), estado: "caixa", foto, criadoEm: new Date(agora).toISOString(), movidoEm: null });
-    sucesso("Foto guardada no despejo");
+    if (!silencioso) sucesso("Foto guardada no despejo");
     return 1;
   }
   const itens = linhas(texto);
   itens.forEach((t, i) =>
     gravarDespejo({ id: uuid(), texto: t, estado: "caixa", foto: null, criadoEm: new Date(agora + i).toISOString(), movidoEm: null }),
   );
-  if (itens.length) sucesso(itens.length === 1 ? "Guardado no despejo" : `${itens.length} itens no despejo`);
+  if (itens.length && !silencioso) sucesso(itens.length === 1 ? "Guardado no despejo" : `${itens.length} itens no despejo`);
   return itens.length;
 }
 

@@ -1,16 +1,18 @@
-import { useMemo, useState } from "react";
-import { ArrowUpRight, BatteryFull, BatteryLow, Calendar, Camera, ChevronDown, ChevronUp, Hash, ListChecks, Pencil, Plus, Sun, Sunrise, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ArchiveRestore, BadgeCheck, Brain, Check, CircleCheck, CircleX, Clock, Ellipsis, Hand, ImagePlus, Layers2, Zap, CalendarCheck, Circle, SquarePen, ArrowUpRight, ChevronLeft, ChevronRight, NotepadText, BatteryFull, BatteryLow, Calendar, ChevronDown, ChevronUp, Hash, ListChecks, Pencil, Plus, Sun, Sunrise, Trash2 } from "lucide-react";
 import { mesmaLista, usar } from "../dados/armazem";
 import {
   adiarAtrasadas, apagarDespejo, despejar, despejoParaNota, despejoParaTarefa, esvaziarNao, excluirNota, fazerAgora, guardarFoto,
-  moverDespejo, mudarPrefs, editarEtiqueta, novaNota, atualizarNota, escreverNoDia, revisaoDaSemana, tarefaDaLinha, criarLista, excluirLista, renomearLista,
+  moverDespejo, editarDespejo, resolverEtiquetas, descartarSeVazia, mudarPrefs, editarEtiqueta, criarDoTexto, novaNota, atualizarNota, escreverNoDia, revisaoDaSemana, tarefaDaLinha, criarLista, excluirLista, renomearLista,
 } from "../dados/acoes";
-import { corDaLista, etiquetasOrdenadas, eventosDoDia, indice, nomeDaLista, pendentesDaNota } from "../dados/consultas";
+import { listaPadrao, tituloDe, corDaLista, etiquetasOrdenadas, eventosDoDia, indice, nomeDaLista, pendentesDaNota } from "../dados/consultas";
 import { entrarComGoogle, reconectarGoogle, sair, usarSemConta } from "../dados/sync";
-import type { EstadoDespejo, Tarefa, Tema } from "../dados/tipos";
-import { deISO, diaISO, hojeISO, primeiraMaiuscula, rotuloCurto, rotuloLongo, somarDias } from "../dados/util";
-import { Cabecalho, CartaoLinhas, EstadoVazio, LadrilhoLista, LinhaTarefa, Secao, Vazio } from "./comuns";
-import { irPara } from "./rota";
+import type { EstadoDespejo, ItemDespejo, Tarefa, Tema } from "../dados/tipos";
+import { lerArquivo } from "../dados/espelho";
+import { supabase } from "../dados/nuvem";
+import { lerCriacaoRapida, deISO, diaISO, hojeISO, primeiraMaiuscula, rotuloCurto, rotuloLongo, somarDias } from "../dados/util";
+import { Cabecalho, CartaoLinhas, ChipLista, EstadoVazio, LadrilhoLista, LinhaTarefa, Secao, SeletorData, Vazio } from "./comuns";
+import { abrirNota, abrirNotaDoDia, irPara, useNotaAberta, type AlvoNota } from "./rota";
 
 const raiz = (ts: Tarefa[]) => ts.filter((t) => !t.mae);
 const linhas = (ts: Tarefa[], opc: { data?: boolean; lista?: boolean } = {}) =>
@@ -158,42 +160,111 @@ export function TelaProximas() {
     </>
   );
 }
+/** Calendário (CalendarView.swift): mês à esquerda em cartões por dia, agenda do dia à direita. */
 export function TelaCalendario() {
   const hoje = hojeISO();
   const [mes, setMes] = useState(hoje.slice(0, 7));
-  const [dia, setDia] = useState(somarDias(hoje, 1));
+  const [sel, setSel] = useState(hoje);
+  const [altura, setAltura] = useState(84);
+  const ref = useRef<HTMLDivElement>(null);
   const porDia = usar((e) => indice(e).porDia);
+  const feitasPorDia = usar((e) => indice(e).concluidasPorDia);
   const eventos = usar((e) => e.eventos);
+  const comNota = usar((e) => new Set(e.notas.filter((n) => n.dia && n.texto.trim()).map((n) => n.dia!)), (a, b) => a.size === b.size && [...a].every((x) => b.has(x)));
+  const e = usar((x) => x);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    // Seis semanas dividem a altura que sobra; abaixo de 64 a tela rola.
+    const fixa = 56 + 64 + 16 + 20 + 16 + 24 + 6 * 5;
+    const o = new ResizeObserver(() => setAltura(Math.max(64, Math.floor((el.clientHeight - fixa) / 6))));
+    o.observe(el);
+    return () => o.disconnect();
+  }, []);
   const primeiro = deISO(mes + "-01");
-  const inicio = somarDias(mes + "-01", -((primeiro.getDay() + 6) % 7));
+  const inicio = somarDias(mes + "-01", -primeiro.getDay());
   const dias = Array.from({ length: 42 }, (_, i) => somarDias(inicio, i));
-  const ts = raiz(porDia.get(dia) ?? []);
   const mudar = (n: number) => setMes(diaISO(new Date(primeiro.getFullYear(), primeiro.getMonth() + n, 1)).slice(0, 7));
-  const temEvento = useMemo(() => new Set(eventos.map((e) => e.inicio.slice(0, 10))), [eventos]);
+  const agora = Date.now();
   return (
-    <>
-      <Cabecalho
-        titulo={primeiraMaiuscula(primeiro.toLocaleDateString("pt-BR", { month: "long", year: "numeric" }))}
-        direita={<span><button className="botao b-superficie" onClick={() => mudar(-1)}>‹</button> <button className="botao b-superficie" onClick={() => { setMes(hoje.slice(0, 7)); setDia(hoje); }}>Hoje</button> <button className="botao b-superficie" onClick={() => mudar(1)}>›</button></span>}
-      />
-      <div className="cartao" style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 1, padding: 6 }}>
-        {["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"].map((d) => <span key={d} className="rotulo" style={{ textAlign: "center", padding: 6 }}>{d}</span>)}
-        {dias.map((d) => {
-          const n = (porDia.get(d) ?? []).length;
-          return (
-            <button key={d} className="veu" onClick={() => setDia(d)} style={{ minHeight: "clamp(44px, 9vh, 92px)", padding: 6, textAlign: "left", display: "flex", flexDirection: "column", gap: 4, opacity: d.slice(0, 7) === mes ? 1 : 0.4, background: d === dia ? "var(--superficie2)" : undefined }}>
-              <span className="t-sm" style={{ fontWeight: d === hoje ? 700 : 500, color: d === hoje ? "var(--acento)" : undefined }}>{Number(d.slice(8))}</span>
-              <span style={{ display: "flex", gap: 3 }}>
-                {n > 0 && <span className="t-xs c3">{n}</span>}
-                {temEvento.has(d) && <span style={{ width: 5, height: 5, borderRadius: 9, background: "var(--acento)", alignSelf: "center" }} />}
-              </span>
-            </button>
-          );
-        })}
+    <div style={{ display: "flex", flex: 1, minWidth: 0, height: "100%" }}>
+      <div ref={ref} className="pagina" style={{ padding: "56px 32px 24px", display: "flex", flexDirection: "column", gap: "var(--e4)" }}>
+        <header style={{ display: "flex", alignItems: "flex-end", gap: 16 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 3, flex: 1 }}>
+            <h1 className="display d-display">{primeiraMaiuscula(primeiro.toLocaleDateString("pt-BR", { month: "long", year: "numeric" }))}</h1>
+            <div className="t-sm c3">Calendário</div>
+          </div>
+          <span style={{ display: "flex", gap: 4, alignItems: "center" }}>
+            <button className="botao b-superficie" onClick={() => { setMes(hoje.slice(0, 7)); setSel(hoje); }}>Hoje</button>
+            <button className="icone-botao" aria-label="Voltar um mês" onClick={() => mudar(-1)}><ChevronLeft size={14} /></button>
+            <button className="icone-botao" aria-label="Avançar um mês" onClick={() => mudar(1)}><ChevronRight size={14} /></button>
+          </span>
+        </header>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: 6 }}>
+          {["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"].map((d) => <span key={d} className="rotulo" style={{ paddingLeft: 8 }}>{d}</span>)}
+        </div>
+        <div className="entrar" key={mes} style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: 6 }}>
+          {dias.map((d) => {
+            const noMes = d.slice(0, 7) === mes;
+            const evs = eventosDoDia(e, d);
+            const itens = [
+              ...evs.map((ev) => ({ id: "e" + ev.id, texto: ev.titulo, cor: ev.cor, evento: true, passado: new Date(ev.fim).getTime() < agora, riscado: false })),
+              ...[...(porDia.get(d) ?? []), ...(feitasPorDia.get(d) ?? [])].filter((t) => !t.mae).map((t) => ({ id: "t" + t.id, texto: tituloDe(t), cor: corDaLista(e, t.listaId), evento: false, passado: t.concluida, riscado: t.concluida })),
+            ];
+            const cabem = Math.max(1, Math.floor((altura - 36) / 16));
+            const visiveis = itens.length <= cabem ? itens : itens.slice(0, Math.max(cabem - 1, 1));
+            const extra = itens.length - visiveis.length;
+            const ehHoje = d === hoje;
+            return (
+              <button key={d} className="dia-cal" title={rotuloLongo(d)} onClick={() => setSel(d)}
+                style={{ height: altura, background: noMes ? "var(--superficie)" : "color-mix(in srgb, var(--superficie) 40%, transparent)", borderColor: d === sel ? "var(--acento)" : undefined, borderWidth: d === sel ? 1.5 : 1 }}>
+                <span style={{ position: "relative", width: 24, height: 24, borderRadius: 99, display: "inline-flex", alignItems: "center", justifyContent: "center", marginBottom: 1, flex: "none",
+                  background: ehHoje ? "var(--acento)" : undefined, color: ehHoje ? "#fff" : noMes ? "var(--texto)" : "var(--texto3)", fontWeight: ehHoje ? 700 : 500 }} className="t-sm">
+                  {Number(d.slice(8))}
+                  {comNota.has(d) && <NotepadText size={9} strokeWidth={2.6} className="c3" style={{ position: "absolute", left: 26 }} />}
+                </span>
+                {visiveis.map((it) => (
+                  <span key={it.id} className="t-xs uma-linha" style={{ display: "flex", alignItems: "center", gap: 4, width: "100%", color: noMes ? "var(--texto2)" : "var(--texto3)", opacity: it.passado ? 0.45 : 1 }}>
+                    {it.evento ? <span style={{ width: 2.5, height: 10, borderRadius: 9, background: it.cor, flex: "none" }} /> : <span style={{ width: 7, height: 7, borderRadius: 9, border: `1.3px solid ${it.cor}`, flex: "none" }} />}
+                    <span className={"uma-linha" + (it.riscado ? " riscado" : "")}>{it.texto}</span>
+                  </span>
+                ))}
+                {extra > 0 && <span className="t-xs p-semi c3" style={{ paddingLeft: 2 }}>+{extra}</span>}
+              </button>
+            );
+          })}
+        </div>
       </div>
-      <Eventos dia={dia} />
-      <Secao titulo={rotuloLongo(dia)}>{ts.length ? linhas(ts, { data: false }) : <Vazio texto="Nada neste dia." />}</Secao>
-    </>
+      <div className="agenda-dia">
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <span className="rotulo">{rotuloLongo(sel)}</span>
+          <span className="display d-titulo">{rotuloCurto(sel, hoje)}</span>
+        </div>
+        <CampoRapidoInline prazo={sel} />
+        <button className="nota-dia-cartao afunda" onClick={() => { abrirNotaDoDia(sel); irPara({ tela: "notas" }); }}>
+          <NotepadText size={14} className="c3" style={{ marginTop: 1, flex: "none" }} />
+          {e.notas.find((n) => n.dia === sel)?.texto.trim() ? <span className="t-sm c2 tres-linhas">{e.notas.find((n) => n.dia === sel)!.texto.trim()}</span> : <span className="t-sm p-medio c3">Escrever a nota do dia</span>}
+        </button>
+        <Eventos dia={sel} compacto />
+        {(() => {
+          const ts = [...(sel === hoje ? indice(e).hoje : porDia.get(sel) ?? []), ...(feitasPorDia.get(sel) ?? [])].filter((t) => !t.mae);
+          if (!ts.length && !eventos.some((ev) => eventosDoDia(e, sel).includes(ev))) return <EstadoVazio Icone={Calendar} titulo="Dia livre" />;
+          return ts.length ? <CartaoLinhas>{ts.map((t) => <LinhaTarefa key={t.id} t={t} compacta mostrarData={false} />)}</CartaoLinhas> : null;
+        })()}
+      </div>
+    </div>
+  );
+}
+
+/** Campo de nova tarefa embutido (QuickAddField .inline): cria na data dada. */
+export function CampoRapidoInline({ prazo, aoCriar }: { prazo: string | null; aoCriar?: () => void }) {
+  const [texto, setTexto] = useState("");
+  return (
+    <div className="campo-inline">
+      <Plus size={13} className="c3" />
+      <input placeholder="Adicionar tarefa" aria-label="Adicionar tarefa" value={texto} onChange={(x) => setTexto(x.target.value)}
+        onKeyDown={(x) => { if (x.key === "Enter" && texto.trim()) { criarDoTexto(texto, { prazo }); setTexto(""); aoCriar?.(); } }} />
+    </div>
   );
 }
 
@@ -329,114 +400,426 @@ export function TelaEtiqueta({ id }: { id: string }) {
   );
 }
 
-// MARK: Despejo
+// MARK: Despejo (DespejoView.swift)
+
+/** Miniatura de uma foto guardada (do aparelho; sem ela, do bucket privado). */
+export function Miniatura({ caminho, lado = 40 }: { caminho: string; lado?: number }) {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    let vivo = true;
+    let criada: string | null = null;
+    void (async () => {
+      const blob = await lerArquivo(`fotos/${caminho}`);
+      if (blob) { criada = URL.createObjectURL(blob); if (vivo) setUrl(criada); return; }
+      try {
+        const { data } = await (await supabase()).storage.from("fotos").createSignedUrl(caminho, 3600);
+        if (vivo && data) setUrl(data.signedUrl);
+      } catch { /* offline e sem cópia local */ }
+    })();
+    return () => { vivo = false; if (criada) URL.revokeObjectURL(criada); };
+  }, [caminho]);
+  return (
+    <a className="afunda" href={url ?? undefined} target="_blank" rel="noreferrer" title="Abrir a foto" onClick={(e) => e.stopPropagation()}
+      style={{ width: lado, height: lado, flex: "none", borderRadius: "var(--raio-p)", border: "1px solid var(--borda)", overflow: "hidden", background: "var(--superficie2)", display: "block" }}>
+      {url && <img src={url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />}
+    </a>
+  );
+}
+
+function CampoDespejo() {
+  const [texto, setTexto] = useState("");
+  const [foto, setFoto] = useState<File | null>(null);
+  const [previa, setPrevia] = useState<string | null>(null);
+  const [confirmacao, setConfirmacao] = useState<string | null>(null);
+  const [foco, setFoco] = useState(false);
+  const [arrastando, setArrastando] = useState(false);
+  const ref = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => { if (!foto) { setPrevia(null); return; } const u = URL.createObjectURL(foto); setPrevia(u); return () => URL.revokeObjectURL(u); }, [foto]);
+  useEffect(() => { const t = ref.current; if (t) { t.style.height = "auto"; t.style.height = Math.min(t.scrollHeight, 5 * 22) + "px"; } }, [texto]);
+  const guardar = async () => {
+    let total = 0;
+    if (foto) total = despejar(texto, await guardarFoto(foto), true);
+    else total = despejar(texto, null, true);
+    if (!total) return;
+    setFoto(null);
+    setTexto("");
+    const msg = total === 1 ? "Guardado no despejo" : `${total} itens guardados no despejo`;
+    setConfirmacao(msg);
+    setTimeout(() => setConfirmacao((c) => (c === msg ? null : c)), 1600);
+  };
+  return (
+    <div className="cartao" style={{ padding: "var(--e2)" }}>
+      <div className="campo-despejo" style={arrastando ? { outline: "1.5px dashed var(--acento)" } : undefined}
+        onDragOver={(e) => { e.preventDefault(); setArrastando(true); }} onDragLeave={() => setArrastando(false)}
+        onDrop={(e) => { e.preventDefault(); setArrastando(false); const f = [...e.dataTransfer.files].find((x) => x.type.startsWith("image/")); if (f) { setFoto(f); ref.current?.focus(); } }}>
+        <Brain size={13} strokeWidth={2.4} style={{ color: foco ? "var(--acento)" : "var(--texto3)", marginTop: 4, flex: "none" }} />
+        <textarea ref={ref} rows={1} value={texto} aria-label="Despejo"
+          placeholder={foto ? "Por que salvou esta foto?" : "Escreva o que vier — uma coisa por vez, ou cole uma lista"}
+          onFocus={() => setFoco(true)} onBlur={() => setFoco(false)} onChange={(e) => setTexto(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void guardar(); } if (e.key === "Escape") setTexto(""); }} />
+        {previa ? (
+          <span style={{ position: "relative", flex: "none" }}>
+            <img src={previa} alt="" style={{ width: 34, height: 34, objectFit: "cover", borderRadius: "var(--raio-p)", display: "block" }} />
+            <button className="afunda" aria-label="Tirar a foto" onClick={() => setFoto(null)} style={{ position: "absolute", top: -5, right: -5, color: "var(--texto2)", background: "var(--superficie)", borderRadius: 99, display: "inline-flex" }}><CircleX size={13} fill="currentColor" stroke="var(--superficie)" /></button>
+          </span>
+        ) : (
+          <label className="afunda" title="Guardar uma foto (ou arraste uma imagem para cá)" style={{ width: 26, height: 26, display: "inline-flex", alignItems: "center", justifyContent: "center", color: "var(--texto3)", cursor: "pointer", flex: "none" }}>
+            <ImagePlus size={14} />
+            <input type="file" accept="image/*" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) { setFoto(f); ref.current?.focus(); } e.target.value = ""; }} />
+          </label>
+        )}
+      </div>
+      <div className="t-xs" style={{ padding: "8px 12px 0", color: confirmacao ? "var(--sucesso)" : "var(--texto3)", display: "flex", alignItems: "center", gap: 4 }}>
+        {confirmacao ? <><CircleCheck size={12} fill="currentColor" stroke="var(--superficie)" />{confirmacao}</> : foto ? "Escreva por que salvou esta foto (opcional) e aperte Enter." : "Enter guarda e já deixa pronto para o próximo. Sem data, sem lista — organize depois."}
+      </div>
+    </div>
+  );
+}
+
+function AcoesRapidas({ id, tamanho = 28, depois, mais }: { id: string; tamanho?: number; depois?: () => void; mais?: () => void }) {
+  const b = (I: typeof Sun, rotulo: string, f: () => void) => (
+    <button className="icone-botao" style={{ width: tamanho, height: tamanho }} title={rotulo} aria-label={rotulo} onClick={(e) => { e.stopPropagation(); f(); depois?.(); }}><I size={13} /></button>
+  );
+  return (
+    <span className="acoes-sobre">
+      {b(Zap, "Agora: vira tarefa para hoje", () => fazerAgora(id))}
+      {b(Clock, "Depois: importante, mas não agora", () => moverDespejo(id, "depois"))}
+      {b(Hand, "Não: decidi não carregar isso", () => moverDespejo(id, "nao"))}
+      {mais && b(Ellipsis, "Mais opções (nota, lista e data)", mais)}
+    </span>
+  );
+}
+
+function OpcoesDeTarefa({ texto, criar, cancelar }: { texto: string; criar: (n: { titulo: string; listaId: string | null; prazo: string | null; horario: string | null; etiquetas: string[] }) => void; cancelar: () => void }) {
+  const e = usar((x) => x);
+  const lido = useMemo(() => lerCriacaoRapida(texto, e.listas, hojeISO()), [texto]);
+  const [titulo, setTitulo] = useState(lido.titulo.trim() || texto);
+  const [listaId, setListaId] = useState<string | null>(lido.listaId);
+  const [prazo, setPrazo] = useState<string | null>(lido.prazo ?? null);
+  const [horario, setHorario] = useState<string | null>(null);
+  const [listasAbertas, setListasAbertas] = useState(false);
+  const [dataAberta, setDataAberta] = useState(false);
+  const atual = listaId ?? listaPadrao(e);
+  return (
+    <div className="entrar" style={{ display: "flex", flexDirection: "column", gap: "var(--e3)" }}>
+      <input className="campo" value={titulo} onChange={(x) => setTitulo(x.target.value)} placeholder="Título da tarefa" />
+      <div style={{ display: "flex", gap: "var(--e2)" }}>
+        {atual && <button className="afunda" onClick={() => { setListasAbertas(!listasAbertas); setDataAberta(false); }}><ChipLista listaId={atual} comSeta aberta={listasAbertas} /></button>}
+        <button className="chip afunda" onClick={() => { setDataAberta(!dataAberta); setListasAbertas(false); }}>
+          <Calendar size={10} strokeWidth={2.6} />{(prazo ? rotuloCurto(prazo, hojeISO()) : "Sem data") + (horario ? ` · ${horario}` : "")}
+        </button>
+      </div>
+      {listasAbertas && (
+        <div className="cartao" style={{ padding: 4, maxWidth: 300 }}>
+          {e.listas.map((l) => (
+            <button key={l.id} className="linha-nota" style={{ alignItems: "center" }} onClick={() => { setListaId(l.id); setListasAbertas(false); }}>
+              <LadrilhoLista listaId={l.id} tamanho={22} /><span className="t-sm p-medio" style={{ flex: 1 }}>{nomeDaLista(e, l.id)}</span>
+              {l.id === atual && <Check size={12} strokeWidth={3} color="var(--acento)" />}
+            </button>
+          ))}
+        </div>
+      )}
+      {dataAberta && (
+        <div className="cartao" style={{ padding: 12 }}>
+          <SeletorData valor={prazo} aoEscolher={(d) => { setPrazo(d); setDataAberta(false); }} />
+          {prazo && <input type="time" className="campo" style={{ marginTop: 8 }} value={horario ?? ""} onChange={(x) => setHorario(x.target.value || null)} />}
+        </div>
+      )}
+      <div style={{ display: "flex", alignItems: "center" }}>
+        <button className="botao b-superficie" onClick={cancelar} title="Volta às escolhas">Voltar</button>
+        <span style={{ flex: 1 }} />
+        <button className="botao m b-primario" disabled={!titulo.trim()} onClick={() => criar({ titulo: titulo.trim(), listaId, prazo, horario: prazo ? horario : null, etiquetas: resolverEtiquetas(lido.etiquetas) })}><Check size={14} /> Criar tarefa</button>
+      </div>
+    </div>
+  );
+}
+
+function CartaoDespejo({ item, aberto, abrir, resolvido }: { item: ItemDespejo; aberto: boolean; abrir: () => void; resolvido: () => void }) {
+  const [editando, setEditando] = useState(false);
+  const [virandoTarefa, setVirandoTarefa] = useState(false);
+  useEffect(() => { if (!aberto) setVirandoTarefa(false); }, [aberto]);
+  const escolha = (titulo: string, I: typeof Sun, tecla: string, ajuda: string, f: () => void) => (
+    <button className="botao m b-superficie largo" title={`${ajuda} (⌘${tecla})`} onClick={() => { f(); resolvido(); }}><I size={14} />{titulo}</button>
+  );
+  useEffect(() => {
+    if (!aberto || virandoTarefa) return;
+    const k = (e: KeyboardEvent) => {
+      if (e.key === "Escape") abrir();
+      if (!(e.metaKey || e.ctrlKey)) return;
+      const f = { "1": () => fazerAgora(item.id), "2": () => moverDespejo(item.id, "depois"), "3": () => moverDespejo(item.id, "nao"), "4": () => despejoParaNota(item.id) }[e.key];
+      if (f) { e.preventDefault(); f(); resolvido(); }
+    };
+    window.addEventListener("keydown", k);
+    return () => window.removeEventListener("keydown", k);
+  }, [aberto, virandoTarefa, item.id]);
+  return (
+    <div className={"cartao-despejo" + (aberto ? " aberto" : "")}>
+      <div className="linha-despejo">
+        {item.foto ? <Miniatura caminho={item.foto} lado={aberto ? 56 : 36} /> : <span style={{ width: 6, height: 6, borderRadius: 9, flex: "none", background: aberto ? "var(--acento)" : "color-mix(in srgb, var(--texto3) 50%, transparent)" }} />}
+        {editando ? (
+          <textarea autoFocus className="campo-limpo t-md" rows={1} defaultValue={item.texto} style={{ flex: 1, resize: "none" }}
+            onBlur={(e) => { setEditando(false); editarDespejo(item.id, e.target.value); }}
+            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); e.currentTarget.blur(); } if (e.key === "Escape") setEditando(false); }} />
+        ) : (
+          <span className={aberto ? "t-lg p-semi" : "t-md"} style={{ flex: 1, cursor: "pointer", color: item.texto ? "var(--texto)" : "var(--texto3)" }} title="Clique para editar o texto" onClick={() => setEditando(true)}>
+            {item.texto || "Foto"}
+          </span>
+        )}
+        {!editando && !aberto && <AcoesRapidas id={item.id} depois={resolvido} mais={() => { setVirandoTarefa(false); abrir(); }} />}
+      </div>
+      {aberto && (virandoTarefa ? (
+        <OpcoesDeTarefa texto={item.texto} cancelar={() => setVirandoTarefa(false)} criar={(n) => { despejoParaTarefa(item.id, n); resolvido(); }} />
+      ) : (
+        <div className="entrar" style={{ display: "flex", flexDirection: "column", gap: "var(--e2)" }}>
+          <div style={{ display: "flex", gap: "var(--e2)" }}>
+            {escolha("Agora", Zap, "1", "Vira tarefa para hoje", () => fazerAgora(item.id))}
+            {escolha("Depois", Clock, "2", "Importante, mas não agora: fica guardado em Depois", () => moverDespejo(item.id, "depois"))}
+            {escolha("Não", Hand, "3", "Decidi não carregar isso (fica guardado em Não)", () => moverDespejo(item.id, "nao"))}
+            {escolha("Nota", NotepadText, "4", "Vira uma nota, com este texto como título", () => despejoParaNota(item.id))}
+          </div>
+          <div style={{ display: "flex" }}>
+            <button className="botao b-fantasma" onClick={() => setVirandoTarefa(true)} title="Virar tarefa escolhendo a lista, a data e o horário">Escolher lista e data…</button>
+            <span style={{ flex: 1 }} />
+            <button className="botao b-fantasma" onClick={abrir} title="Fecha o card sem mudar nada (Esc)">Fechar</button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function LinhaPilha({ item }: { item: ItemDespejo }) {
+  const b = (I: typeof Sun, rotulo: string, f: () => void) => (
+    <button className="icone-botao" style={{ width: 28, height: 28 }} title={rotulo} aria-label={rotulo} onClick={f}><I size={13} /></button>
+  );
+  return (
+    <div className="linha-pilha">
+      {item.foto && <Miniatura caminho={item.foto} lado={32} />}
+      <span style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, minWidth: 0 }}>
+        <span className="t-md" style={{ color: item.texto ? "var(--texto)" : "var(--texto3)" }}>{item.texto || "Foto"}</span>
+        <span className="t-xs c3">{primeiraMaiuscula(haQuanto(item.movidoEm ?? item.criadoEm))}</span>
+      </span>
+      <span className="acoes-sobre">
+        {b(Zap, "Agora: vira tarefa para hoje", () => fazerAgora(item.id))}
+        {b(ArchiveRestore, "Voltar para a caixa", () => moverDespejo(item.id, "caixa"))}
+        {item.estado === "depois" ? b(Hand, "Não: decidi não carregar isso", () => moverDespejo(item.id, "nao")) : b(Clock, "Mover para Depois", () => moverDespejo(item.id, "depois"))}
+        {b(Trash2, "Apagar (dá para desfazer)", () => apagarDespejo(item.id))}
+      </span>
+    </div>
+  );
+}
+
+function Pilha({ estado }: { estado: "depois" | "nao" }) {
+  const itens = usar((e) => e.despejo.filter((d) => d.estado === estado), mesmaLista);
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "var(--e4)" }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+        <span className="t-sm c3" style={{ flex: 1 }}>{estado === "depois" ? "Importante, mas não agora. Fica aqui guardado — sem prazo e sem cobrança." : "O que você decidiu não carregar. Uma ideia não precisa ser feita só porque é boa."}</span>
+        {estado === "nao" && itens.length > 0 && <button className="botao b-fantasma" onClick={esvaziarNao} title="Apaga de vez os itens desta pilha (dá para desfazer logo depois)">Apagar tudo</button>}
+      </div>
+      {!itens.length ? (
+        <EstadoVazio Icone={estado === "depois" ? Clock : Hand} titulo={estado === "depois" ? "Nada guardado para depois" : "Nada por aqui"}
+          descricao={estado === "depois" ? "No despejo, use “Depois” para o que é importante, mas não agora." : "No despejo, use “Não” para o que você decidiu não carregar."} />
+      ) : (
+        <div className="cartao-linhas fio-curto">{itens.map((i) => <LinhaPilha key={i.id} item={i} />)}</div>
+      )}
+    </div>
+  );
+}
 
 export function TelaDespejo() {
   const itens = usar((e) => e.despejo);
-  const [aba, setAba] = useState<EstadoDespejo>("caixa");
-  const [texto, setTexto] = useState("");
-  const [organizar, setOrganizar] = useState(false);
-  const daAba = itens.filter((i) => i.estado === aba);
-  const fila = itens.filter((i) => i.estado === "caixa").slice(0, 3);
-  const fotos = async (f: FileList | null) => {
-    for (const a of Array.from(f ?? [])) despejar("", await guardarFoto(a));
+  const [pilha, setPilha] = useState<EstadoDespejo>("caixa");
+  const [aberto, setAberto] = useState<string | null>(null);
+  const [emSequencia, setEmSequencia] = useState(false);
+  const [nestaRodada, setNestaRodada] = useState(0);
+  const [pausa, setPausa] = useState(false);
+  // Mais antigos primeiro: é a ordem em que se organiza.
+  const caixa = itens.filter((i) => i.estado === "caixa").sort((a, b) => (a.criadoEm < b.criadoEm ? -1 : 1));
+  const n = (e: EstadoDespejo) => itens.filter((i) => i.estado === e).length;
+  const comecar = () => { setPausa(false); setNestaRodada(0); setEmSequencia(true); setAberto(caixa[0]?.id ?? null); };
+  const parar = () => { setEmSequencia(false); setPausa(false); setAberto(null); };
+  const proximo = (id: string) => {
+    if (!emSequencia) { if (aberto === id) setAberto(null); return; }
+    const feitos = nestaRodada + 1;
+    setNestaRodada(feitos);
+    const fila = caixa.filter((i) => i.id !== id);
+    if (!fila.length) { setEmSequencia(false); setAberto(null); }
+    else if (feitos >= 3) { setEmSequencia(false); setAberto(null); setPausa(true); }
+    else setAberto(fila[0].id);
   };
   return (
     <>
-      <Cabecalho titulo="Despejo" sub="Tire da cabeça. Decida depois." />
-      <div className="cartao" style={{ padding: 8, display: "flex", gap: 8, alignItems: "flex-start" }}>
-        <textarea className="campo campo-limpo" rows={2} placeholder="O que está na sua cabeça? (uma coisa por linha)" value={texto} onChange={(e) => setTexto(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); if (texto.trim()) { despejar(texto); setTexto(""); } } }} style={{ flex: 1, resize: "none" }} />
-        <label className="icone-botao" aria-label="Foto"><Camera size={16} /><input type="file" accept="image/*" multiple hidden onChange={(e) => void fotos(e.target.files)} /></label>
-      </div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-        <div className="segmentado">
-          {(["caixa", "depois", "nao"] as const).map((a) => (
-            <button key={a} aria-pressed={aba === a} onClick={() => setAba(a)}>{{ caixa: "Caixa", depois: "Depois", nao: "Não" }[a]} {itens.filter((i) => i.estado === a).length || ""}</button>
+      <Cabecalho titulo="Despejo" sub="Tire da cabeça. Organize depois." />
+      <div className="entrar-2" style={{ display: "flex", flexDirection: "column", gap: "var(--e5)" }}>
+        <CampoDespejo />
+        <div className="segmentado" style={{ alignSelf: "flex-start" }}>
+          {(["caixa", "depois", "nao"] as const).map((p) => (
+            <button key={p} aria-pressed={pilha === p} onClick={() => { setPilha(p); parar(); }}>{{ caixa: "Caixa", depois: "Depois", nao: "Não" }[p]} · {n(p)}</button>
           ))}
         </div>
-        {aba === "caixa" && fila.length > 0 && <button className="botao b-primario" onClick={() => setOrganizar(!organizar)}>{organizar ? "Ver tudo" : "Organizar 3"}</button>}
-        {aba === "nao" && daAba.length > 0 && <button className="botao b-fantasma" onClick={esvaziarNao}>Esvaziar</button>}
-      </div>
-      <div className="cartao-linhas">
-        {(organizar && aba === "caixa" ? fila : daAba).map((i) => (
-          <div key={i.id} className="linha-tarefa" style={{ cursor: "default", flexWrap: "wrap" }}>
-            <span className="t-md" style={{ flex: 1, minWidth: 160 }}>{i.texto || (i.foto ? "📷 Foto" : "")}</span>
-            <span style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-              <button className="chip" onClick={() => fazerAgora(i.id)}>Hoje</button>
-              <button className="chip" onClick={() => despejoParaTarefa(i.id, { titulo: i.texto || "Foto" })}>Tarefa</button>
-              <button className="chip" onClick={() => { const n = despejoParaNota(i.id); if (n) irPara({ tela: "nota", id: n }); }}>Nota</button>
-              {i.estado !== "depois" && <button className="chip" onClick={() => moverDespejo(i.id, "depois")}>Depois</button>}
-              {i.estado !== "nao" && <button className="chip" onClick={() => moverDespejo(i.id, "nao")}>Não</button>}
-              {i.estado !== "caixa" && <button className="chip" onClick={() => moverDespejo(i.id, "caixa")}>Caixa</button>}
-              <button className="icone-botao" aria-label="Apagar" onClick={() => apagarDespejo(i.id)}><Trash2 size={14} /></button>
-            </span>
-          </div>
-        ))}
-        {!daAba.length && <Vazio texto="Vazio." />}
-      </div>
-    </>
-  );
-}
-
-// MARK: Notas
-
-export function TelaNotas() {
-  const notas = usar((e) => e.notas);
-  const hoje = hojeISO();
-  const ordenadas = [...notas].sort((a, b) => (a.editadaEm < b.editadaEm ? 1 : -1));
-  const doDia = notas.find((n) => n.dia === hoje);
-  return (
-    <>
-      <Cabecalho
-        titulo="Notas"
-        direita={
-          <span style={{ display: "flex", gap: 6 }}>
-            <button className="botao b-superficie" onClick={() => irPara({ tela: "nota", id: revisaoDaSemana() })}>Revisão da semana</button>
-            <button className="botao b-primario" onClick={() => irPara({ tela: "nota", id: novaNota() })}><Plus size={14} /> Nova</button>
-          </span>
-        }
-      />
-      <div className="cartao" style={{ padding: 16 }}>
-        <div className="rotulo">Nota do dia</div>
-        <textarea className="campo-limpo t-md" rows={3} style={{ width: "100%", resize: "vertical", marginTop: 6 }} placeholder="Como foi hoje?" defaultValue={doDia?.texto ?? ""} onChange={(e) => escreverNoDia(hoje, e.target.value)} />
-      </div>
-      <div className="cartao-linhas">
-        {ordenadas.filter((n) => n !== doDia).map((n) => (
-          <button key={n.id} className="linha-tarefa" style={{ width: "100%", textAlign: "left" }} onClick={() => irPara({ tela: "nota", id: n.id })}>
-            <span style={{ flex: 1, minWidth: 0 }}>
-              <span className="t-md p-semi uma-linha" style={{ display: "block" }}>{n.titulo || (n.dia ? rotuloLongo(n.dia) : n.texto.split("\n")[0] || "Sem título")}</span>
-              <span className="t-xs c3">{new Date(n.editadaEm).toLocaleDateString("pt-BR")}</span>
-            </span>
-          </button>
-        ))}
-      </div>
-    </>
-  );
-}
-
-export function TelaNota({ id }: { id: string }) {
-  const n = usar((e) => e.notas.find((x) => x.id === id) ?? null);
-  if (!n) return <Vazio texto="Nota não encontrada." />;
-  const pend = pendentesDaNota(n.texto);
-  return (
-    <>
-      <div style={{ display: "flex", justifyContent: "space-between" }}>
-        <button className="botao b-fantasma" onClick={() => irPara({ tela: "notas" })}>‹ Notas</button>
-        <button className="botao b-perigo" onClick={() => { excluirNota(id); irPara({ tela: "notas" }); }}><Trash2 size={14} /></button>
-      </div>
-      <input className="campo-limpo display d-display2" placeholder={n.dia ? rotuloLongo(n.dia) : "Título"} defaultValue={n.titulo} key={id + "t"} onChange={(e) => atualizarNota(id, { titulo: e.target.value })} />
-      <textarea className="campo-limpo t-lg" style={{ minHeight: "50vh", resize: "none", lineHeight: 1.6 }} defaultValue={n.texto} key={id + "x"} placeholder="Escreva… ( [ ] vira tarefa )" onChange={(e) => atualizarNota(id, { texto: e.target.value })} />
-      {pend.length > 0 && (
-        <Secao titulo="Viram tarefa">
-          {pend.map((p) => (
-            <div key={p.linha} className="linha-tarefa">
-              <span className="t-md" style={{ flex: 1 }}>{p.titulo}</span>
-              <button className="chip" onClick={() => tarefaDaLinha(id, p.linha)}>Criar tarefa</button>
+        {pilha !== "caixa" ? <Pilha estado={pilha} /> : !caixa.length ? (
+          <EstadoVazio Icone={Brain} titulo="Cabeça leve" descricao="Escreva aqui tudo o que estiver ocupando espaço. Depois, com calma, decida: Agora, Depois ou Não." />
+        ) : (
+          <>
+            <div style={{ display: "flex", alignItems: "center" }}>
+              <span className="t-sm p-medio c3" style={{ flex: 1 }}>{caixa.length === 1 ? "1 coisa para organizar" : `${caixa.length} coisas para organizar`}</span>
+              {emSequencia
+                ? <button className="botao m b-superficie" onClick={parar} title="Sai do modo de organizar; os itens ficam como estão">Parar</button>
+                : <button className="botao m b-primario" onClick={comecar} title="Abre um item por vez, do mais antigo, de 3 em 3 — sem precisar esvaziar tudo"><Layers2 size={14} />{caixa.length > 3 ? "Organizar 3" : "Organizar"}</button>}
             </div>
-          ))}
-        </Secao>
-      )}
+            {pausa && (
+              <div className="entrar" style={{ display: "flex", alignItems: "center", gap: 12, padding: 16, borderRadius: "var(--raio-cartao)", background: "var(--sucesso-tenue)" }}>
+                <BadgeCheck size={18} color="var(--sucesso)" />
+                <span style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1 }}>
+                  <span className="t-sm p-semi">Pronto, 3 organizadas.</span>
+                  <span className="t-xs c3">Pode parar aqui. O resto espera.</span>
+                </span>
+                <button className="botao b-fantasma" onClick={parar}>Por hoje chega</button>
+                <button className="botao b-primario" onClick={comecar}>Mais 3</button>
+              </div>
+            )}
+            <div style={{ display: "flex", flexDirection: "column", gap: "var(--e2)" }}>
+              {caixa.map((i) => <CartaoDespejo key={i.id} item={i} aberto={aberto === i.id} abrir={() => setAberto(aberto === i.id ? null : i.id)} resolvido={() => proximo(i.id)} />)}
+            </div>
+          </>
+        )}
+      </div>
+    </>
+  );
+}
+
+// MARK: Notas (NotasView.swift)
+
+const relativo = new Intl.RelativeTimeFormat("pt-BR", { numeric: "auto" });
+function haQuanto(iso: string): string {
+  const s = (new Date(iso).getTime() - Date.now()) / 1000;
+  const a = Math.abs(s);
+  if (a < 60) return relativo.format(Math.round(s), "second");
+  if (a < 3600) return relativo.format(Math.round(s / 60), "minute");
+  if (a < 86400) return relativo.format(Math.round(s / 3600), "hour");
+  return relativo.format(Math.round(s / 86400), "day");
+}
+const tituloDaNota = (n: { titulo: string; texto: string; dia: string | null }) =>
+  n.titulo.trim() || (n.dia ? rotuloLongo(n.dia) : n.texto.split("\n").map((l) => l.trim()).find(Boolean) ?? "Sem título");
+const mesmoAlvo = (a: AlvoNota | null, b: AlvoNota) => !!a && ("dia" in a ? "dia" in b && a.dia === b.dia : "nota" in b && a.nota === b.nota);
+
+function LinhaNota({ titulo, detalhe, Icone, selecionada, aoClicar }: { titulo: string; detalhe: string; Icone: typeof Sun; selecionada: boolean; aoClicar: () => void }) {
+  return (
+    <button className="linha-nota" aria-current={selecionada} onClick={aoClicar} title={`Abrir “${titulo}”`}>
+      <Icone size={14} style={{ color: selecionada ? "var(--acento)" : "var(--texto3)", marginTop: 2, flex: "none", width: 18 }} />
+      <span style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+        <span className="t-sm p-semi uma-linha">{titulo}</span>
+        <span className="t-xs c3 uma-linha">{detalhe}</span>
+      </span>
+    </button>
+  );
+}
+
+export function TelaNotas({ id }: { id?: string }) {
+  const notas = usar((e) => e.notas);
+  const alvo = useNotaAberta();
+  const hoje = hojeISO();
+  useEffect(() => {
+    if (id) abrirNota({ nota: id });
+    else if (!alvo) abrirNota({ dia: hoje });
+  }, [id]);
+  const anterior = useRef(alvo);
+  useEffect(() => {
+    // Nota solta criada e deixada em branco não fica acumulando.
+    const a = anterior.current;
+    if (a && "nota" in a && !mesmoAlvo(alvo, a)) descartarSeVazia(a.nota);
+    anterior.current = alvo;
+  }, [alvo]);
+  const ordenadas = [...notas].sort((a, b) => (b.dia && a.dia ? (a.dia < b.dia ? 1 : -1) : a.editadaEm < b.editadaEm ? 1 : -1));
+  const resumo = (n: (typeof notas)[number]) => {
+    const t = tituloDaNota(n);
+    const corpo = n.texto.split("\n").map((l) => l.trim()).find((l) => l && l !== t) ?? "";
+    const quando = n.dia ? rotuloCurto(n.dia, hoje) : haQuanto(n.editadaEm);
+    return corpo ? `${quando} · ${corpo}` : quando;
+  };
+  const existe = alvo && ("dia" in alvo || notas.some((n) => n.id === alvo.nota));
+  return (
+    <div style={{ display: "flex", flex: 1, minWidth: 0, height: "100%" }}>
+      <div className="lista-notas">
+        <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "44px 20px 16px" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 3, flex: 1 }}>
+            <h1 className="display d-display2">Notas</h1>
+            <span className="t-sm c3">{notas.length} {notas.length === 1 ? "nota" : "notas"}</span>
+          </div>
+          <button className="icone-botao" title="Revisão da semana (nota pronta com o que foi feito e o que ficou)" aria-label="Revisão da semana" onClick={() => abrirNota({ nota: revisaoDaSemana() })}><CalendarCheck size={14} /></button>
+          <button className="icone-botao" title="Nova nota" aria-label="Nova nota" onClick={() => abrirNota({ nota: novaNota() })}><SquarePen size={14} /></button>
+        </div>
+        <div style={{ flex: 1, overflow: "auto", padding: "0 12px 20px", display: "flex", flexDirection: "column", gap: 2 }}>
+          {!notas.some((n) => n.dia === hoje) && <LinhaNota titulo="Hoje" detalhe="Escrever a nota do dia" Icone={Sun} selecionada={mesmoAlvo(alvo, { dia: hoje })} aoClicar={() => abrirNota({ dia: hoje })} />}
+          {ordenadas.map((n) => {
+            const a: AlvoNota = n.dia ? { dia: n.dia } : { nota: n.id };
+            return <LinhaNota key={n.id} titulo={n.dia === hoje ? "Hoje" : tituloDaNota(n)} detalhe={resumo(n)} Icone={n.dia ? Calendar : NotepadText} selecionada={mesmoAlvo(alvo, a)} aoClicar={() => abrirNota(a)} />;
+          })}
+        </div>
+      </div>
+      <div className="editor-nota">
+        {existe && alvo ? <EditorDeNota key={"dia" in alvo ? "d" + alvo.dia : "n" + alvo.nota} alvo={alvo} /> : (
+          <div style={{ margin: "auto" }}><EstadoVazio Icone={NotepadText} titulo="Escolha ou crie uma nota" descricao="A nota do dia é um diário de planejamento: o que você quer da semana, como foi hoje. Escreva [ ] no começo da linha para virar tarefa." /></div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function EditorDeNota({ alvo }: { alvo: AlvoNota }) {
+  const nota = usar((e) => e.notas.find((n) => ("dia" in alvo ? n.dia === alvo.dia : n.id === alvo.nota)) ?? null);
+  const listaPadraoNome = usar((e) => { const l = e.prefs.listaPadrao ?? e.listas[0]?.id; return l ? nomeDaLista(e, l) : null; });
+  const [texto, setTexto] = useState(nota?.texto ?? "");
+  const hoje = hojeISO();
+  const dia = "dia" in alvo ? alvo.dia : null;
+  // A nota pode mudar por fora (ex.: "[ ]" virou "→" ao criar a tarefa).
+  useEffect(() => { if (nota && nota.texto !== texto) setTexto(nota.texto); }, [nota?.texto]);
+  const salvar = (v: string) => {
+    setTexto(v);
+    if (dia) escreverNoDia(dia, v);
+    else if (nota) atualizarNota(nota.id, { texto: v });
+  };
+  const pend = pendentesDaNota(texto);
+  const area = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => { const t = area.current; if (t) { t.style.height = "auto"; t.style.height = Math.max(320, t.scrollHeight) + "px"; } }, [texto]);
+  return (
+    <>
+      <div style={{ display: "flex", alignItems: "center", gap: 4, height: 52, padding: "16px 24px 0" }}>
+        {nota && <span className="t-xs c3">Editada {haQuanto(nota.editadaEm)}</span>}
+        <span style={{ flex: 1 }} />
+        {nota && <button className="icone-botao" aria-label="Excluir nota" title="Excluir nota" onClick={() => { if (confirm(`“${tituloDaNota(nota)}” será excluída. Dá para desfazer logo depois.`)) { abrirNota(null); excluirNota(nota.id); } }}><Trash2 size={14} /></button>}
+      </div>
+      <div style={{ flex: 1, overflow: "auto", padding: "0 24px 32px", display: "flex", flexDirection: "column", gap: 16 }}>
+        {dia ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <span className="rotulo">{rotuloLongo(dia)}</span>
+            <span className="display d-titulo">{rotuloCurto(dia, hoje)}</span>
+          </div>
+        ) : (
+          <input className="campo-limpo display d-titulo" placeholder="Título" defaultValue={nota?.titulo ?? ""} onChange={(e) => nota && atualizarNota(nota.id, { titulo: e.target.value })} />
+        )}
+        <textarea ref={area} className="campo-limpo t-md" value={texto} onChange={(e) => salvar(e.target.value)} style={{ resize: "none", minHeight: 320, lineHeight: 1.45, overflow: "hidden" }}
+          placeholder={dia ? "Como está o dia? O que você quer fazer? [ ] no começo da linha vira tarefa." : "Escreva livremente. [ ] no começo da linha vira tarefa."} />
+        {pend.length > 0 && nota && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ display: "flex", alignItems: "center" }}>
+              <span className="rotulo" style={{ flex: 1 }}>Viram tarefa</span>
+              {pend.length > 1 && <button className="botao b-fantasma" onClick={() => [...pend].reverse().forEach((p) => tarefaDaLinha(nota.id, p.linha))}>Criar todas</button>}
+            </div>
+            <div style={{ padding: 4, background: "var(--superficie2)", borderRadius: "var(--raio-m)", display: "flex", flexDirection: "column", gap: 1 }}>
+              {pend.map((p) => (
+                <div key={p.linha} style={{ display: "flex", alignItems: "center", gap: 12, padding: "6px 12px" }}>
+                  <Circle size={13} className="c3" />
+                  <span className="t-sm" style={{ flex: 1 }}>{p.titulo}</span>
+                  <button className="botao b-superficie" onClick={() => tarefaDaLinha(nota.id, p.linha)}>Criar tarefa</button>
+                </div>
+              ))}
+            </div>
+            {listaPadraoNome && <span className="t-xs c3">Vão para “{listaPadraoNome}”{nota.dia ? `, com a data ${rotuloCurto(nota.dia, hoje).toLowerCase()}` : ""}.</span>}
+          </div>
+        )}
+      </div>
     </>
   );
 }

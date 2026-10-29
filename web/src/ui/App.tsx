@@ -10,7 +10,7 @@ import { LadrilhoLista, LinhaTarefa } from "./comuns";
 import { Inspetor } from "./Inspetor";
 import { irPara, selecionar, useRota, useSelecionada, type Rota } from "./rota";
 import {
-  TelaAjustes, TelaAmanha, TelaCalendario, TelaConcluidas, TelaDespejo, TelaEntrar, TelaEtiqueta, TelaHoje, TelaLista, TelaNota, TelaNotas, TelaProximas, TelaTodas,
+  TelaAjustes, TelaAmanha, TelaCalendario, TelaConcluidas, TelaDespejo, TelaEntrar, TelaEtiqueta, TelaHoje, TelaLista, TelaNotas, TelaProximas, TelaTodas,
 } from "./telas";
 
 const ITENS: { tela: Rota["tela"]; rotulo: string; I: typeof Sun }[] = [
@@ -188,7 +188,7 @@ function CriacaoRapida({ rota }: { rota: Rota }) {
       window.removeEventListener("tasker:nova", focar);
     };
   }, []);
-  if (rota.tela === "despejo" || rota.tela === "notas" || rota.tela === "nota" || rota.tela === "ajustes") return null;
+  if (["despejo", "notas", "nota", "ajustes", "calendario", "concluidas"].includes(rota.tela)) return null;
   const hoje = hojeISO();
   const padrao = {
     prazo: rota.tela === "hoje" ? hoje : rota.tela === "amanha" ? somarDias(hoje, 1) : null,
@@ -312,6 +312,9 @@ function AvisoInstalar() {
   );
 }
 
+/** Telas com colunas próprias (Mac: Calendário e Notas não usam a moldura de página). */
+const TELA_CHEIA: Rota["tela"][] = ["calendario", "notas", "nota"];
+
 function Tela({ rota }: { rota: Rota }) {
   switch (rota.tela) {
     case "hoje": return <TelaHoje />;
@@ -322,7 +325,7 @@ function Tela({ rota }: { rota: Rota }) {
     case "concluidas": return <TelaConcluidas />;
     case "despejo": return <TelaDespejo />;
     case "notas": return <TelaNotas />;
-    case "nota": return <TelaNota id={rota.id} />;
+    case "nota": return <TelaNotas id={rota.id} />;
     case "ajustes": return <TelaAjustes />;
     case "lista": return <TelaLista id={rota.id} />;
     case "etiqueta": return <TelaEtiqueta id={rota.id} />;
@@ -382,11 +385,13 @@ export function App() {
     <div className="casca">
       <Lateral rota={rota} aoBuscar={() => setBusca(true)} />
       <main className="principal">
-        <div className="pagina">
-          <div className="pagina-conteudo">
-            <AvisoInstalar />
-            <Tela rota={rota} />
-          </div>
+        <div className={"pagina" + (TELA_CHEIA.includes(rota.tela) ? " cheia" : "")}>
+          {TELA_CHEIA.includes(rota.tela) ? <Tela rota={rota} /> : (
+            <div className="pagina-conteudo">
+              <AvisoInstalar />
+              <Tela rota={rota} />
+            </div>
+          )}
         </div>
         <CriacaoRapida rota={rota} />
         {sel && <Inspetor key={sel} id={sel} />}

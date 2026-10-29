@@ -51,3 +51,22 @@ export function useSelecionada() {
     () => selecionada,
   );
 }
+
+// Nota aberta em Notas (nav.notaAberta do Mac): a nota de um dia ou uma nota solta.
+export type AlvoNota = { dia: string } | { nota: string };
+let notaAberta: AlvoNota | null = null;
+const ouvintesNota = new Set<() => void>();
+export function abrirNota(a: AlvoNota | null) {
+  notaAberta = a;
+  ouvintesNota.forEach((f) => f());
+}
+export const abrirNotaDoDia = (dia: string) => abrirNota({ dia });
+export function useNotaAberta() {
+  return useSyncExternalStore(
+    (f) => {
+      ouvintesNota.add(f);
+      return () => ouvintesNota.delete(f);
+    },
+    () => notaAberta,
+  );
+}
