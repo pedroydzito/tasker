@@ -201,11 +201,11 @@ final class WebPonte: NSObject {
     private func entrar(url: URL, view: WKWebView?) {
         let sessao = ASWebAuthenticationSession(url: url, callbackURLScheme: "tasker") { retorno, _ in
             DispatchQueue.main.async {
-                let self = WebPonte.shared
-                guard let retorno else { self.sessaoLogin = nil; return }
+                let ponte = WebPonte.shared
+                guard let retorno else { ponte.sessaoLogin = nil; return }
                 let js = "window.taskerLoginDoMac && taskerLoginDoMac(\(Self.jsString(retorno.absoluteString)))"
-                self.executar(js, em: view)
-                self.sessaoLogin = nil
+                ponte.executar(js, em: view)
+                ponte.sessaoLogin = nil
             }
         }
         sessao.presentationContextProvider = self
