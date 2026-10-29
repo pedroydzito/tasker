@@ -34,25 +34,50 @@ struct TaskerApp: App {
     private let model = AppModel.shared
 
     var body: some Scene {
+        // A interface é a mesma da web, embutida no app (funciona sem internet).
+        // Sem o build web no pacote (build antigo), segue a interface nativa.
         MenuBarExtra {
-            MenuBarPopover()
-                .environment(model.store)
-                .environment(model.auth)
-                .environment(model.nav)
-                .environment(model.updater)
-                .environment(model.caderno)
+            if WebPonte.disponivel {
+                TelaWeb(rota: "menu")
+                    .frame(width: MenuBarPopover.largura, height: MenuBarPopover.altura)
+                    .onAppear { WebPonte.shared.executar("window.taskerMenuAbriu && taskerMenuAbriu()") }
+            } else {
+                MenuBarPopover()
+                    .environment(model.store)
+                    .environment(model.auth)
+                    .environment(model.nav)
+                    .environment(model.updater)
+                    .environment(model.caderno)
+            }
         } label: {
-            MenuBarLabel(store: model.store)
+            if WebPonte.disponivel {
+                MenuBarLabelWeb()
+            } else {
+                MenuBarLabel(store: model.store)
+            }
         }
         .menuBarExtraStyle(.window)
 
         Window("Tasker", id: WindowID.main) {
-            MainWindow()
-                .environment(model.store)
-                .environment(model.auth)
-                .environment(model.nav)
-                .environment(model.updater)
-                .environment(model.caderno)
+            if WebPonte.disponivel {
+                TelaWeb(rota: "hoje", ehJanela: true)
+                    .frame(minWidth: 900, minHeight: 580)
+                    .ignoresSafeArea()
+                    // Faixa de cima (onde ficam os botões da janela) arrasta a janela.
+                    .overlay(alignment: .top) {
+                        Color.clear.frame(height: 30).contentShape(Rectangle()).gesture(WindowDragGesture())
+                            .ignoresSafeArea()
+                    }
+                    .onAppear { NSApp.setActivationPolicy(.regular) }
+                    .onDisappear { NSApp.setActivationPolicy(.accessory) }
+            } else {
+                MainWindow()
+                    .environment(model.store)
+                    .environment(model.auth)
+                    .environment(model.nav)
+                    .environment(model.updater)
+                    .environment(model.caderno)
+            }
         }
         .defaultSize(width: 1080, height: 720)
         .windowStyle(.hiddenTitleBar)

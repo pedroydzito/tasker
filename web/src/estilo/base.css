@@ -458,3 +458,15 @@ h1, h2, h3, p { margin: 0; }
 .gaveta .lateral { display: flex !important; width: 100%; padding-top: env(safe-area-inset-top); }
 .gaveta .marca { padding-top: 20px; }
 @keyframes gaveta { from { transform: translateX(-100%); } }
+/* Menu da barra do Mac */
+.menu-barra { height: 100%; display: flex; flex-direction: column; background: var(--fundo); }
+.conteudo-menu { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: var(--e3); animation: aparecer var(--normal) var(--curva); }
+@keyframes aparecer { from { opacity: 0; } }
+.rolagem-menu { flex: 1; overflow: auto; padding: 0 var(--e4) var(--e2); display: flex; flex-direction: column; gap: var(--e4); scrollbar-width: none; }
+.rolagem-menu::-webkit-scrollbar { display: none; }
+.campo-menu { display: flex; align-items: center; gap: var(--e2); height: 40px; padding: 0 var(--e3); border-radius: var(--raio-m); background: var(--superficie2); }
+.campo-menu input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; font-size: var(--t-md); color: var(--texto); }
+.pilula-menu { display: flex; gap: var(--e1); padding: 6px; border-radius: 999px; background: var(--superficie); border: 1px solid var(--borda); box-shadow: var(--sombra-alta); }
+.dia-semana { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 0; border-radius: var(--raio-m); }
+.dia-semana:active { transform: scale(0.94); }
+.detalhe-menu { display: flex; flex-direction: column; gap: var(--e4); padding: var(--e2) 12px var(--e2); }

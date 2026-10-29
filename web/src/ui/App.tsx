@@ -1,3 +1,4 @@
+import { Menu } from "./Menu";
 import { CriadorDeEtiqueta, HospedeDeFolhas, NovaLista, folhas } from "./folhas";
 import { useEffect, useRef, useState } from "react";
 import { Menu as IconeMenu, ArrowUp, CircleAlert, Trash2, Circle, Brain, CalendarDays, ChartGantt, Check, ChevronDown, CircleCheck, CircleUserRound, CloudOff, Download, Hash, Inbox, NotepadText, Plus, RefreshCw, Search, Settings, Sun, Sunrise, X } from "lucide-react";
@@ -7,7 +8,7 @@ import { desfazerAgora, textoDoAviso, useAviso } from "../dados/avisos";
 import { buscar, contagemHoje, corDaLista, etiquetasOrdenadas, indice, nomeDaLista } from "../dados/consultas";
 import { puxar } from "../dados/sync";
 import { diaISO, hojeISO, rotuloCurto, somarDias } from "../dados/util";
-import { Folha, LadrilhoLista, LinhaTarefa } from "./comuns";
+import { Folha, LadrilhoLista } from "./comuns";
 import { Inspetor } from "./Inspetor";
 import { abrirNota, irPara, selecionar, useRota, useSelecionada, type Rota } from "./rota";
 import {
@@ -380,34 +381,6 @@ function Tela({ rota }: { rota: Rota }) {
     case "etiqueta": return <TelaEtiqueta id={rota.id} />;
     case "menu": return <TelaHoje />;
   }
-}
-
-/** Layout compacto do popover do Mac (#/menu). */
-function Menu() {
-  const hoje = usar((e) => indice(e).hoje.filter((t) => !t.mae));
-  const atrasadas = usar((e) => (e.prefs.mostrarAtrasadasNoMenu ? indice(e).atrasadas : []));
-  const amanha = usar((e) => indice(e).porDia.get(somarDias(hojeISO(), 1)) ?? []);
-  const [aba, setAba] = useState<"hoje" | "amanha">("hoje");
-  const [texto, setTexto] = useState("");
-  const ts = aba === "hoje" ? [...atrasadas, ...hoje] : amanha;
-  return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", padding: 10, gap: 8 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div className="segmentado">
-          <button aria-pressed={aba === "hoje"} onClick={() => setAba("hoje")}>Hoje</button>
-          <button aria-pressed={aba === "amanha"} onClick={() => setAba("amanha")}>Amanhã</button>
-        </div>
-      </div>
-      <input className="campo t-md" placeholder="Nova tarefa…" value={texto} onChange={(e) => setTexto(e.target.value)}
-        onKeyDown={(e) => { if (e.key === "Enter" && texto.trim()) { criarDoTexto(texto, { prazo: aba === "hoje" ? hojeISO() : somarDias(hojeISO(), 1) }); setTexto(""); } }} />
-      <div className="cartao-linhas" style={{ flex: 1, overflow: "auto" }}>
-        {ts.map((t) => <LinhaTarefa key={t.id} t={t} mostrarData={aba === "hoje" && t.prazo !== hojeISO()} compacta />)}
-        {!ts.length && <div className="vazio t-sm c3">Nada por aqui.</div>}
-      </div>
-      <Toast />
-      <HospedeDeFolhas />
-    </div>
-  );
 }
 
 export function App() {

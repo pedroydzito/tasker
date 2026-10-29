@@ -1,5 +1,5 @@
 import { iconePorNome } from "./folhas";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   AlertCircle, AlignLeft, ChevronDown, Calendar, CalendarDays, Check, ChevronLeft, ChevronRight, Circle, Clock,
   Inbox, Pause, Play, Sun, Tag, X, type LucideIcon,
@@ -83,6 +83,9 @@ function useAberta(id: string): [boolean, () => void] {
   }];
 }
 
+/** No menu da barra, clicar abre os detalhes embaixo da linha (em vez do painel). */
+export const DetalheNoMenuCtx = createContext<((t: Tarefa, fechar: () => void) => ReactNode) | null>(null);
+
 /** Linha de tarefa: [círculo] título [▸ 1/3] nota/#etiquetas …… data · [chip da lista]. */
 export function LinhaTarefa({ t, mostrarData = true, mostrarLista = true, compacta = false, nivel = 0 }: { t: Tarefa; mostrarData?: boolean; mostrarLista?: boolean; compacta?: boolean; nivel?: number }) {
   const sel = useSelecionada();
@@ -91,6 +94,8 @@ export function LinhaTarefa({ t, mostrarData = true, mostrarLista = true, compac
   const filhas = usar((e) => (nivel === 0 ? indice(e).filhas.get(t.id) ?? [] : []), (a, b) => a.length === b.length && a.every((x, i) => x === b[i]));
   const [aberta, alternar] = useAberta(t.id);
   const [marcando, setMarcando] = useState(false);
+  const detalhe = useContext(DetalheNoMenuCtx);
+  const [expandida, setExpandida] = useState(false);
   const hoje = hojeISO();
   const horario = horarioDe(t);
   const feito = t.concluida || marcando;
@@ -138,17 +143,17 @@ export function LinhaTarefa({ t, mostrarData = true, mostrarLista = true, compac
       <div
         className={"linha-tarefa" + (sel === t.id && !compacta ? " selecionada" : "") + (compacta ? " compacta" : "")}
         style={{ paddingLeft: 12 + nivel * 26, opacity: t.provisoria ? 0.55 : undefined }}
-        onClick={() => selecionar(t.id)}
+        onClick={() => (detalhe ? setExpandida(!expandida) : selecionar(t.id))}
         data-tarefa={t.id}
       >
         <Circulo feito={feito} cor={cor} aoClicar={concluirComPausa} />
         {compacta ? (
           <>
             <span className={"titulo-tarefa t-sm uma-linha" + (feito ? " feito" : "")}>{tituloDe(t)}</span>
-            {seta}
+            {!expandida && seta}
             <span style={{ flex: 1 }} />
-            {nota && <AlignLeft size={10.5} className="c3" />}
-            {dataEl}
+            {!expandida && nota && <AlignLeft size={10.5} className="c3" />}
+            {!expandida && dataEl}
           </>
         ) : (
           <div className="linha-corpo">
@@ -165,7 +170,8 @@ export function LinhaTarefa({ t, mostrarData = true, mostrarLista = true, compac
           </div>
         )}
       </div>
-      {aberta && filhas.map((f) => <LinhaTarefa key={f.id} t={f} mostrarData={mostrarData} mostrarLista={false} compacta={compacta} nivel={nivel + 1} />)}
+      {expandida && detalhe && detalhe(t, () => setExpandida(false))}
+      {aberta && !expandida && filhas.map((f) => <LinhaTarefa key={f.id} t={f} mostrarData={mostrarData} mostrarLista={false} compacta={compacta} nivel={nivel + 1} />)}
     </>
   );
 }

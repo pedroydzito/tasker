@@ -6,6 +6,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var hotKey: HotKey?
     private var quickAdd: QuickAddPanelController?
     private var monitorBotaoDireito: Any?
+    /// WebView escondida desde o início: mantém o número da barra e a sincronização em dia.
+    private var fundo: AnyObject?
+
+    static func abrirJanelaWeb() {
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate()
+        NotificationCenter.default.post(name: abrirJanelaPrincipal, object: nil)
+    }
 
     static let abrirJanelaPrincipal = Notification.Name("tasker.abrirJanelaPrincipal")
 
@@ -16,7 +24,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.applicationIconImage = AppIcon.make()
         let model = AppModel.shared
         NSApp.appearance = model.prefs.appearance.nsAppearance
-        model.store.start()
+        // Com a interface web, Google, Supabase e o modo offline são cuidados por ela.
+        if !WebPonte.disponivel || CommandLine.arguments.contains("--autoteste") || Pastas.isolado != nil { model.store.start() }
         LembreteDespejo.agendar(quantidade: model.caderno.despejo.count, prefs: model.prefs)
         model.updater.start()
 
@@ -29,11 +38,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return nil
         }
 
-        let panel = QuickAddPanelController(store: model.store, caderno: model.caderno)
-        quickAdd = panel
-        // ⌥Espaço: adicionar tarefa de qualquer lugar.
-        hotKey = HotKey(keyCode: UInt32(kVK_Space), modifiers: UInt32(optionKey)) {
-            MainActor.assumeIsolated { panel.toggle() }
+        if WebPonte.disponivel && Pastas.isolado == nil {
+            // ⌥Espaço: abre a janela no Hoje, já no campo de nova tarefa.
+            hotKey = HotKey(keyCode: UInt32(kVK_Space), modifiers: UInt32(optionKey)) {
+                MainActor.assumeIsolated {
+                    WebPonte.shared.abrirJanela(rota: "#/hoje")
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        WebPonte.shared.janela?.evaluateJavaScript("window.taskerNovaTarefa && taskerNovaTarefa()")
+                    }
+                }
+            }
+            fundo = WebPonte.shared.novaWebView(rota: "menu")
+        } else {
+            let panel = QuickAddPanelController(store: model.store, caderno: model.caderno)
+            quickAdd = panel
+            // ⌥Espaço: adicionar tarefa de qualquer lugar.
+            hotKey = HotKey(keyCode: UInt32(kVK_Space), modifiers: UInt32(optionKey)) {
+                MainActor.assumeIsolated { panel.toggle() }
+            }
         }
     }
 
@@ -58,8 +80,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func abrirJanela() {
-        NSApp.setActivationPolicy(.regular)
-        NSApp.activate()
-        NotificationCenter.default.post(name: Self.abrirJanelaPrincipal, object: nil)
+        Self.abrirJanelaWeb()
     }
 }

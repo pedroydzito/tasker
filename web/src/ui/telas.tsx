@@ -506,7 +506,7 @@ export function Miniatura({ caminho, lado = 40 }: { caminho: string; lado?: numb
   );
 }
 
-function CampoDespejo() {
+export function CampoDespejo({ compacto = false }: { compacto?: boolean }) {
   const [texto, setTexto] = useState("");
   const [foto, setFoto] = useState<File | null>(null);
   const [previa, setPrevia] = useState<string | null>(null);
@@ -528,13 +528,13 @@ function CampoDespejo() {
     setTimeout(() => setConfirmacao((c) => (c === msg ? null : c)), 1600);
   };
   return (
-    <div className="cartao" style={{ padding: "var(--e2)" }}>
+    <div className={compacto ? undefined : "cartao"} style={compacto ? undefined : { padding: "var(--e2)" }}>
       <div className="campo-despejo" style={arrastando ? { outline: "1.5px dashed var(--acento)" } : undefined}
         onDragOver={(e) => { e.preventDefault(); setArrastando(true); }} onDragLeave={() => setArrastando(false)}
         onDrop={(e) => { e.preventDefault(); setArrastando(false); const f = [...e.dataTransfer.files].find((x) => x.type.startsWith("image/")); if (f) { setFoto(f); ref.current?.focus(); } }}>
         <Brain size={13} strokeWidth={2.4} style={{ color: foco ? "var(--acento)" : "var(--texto3)", marginTop: 4, flex: "none" }} />
         <textarea ref={ref} rows={1} value={texto} aria-label="Despejo"
-          placeholder={foto ? "Por que salvou esta foto?" : "Escreva o que vier — uma coisa por vez, ou cole uma lista"}
+          placeholder={foto ? "Por que salvou esta foto?" : compacto ? "Despejar algo…" : "Escreva o que vier — uma coisa por vez, ou cole uma lista"}
           onFocus={() => setFoco(true)} onBlur={() => setFoco(false)} onChange={(e) => setTexto(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void guardar(); } if (e.key === "Escape") setTexto(""); }} />
         {previa ? (
@@ -549,14 +549,14 @@ function CampoDespejo() {
           </label>
         )}
       </div>
-      <div className="t-xs" style={{ padding: "8px 12px 0", color: confirmacao ? "var(--sucesso)" : "var(--texto3)", display: "flex", alignItems: "center", gap: 4 }}>
+      {(!compacto || confirmacao || foto) && <div className="t-xs" style={{ padding: "8px 12px 0", color: confirmacao ? "var(--sucesso)" : "var(--texto3)", display: "flex", alignItems: "center", gap: 4 }}>
         {confirmacao ? <><CircleCheck size={12} fill="currentColor" stroke="var(--superficie)" />{confirmacao}</> : foto ? "Escreva por que salvou esta foto (opcional) e aperte Enter." : "Enter guarda e já deixa pronto para o próximo. Sem data, sem lista — organize depois."}
-      </div>
+      </div>}
     </div>
   );
 }
 
-function AcoesRapidas({ id, tamanho = 28, depois, mais }: { id: string; tamanho?: number; depois?: () => void; mais?: () => void }) {
+export function AcoesRapidas({ id, tamanho = 28, depois, mais }: { id: string; tamanho?: number; depois?: () => void; mais?: () => void }) {
   const b = (I: typeof Sun, rotulo: string, f: () => void) => (
     <button className="icone-botao" style={{ width: tamanho, height: tamanho }} title={rotulo} aria-label={rotulo} onClick={(e) => { e.stopPropagation(); f(); depois?.(); }}><I size={13} /></button>
   );

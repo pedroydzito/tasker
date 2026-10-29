@@ -14,6 +14,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: swift --version
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      # A interface do app é o build da web: tipos, build e E2E antes de compilar o Mac.
+      - name: Web
+        working-directory: web
+        run: |
+          npm ci
+          npm run build
+          npx -y playwright@1.49.1 install chromium
+          npm i --no-save playwright@1.49.1
+          npm run e2e
       - name: Compilar
         run: ./scripts/build-app.sh
         env:

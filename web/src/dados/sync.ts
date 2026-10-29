@@ -430,6 +430,9 @@ async function puxarTabelas() {
 
 export const hojeDoAparelho = () => diaISO(new Date());
 
+/** Verdadeiro enquanto o estado muda por causa de outra janela (não é para avisar as outras de volta). */
+export let vindoDeFora = false;
+
 /** Outra janela (o menu do Mac, outra aba) gravou no espelho: traz os dados de lá sem tocar na sessão. */
 export async function recarregarDoEspelho() {
   const chave = espelhoAtual();
@@ -437,5 +440,10 @@ export async function recarregarDoEspelho() {
   const salvo = await lerEstado<Partial<Estado>>(chave);
   if (!salvo) return;
   const { modo: _m, sincronizando: _s, erro: _e, online: _o, pendencias: _p, ...dados } = salvo;
-  definir(dados);
+  vindoDeFora = true;
+  try {
+    definir(dados);
+  } finally {
+    vindoDeFora = false;
+  }
 }

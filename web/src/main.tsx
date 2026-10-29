@@ -1,10 +1,12 @@
 import { createRoot } from "react-dom/client";
 import { ligarFavicon } from "./ui/favicon";
 import "./estilo/base.css";
-import { iniciar, concluirLoginDoMac, ponteMac, recarregarDoEspelho, puxar } from "./dados/sync";
+import { iniciar, concluirLoginDoMac, ponteMac, recarregarDoEspelho, puxar, vindoDeFora } from "./dados/sync";
 import { assinar, ler } from "./dados/armazem";
 import { contagemHoje } from "./dados/consultas";
 import { App } from "./ui/App";
+import { selecionar } from "./ui/rota";
+import { importarDoMac } from "./dados/importar";
 import { aplicarTema } from "./ui/telas";
 
 aplicarTema();
@@ -16,19 +18,24 @@ Object.assign(window, {
   taskerTema: aplicarTema,
   taskerRecarregar: () => void recarregarDoEspelho().then(() => puxar()),
   taskerNovaTarefa: () => window.dispatchEvent(new Event("tasker:nova")),
+  taskerMenuAbriu: () => window.dispatchEvent(new Event("tasker:menuAbriu")),
+  taskerSelecionar: (id: string) => selecionar(id),
+  taskerImportarDoMac: importarDoMac,
 });
 
 // O Mac mostra o número de hoje e o cronômetro na barra de menus: manda só quando muda.
 const ponte = ponteMac();
 if (ponte) {
   let ultimo = "";
+  let dadosAntes: unknown[] = [];
+  let aviso: ReturnType<typeof setTimeout> | null = null;
   assinar(() => {
     const e = ler();
-    if (e.modo === "carregando") return;
     const t = e.cronometro.tarefaId ? e.tarefas[e.cronometro.tarefaId] : null;
     const msg = {
       acao: "estado",
-      hoje: e.prefs.energiaBaixa ? 0 : contagemHoje(e),
+      modo: e.modo,
+      hoje: e.modo === "carregando" || e.modo === "entrar" || e.prefs.energiaBaixa ? 0 : contagemHoje(e),
       cronometro: e.cronometro.inicio && t ? { inicio: e.cronometro.inicio, segundosAntes: e.tempos[t.id] ?? 0, titulo: t.titulo } : null,
     };
     const s = JSON.stringify(msg);
@@ -36,6 +43,13 @@ if (ponte) {
       ultimo = s;
       ponte.postMessage(msg);
     }
+    // Dados mudaram aqui (não vindos de outra janela): depois de gravar, as outras releem.
+    const dados = [e.tarefas, e.listas, e.despejo, e.notas, e.etiquetas, e.etiquetasDaTarefa, e.tempos, e.cronometro, e.anexos, e.prefs];
+    const mudou = dados.some((d, i) => d !== dadosAntes[i]);
+    dadosAntes = dados;
+    if (!mudou || vindoDeFora || e.modo === "carregando") return;
+    if (aviso) clearTimeout(aviso);
+    aviso = setTimeout(() => ponte.postMessage({ acao: "mudou" }), 700);
   });
 }
 

@@ -32,7 +32,7 @@ interface Rascunho {
 const igual = (a: Rascunho, b: Rascunho) => JSON.stringify(a) === JSON.stringify(b);
 
 /** Play/pausa e o total, que dá para digitar (CampoTempo). */
-function CampoTempo({ id }: { id: string }) {
+export function CampoTempo({ id }: { id: string }) {
   const rodando = usar((e) => e.cronometro.tarefaId === id);
   const [, tique] = useState(0);
   const segundos = usar((e) => tempoDe(e, id));
@@ -76,7 +76,7 @@ function CampoTempo({ id }: { id: string }) {
 }
 
 /** Subtarefas no detalhe: concluir, abrir e adicionar na hora. */
-function Subtarefas({ maeId, listaId }: { maeId: string; listaId: string }) {
+export function Subtarefas({ maeId, listaId }: { maeId: string; listaId: string }) {
   const filhas = usar((e) => indice(e).filhas.get(maeId) ?? [], mesmaLista);
   const cor = usar((e) => corDaLista(e, listaId));
   const [nova, setNova] = useState("");

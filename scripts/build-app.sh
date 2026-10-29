@@ -35,6 +35,14 @@ if "$BIN_DIR/Tasker" --export-icon "$ICON_PNG"; then
 else
     echo "⚠︎ não foi possível gerar o ícone; seguindo sem .icns"
 fi
+# Interface: o mesmo build da web, servido de dentro do app (funciona sem internet).
+if [[ -d web/dist ]]; then
+    cp -R web/dist "$APP/Contents/Resources/web"
+    rm -f "$APP/Contents/Resources/web/sw.js"
+    echo "✓ interface web embutida"
+else
+    echo "⚠︎ web/dist não existe (rode npm run build em web/); seguindo com a interface nativa"
+fi
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$APP/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" "$APP/Contents/Info.plist"
 codesign --force --sign - "$APP"
