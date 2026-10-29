@@ -1,13 +1,14 @@
 import { createRoot } from "react-dom/client";
 import { ligarFavicon } from "./ui/favicon";
 import "./estilo/base.css";
+import "./estilo/sistema.css";
 import { iniciar, concluirLoginDoMac, ponteMac, recarregarDoEspelho, puxar, vindoDeFora } from "./dados/sync";
 import { assinar, ler } from "./dados/armazem";
 import { contagemHoje } from "./dados/consultas";
 import { App } from "./ui/App";
 import { selecionar } from "./ui/rota";
 import { importarDoMac } from "./dados/importar";
-import { aplicarTema } from "./ui/telas";
+import { aplicarTema } from "./ui/hoje";
 
 aplicarTema();
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", aplicarTema);

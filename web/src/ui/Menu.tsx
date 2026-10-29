@@ -9,7 +9,8 @@ import { deISO, hojeISO, rotuloComAtraso, somarDias } from "../dados/util";
 import { CartaoLinhas, Chip, ChipLista, DetalheNoMenuCtx, DropdownListas, EstadoVazio, LinhaTarefa, Secao, SeletorData } from "./comuns";
 import { folhas, HospedeDeFolhas } from "./folhas";
 import { CampoTempo, Subtarefas } from "./Inspetor";
-import { AcoesRapidas, CampoDespejo, Eventos } from "./telas";
+import { AcoesRapidas, CampoDespejo } from "./telas";
+import { Eventos } from "./hoje";
 import type { Rota } from "./rota";
 
 // Menu da barra do Mac (MenuBarPopover.swift): abas Hoje, Calendário e Despejo numa pílula,

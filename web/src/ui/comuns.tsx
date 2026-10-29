@@ -225,11 +225,11 @@ export function EstadoVazio({ Icone, titulo, descricao }: { Icone: LucideIcon; t
 /** Cabeçalho da tela: [leading] título display + rótulo embaixo …… [ações]. */
 export function Cabecalho({ titulo, sub, direita, esquerda }: { titulo: string; sub?: string; direita?: ReactNode; esquerda?: ReactNode }) {
   return (
-    <header className="entrar" style={{ display: "flex", alignItems: "center", gap: "var(--e4)" }}>
+    <header className="cabecalho-tela" data-encadeado style={{ ["--i" as string]: 0, display: "flex", alignItems: "center", gap: "var(--e4)" }}>
       {esquerda}
       <div style={{ display: "flex", flexDirection: "column", gap: 3, minWidth: 0 }}>
-        <h1 className="display d-display">{titulo}</h1>
-        {sub && <div className="t-sm c3">{sub}</div>}
+        <h1 className="display d-display cabecalho-encolhe">{titulo}</h1>
+        {sub && <div className="t-sm c3 cabecalho-encolhe">{sub}</div>}
       </div>
       <span style={{ flex: 1, minWidth: 16 }} />
       {direita}
@@ -386,3 +386,61 @@ export function useClicarFora<T extends HTMLElement>(aberto: boolean, fechar: ()
 }
 
 export { CalendarDays, Clock, Tag, Inbox, Sun };
+
+/**
+ * Trilho (§8.5): o fundo do item ativo viaja de um item para o outro. O contêiner tem a classe
+ * `com-trilho` e um `<span className="trilho" />`; o ativo é o filho com aria-pressed/aria-current.
+ * Antes da primeira medida, o próprio item pinta o fundo (sem piscar).
+ */
+export function useTrilho<T extends HTMLElement>(dep: unknown) {
+  const ref = useRef<T>(null);
+  useEffect(() => {
+    const c = ref.current;
+    if (!c) return;
+    const t = c.querySelector<HTMLElement>(":scope > .trilho");
+    const medir = () => {
+      const a = c.querySelector<HTMLElement>(':scope > [aria-pressed="true"], :scope > [aria-current="true"]');
+      if (!t) return;
+      if (!a) { t.style.opacity = "0"; return; }
+      t.style.opacity = "1";
+      t.style.width = a.offsetWidth + "px";
+      t.style.height = a.offsetHeight + "px";
+      t.style.transform = `translate(${a.offsetLeft}px, ${a.offsetTop}px)`;
+      c.setAttribute("data-trilho-pronto", "");
+    };
+    medir();
+    const o = new ResizeObserver(medir);
+    o.observe(c);
+    for (const f of Array.from(c.children)) o.observe(f);
+    return () => o.disconnect();
+  }, [dep]);
+  return ref;
+}
+
+/** Segmentado: escolhas lado a lado, com o trilho deslizando sob a escolhida. */
+export function Segmentado<V extends string | number | boolean>({ opcoes, valor, aoMudar, rotulo }: { opcoes: [V, ReactNode][]; valor: V; aoMudar: (v: V) => void; rotulo?: string }) {
+  const ref = useTrilho<HTMLDivElement>(String(valor) + opcoes.length);
+  return (
+    <div ref={ref} className="segmentado com-trilho" role="group" aria-label={rotulo} style={{ ["--trilho-cor" as string]: "var(--superficie)" }}>
+      <span className="trilho" />
+      {opcoes.map(([v, r]) => (
+        <button key={String(v)} className="sem-veu sem-afundar pressionavel" aria-pressed={v === valor} onClick={() => aoMudar(v)}>{r}</button>
+      ))}
+    </div>
+  );
+}
+
+/** Pergunta única para animação em JavaScript (§6.4). */
+export const querMenosMovimento = () => typeof window !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/** Celular (o mesmo ponto de quebra do CSS). */
+export function useCelular() {
+  const [c, setC] = useState(() => typeof window !== "undefined" && matchMedia("(max-width: 760px)").matches);
+  useEffect(() => {
+    const m = matchMedia("(max-width: 760px)");
+    const f = () => setC(m.matches);
+    m.addEventListener("change", f);
+    return () => m.removeEventListener("change", f);
+  }, []);
+  return c;
+}

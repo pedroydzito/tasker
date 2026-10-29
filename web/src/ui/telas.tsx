@@ -1,9 +1,9 @@
 import { EditorDeEtiqueta, EditorDeLista, Nota, folhas } from "./folhas";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { CircleUserRound, HardDrive, Laptop, Paintbrush, Settings, ArchiveRestore, BadgeCheck, Brain, Check, CircleCheck, CircleX, Clock, Ellipsis, Hand, ImagePlus, Layers2, Zap, CalendarCheck, Circle, SquarePen, ArrowUpRight, ChevronLeft, ChevronRight, NotepadText, BatteryFull, BatteryLow, Calendar, ChevronDown, ChevronUp, Hash, ListChecks, Pencil, Plus, Sun, Sunrise, Trash2 } from "lucide-react";
+import { CircleUserRound, HardDrive, Laptop, Paintbrush, Settings, ArchiveRestore, BadgeCheck, Brain, Check, CircleCheck, CircleX, Clock, Ellipsis, Hand, ImagePlus, Layers2, Zap, CalendarCheck, Circle, SquarePen, ChevronLeft, ChevronRight, NotepadText, Calendar, ChevronDown, Hash, ListChecks, Pencil, Plus, Sun, Trash2 } from "lucide-react";
 import { mesmaLista, usar } from "../dados/armazem";
 import {
-  adiarAtrasadas, apagarDespejo, despejar, despejoParaNota, despejoParaTarefa, esvaziarNao, excluirNota, fazerAgora, guardarFoto,
+  apagarDespejo, despejar, despejoParaNota, despejoParaTarefa, esvaziarNao, excluirNota, fazerAgora, guardarFoto,
   moverDespejo, criarTarefa, editarDespejo, resolverEtiquetas, descartarSeVazia, mudarPrefs, criarDoTexto, novaNota, atualizarNota, escreverNoDia, revisaoDaSemana, tarefaDaLinha,
 } from "../dados/acoes";
 import { contagemHoje, tempoDe, listaPadrao, tituloDe, corDaLista, eventosDoDia, indice, nomeDaLista, pendentesDaNota } from "../dados/consultas";
@@ -13,115 +13,10 @@ import type { EstadoDespejo, ItemDespejo, Tarefa, Tema } from "../dados/tipos";
 import { lerArquivo } from "../dados/espelho";
 import { supabase } from "../dados/nuvem";
 import { duracaoCurta, lerCriacaoRapida, deISO, diaISO, hojeISO, primeiraMaiuscula, rotuloCurto, rotuloLongo, somarDias } from "../dados/util";
-import { DropdownListas, Cabecalho, CartaoLinhas, ChipLista, EstadoVazio, LadrilhoLista, LinhaTarefa, Secao, SeletorData } from "./comuns";
+import { useCelular, Segmentado, DropdownListas, Cabecalho, CartaoLinhas, ChipLista, EstadoVazio, LadrilhoLista, LinhaTarefa, Secao, SeletorData } from "./comuns";
 import { abrirNota, abrirNotaDoDia, irPara, useNotaAberta, type AlvoNota } from "./rota";
 
-const raiz = (ts: Tarefa[]) => ts.filter((t) => !t.mae);
-const linhas = (ts: Tarefa[], opc: { data?: boolean; lista?: boolean } = {}) =>
-  ts.map((t) => <LinhaTarefa key={t.id} t={t} mostrarData={opc.data ?? true} mostrarLista={opc.lista ?? true} />);
-export const textoContagem = (n: number) => (n === 0 ? "Nada pendente" : `${n} tarefa${n === 1 ? "" : "s"} para concluir`);
-const hora = (iso: string) => new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-
-let eventosRecolhidos = (() => { try { return localStorage.getItem("eventsCollapsed") === "1"; } catch { return false; } })();
-
-/** Eventos do Google Calendar (EventsCard): sem fundo, barra de cor, horário e título; seta recolhe. */
-export function Eventos({ dia, compacto = false, recolhivel = true }: { dia: string; compacto?: boolean; recolhivel?: boolean }) {
-  const evs = usar((e) => eventosDoDia(e, dia), mesmaLista);
-  const [fechado, setFechado] = useState(eventosRecolhidos);
-  if (!evs.length) return null;
-  const mostrar = recolhivel && fechado ? evs.slice(0, 1) : evs;
-  const agora = Date.now();
-  return (
-    <div style={{ display: "flex", alignItems: "flex-start" }}>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        {mostrar.map((ev) => (
-          <a key={ev.id} className="evento afunda" href={ev.link ?? undefined} target="_blank" rel="noreferrer" title="Abrir no Google Calendar"
-            style={{ ["--cor" as string]: ev.cor, padding: compacto ? "6px 0" : "7px 0", opacity: new Date(ev.fim).getTime() < agora ? 0.45 : 1 }}>
-            <span className="evento-barra" />
-            <span className="t-xs p-medio c3 numeros" style={{ minWidth: 74 }}>{ev.diaTodo ? "Dia todo" : `${hora(ev.inicio)}–${hora(ev.fim)}`}</span>
-            <span className="t-sm p-medio uma-linha">{ev.titulo}</span>
-            <ArrowUpRight size={10} strokeWidth={3} className="evento-seta" />
-          </a>
-        ))}
-      </div>
-      {recolhivel && evs.length > 1 && (
-        <button className="icone-botao" style={{ width: 26, height: 26, marginTop: compacto ? 1 : 3 }} aria-label={fechado ? "Mostrar todos os eventos" : "Mostrar menos"}
-          onClick={() => { eventosRecolhidos = !fechado; setFechado(!fechado); try { localStorage.setItem("eventsCollapsed", fechado ? "0" : "1"); } catch { /* nada */ } }}>
-          {fechado ? <ChevronDown size={11} /> : <ChevronUp size={11} />}
-        </button>
-      )}
-    </div>
-  );
-}
-
-function BotaoEnergia() {
-  const baixa = usar((e) => e.prefs.energiaBaixa);
-  return (
-    <button className={"icone-botao" + (baixa ? " ativo" : "")} aria-label="Energia"
-      title={baixa ? "Tô sem energia — clique para ver tudo" : "Tenho energia — clique se estiver sem energia"}
-      onClick={() => mudarPrefs((p) => ({ energiaBaixa: !p.energiaBaixa }))}>
-      {baixa ? <BatteryLow size={16} /> : <BatteryFull size={16} />}
-    </button>
-  );
-}
-
-export function TelaHoje() {
-  const hoje = hojeISO();
-  const baixa = usar((e) => e.prefs.energiaBaixa);
-  const atrasadas = usar((e) => (e.prefs.energiaBaixa ? [] : raiz(indice(e).atrasadas)), mesmaLista);
-  const tarefas = usar((e) => raiz(indice(e).hoje), mesmaLista);
-  const feitas = usar((e) => indice(e).concluidasHoje, mesmaLista);
-  const vazio = !tarefas.length && !atrasadas.length;
-  const concluidas = feitas.length > 0 && (
-    <Secao titulo="Concluídas" contagem={feitas.length} recolhida>{linhas(feitas, { data: false })}</Secao>
-  );
-  return (
-    <>
-      <Cabecalho titulo="Hoje" sub={baixa ? rotuloLongo(hoje) : `${rotuloLongo(hoje)} · ${textoContagem(atrasadas.length + tarefas.length)}`} direita={<BotaoEnergia />} />
-      <div className="entrar-2" style={{ display: "flex", flexDirection: "column", gap: "var(--e5)" }}>
-        <Eventos dia={hoje} />
-        {atrasadas.length > 0 && (
-          <Secao titulo="Em atraso" contagem={atrasadas.length} tom="var(--perigo-texto)" acao={<button className="botao b-fantasma" onClick={adiarAtrasadas}>Mover para hoje</button>}>
-            {linhas(atrasadas)}
-          </Secao>
-        )}
-        {vazio && concluidas}
-        {!tarefas.length ? (
-          !atrasadas.length && <EstadoVazio Icone={Sun} titulo="Nada pendente" descricao="As tarefas com data de hoje aparecem aqui." />
-        ) : !atrasadas.length ? (
-          <CartaoLinhas>{linhas(tarefas, { data: false })}</CartaoLinhas>
-        ) : (
-          <Secao titulo="Hoje" contagem={tarefas.length}>{linhas(tarefas, { data: false })}</Secao>
-        )}
-        {!vazio && concluidas}
-      </div>
-    </>
-  );
-}
-
-function Dia({ titulo, dia }: { titulo: string; dia: string }) {
-  const ts = usar((e) => raiz(indice(e).porDia.get(dia) ?? []), mesmaLista);
-  const temEventos = usar((e) => eventosDoDia(e, dia).length > 0);
-  return (
-    <>
-      <Cabecalho titulo={titulo} sub={`${rotuloLongo(dia)} · ${textoContagem(ts.length)}`} />
-      <div className="entrar-2" style={{ display: "flex", flexDirection: "column", gap: "var(--e4)" }}>
-        {!ts.length && !temEventos ? (
-          <EstadoVazio Icone={Sunrise} titulo="Dia livre" descricao={`Nada marcado para ${titulo.toLowerCase()}.`} />
-        ) : (
-          <>
-            <Eventos dia={dia} />
-            {ts.length > 0 && <CartaoLinhas>{linhas(ts, { data: false })}</CartaoLinhas>}
-          </>
-        )}
-      </div>
-    </>
-  );
-}
-
-export function TelaAmanha() {
-  return <Dia titulo="Amanhã" dia={somarDias(hojeISO(), 1)} />;
-}
+import { Eventos, aplicarTema, linhas, raiz, textoContagem } from "./hoje";
 
 function DiaComItens({ dia }: { dia: string }) {
   const ts = usar((e) => raiz(indice(e).porDia.get(dia) ?? []), mesmaLista);
@@ -155,7 +50,7 @@ export function TelaProximas() {
   return (
     <>
       <Cabecalho titulo="Próximas" sub="Os próximos 14 dias" />
-      <div className="entrar-2" style={{ display: "flex", flexDirection: "column", gap: "var(--e6)" }}>
+      <div data-encadeado className="bloco-tela" style={{ ["--i" as string]: 1, display: "flex", flexDirection: "column", gap: "var(--e6)" }}>
         {!dias.length && <EstadoVazio Icone={Calendar} titulo="Duas semanas livres" descricao="Tarefas e eventos dos próximos dias aparecem aqui." />}
         {dias.map((d) => <DiaComItens key={d} dia={d} />)}
       </div>
@@ -189,12 +84,12 @@ export function TelaCalendario() {
   const mudar = (n: number) => setMes(diaISO(new Date(primeiro.getFullYear(), primeiro.getMonth() + n, 1)).slice(0, 7));
   const agora = Date.now();
   return (
-    <div style={{ display: "flex", flex: 1, minWidth: 0, height: "100%" }}>
+    <div className="tela-calendario" style={{ display: "flex", flex: 1, minWidth: 0, height: "100%" }}>
       <div ref={ref} className="pagina" style={{ padding: "56px 32px 24px", display: "flex", flexDirection: "column", gap: "var(--e4)" }}>
         <header style={{ display: "flex", alignItems: "flex-end", gap: 16 }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 3, flex: 1 }}>
-            <h1 className="display d-display">{primeiraMaiuscula(primeiro.toLocaleDateString("pt-BR", { month: "long", year: "numeric" }))}</h1>
-            <div className="t-sm c3">Calendário</div>
+            <h1 className="display d-display cabecalho-encolhe">{primeiraMaiuscula(primeiro.toLocaleDateString("pt-BR", { month: "long", year: "numeric" }))}</h1>
+            <div className="t-sm c3 cabecalho-encolhe">Calendário</div>
           </div>
           <span style={{ display: "flex", gap: 4, alignItems: "center" }}>
             <button className="botao b-superficie" onClick={() => { setMes(hoje.slice(0, 7)); setSel(hoje); }}>Hoje</button>
@@ -279,11 +174,8 @@ export function TelaTodas() {
   return (
     <>
       <Cabecalho titulo="Todas" sub={textoContagem(raiz(i.abertas).length)} />
-      <div className="entrar-2" style={{ display: "flex", flexDirection: "column", gap: "var(--e6)", alignItems: "stretch" }}>
-        <div className="segmentado" style={{ alignSelf: "flex-start" }}>
-          <button aria-pressed={!porLista} onClick={() => mudar(false)}>Por data</button>
-          <button aria-pressed={porLista} onClick={() => mudar(true)}>Por lista</button>
-        </div>
+      <div data-encadeado className="bloco-tela" style={{ ["--i" as string]: 1, display: "flex", flexDirection: "column", gap: "var(--e6)", alignItems: "stretch" }}>
+        <div style={{ alignSelf: "flex-start", display: "flex", width: "100%" }}><Segmentado rotulo="Agrupar" valor={porLista} aoMudar={mudar} opcoes={[[false, "Por data"], [true, "Por lista"]]} /></div>
         {porLista
           ? e.listas.map((l) => {
               const ts = raiz(i.porLista.get(l.id) ?? []);
@@ -307,7 +199,7 @@ export function TelaConcluidas() {
   return (
     <>
       <Cabecalho titulo="Concluídas" sub={`${feitas.length} tarefas até aqui`} />
-      <div className="entrar-2" style={{ display: "flex", flexDirection: "column", gap: "var(--e6)" }}>
+      <div data-encadeado className="bloco-tela" style={{ ["--i" as string]: 1, display: "flex", flexDirection: "column", gap: "var(--e6)" }}>
         <ResumoConcluidas />
         {[...grupos.keys()].sort().reverse().map((d) => (
           <Secao key={d} titulo={d ? rotuloCurto(d, hoje) : "Sem data"} contagem={grupos.get(d)!.length}>{linhas(grupos.get(d)!, { data: false })}</Secao>
@@ -362,13 +254,11 @@ function ResumoConcluidas() {
   );
   return (
     <div className="cartao" style={{ padding: "var(--e5)", display: "flex", flexDirection: "column", gap: "var(--e5)" }}>
-      <div style={{ display: "flex", alignItems: "flex-start" }}>
+      <div className="resumo-topo" style={{ display: "flex", alignItems: "flex-start" }}>
         {numero(String(feitas.length), feitas.length === 1 ? "concluída" : "concluídas")}
         {numero(total > 0 ? duracaoCurta(total) : "—", "de tempo registrado")}
         <span style={{ flex: 1 }} />
-        <div className="segmentado">
-          {(["semana", "mes", "ano"] as const).map((p) => <button key={p} aria-pressed={periodo === p} onClick={() => setPeriodo(p)}>{TITULO_PERIODO[p]}</button>)}
-        </div>
+        <Segmentado rotulo="Período" valor={periodo} aoMudar={setPeriodo} opcoes={(["semana", "mes", "ano"] as const).map((p) => [p, TITULO_PERIODO[p]] as [Periodo, string])} />
       </div>
       {!feitas.length ? (
         <div className="t-sm c3" style={{ minHeight: 120, display: "grid", placeItems: "center" }}>Nenhuma tarefa concluída nos últimos {TITULO_PERIODO[periodo]}.</div>
@@ -380,7 +270,7 @@ function ResumoConcluidas() {
               {marcas.map((m) => <span key={m} className="grafico-linha" style={{ bottom: `${(m / topoEixo) * 100}%` }} />)}
               {barras.map((b, i) => (
                 <div key={chaves[i]} className="grafico-coluna" onMouseMove={(ev) => { const r = (ev.currentTarget.parentElement as HTMLElement).getBoundingClientRect(); setFoco({ i, x: ev.clientX - r.left, y: ev.clientY - r.top }); }}>
-                  <div style={{ height: `${(b.reduce((s, x) => s + x.n, 0) / topoEixo) * 100}%`, width: "100%", display: "flex", flexDirection: "column-reverse", opacity: foco === null || foco.i === i ? 1 : 0.35, transition: "opacity var(--rapido)", borderRadius: 3, overflow: "hidden" }}>
+                  <div style={{ height: `${(b.reduce((s, x) => s + x.n, 0) / topoEixo) * 100}%`, width: "72%", ["--i" as string]: i, display: "flex", flexDirection: "column-reverse", opacity: foco === null || foco.i === i ? 1 : 0.35, transition: "opacity var(--rapido)", borderRadius: 3, overflow: "hidden" }}>
                     {b.map((x) => <div key={x.lista} style={{ flex: x.n, background: corDaLista(e, x.lista) }} />)}
                   </div>
                 </div>
@@ -453,7 +343,7 @@ export function TelaLista({ id }: { id: string }) {
           <span style={{ position: "absolute", right: -4, bottom: -4, width: 20, height: 20, borderRadius: 99, background: cor, color: "#fff", border: "2px solid var(--fundo)", display: "inline-flex", alignItems: "center", justifyContent: "center" }}><Pencil size={9} strokeWidth={3} /></span>
         </button>
       } />
-      <div className="entrar-2" style={{ display: "flex", flexDirection: "column", gap: "var(--e6)" }}>
+      <div data-encadeado className="bloco-tela" style={{ ["--i" as string]: 1, display: "flex", flexDirection: "column", gap: "var(--e6)" }}>
         <Secao titulo="Tarefas" contagem={ts.length} tom={cor}>
           {ts.length ? linhas(ts, { lista: false }) : <EstadoVazio Icone={ListChecks} titulo="Lista vazia" descricao="Use a barra abaixo para criar a primeira tarefa." />}
         </Secao>
@@ -470,7 +360,7 @@ export function TelaEtiqueta({ id }: { id: string }) {
   return (
     <>
       <Cabecalho titulo={"#" + g.nome} sub="Etiqueta · só no Tasker" />
-      <div className="entrar-2" style={{ display: "flex", flexDirection: "column", gap: "var(--e6)" }}>
+      <div data-encadeado className="bloco-tela" style={{ ["--i" as string]: 1, display: "flex", flexDirection: "column", gap: "var(--e6)" }}>
         <div><button className="botao b-superficie" onClick={() => folhas.abrir("Editar etiqueta", <EditorDeEtiqueta id={id} />, { largura: 380 })}><Pencil size={13} /> Editar etiqueta</button></div>
         <Secao titulo="Tarefas" contagem={ts.length}>
           {ts.length ? linhas(ts) : <EstadoVazio Icone={Hash} titulo="Nenhuma tarefa aqui" descricao="Clique com o botão direito numa tarefa → Etiquetas." />}
@@ -731,12 +621,10 @@ export function TelaDespejo() {
   return (
     <>
       <Cabecalho titulo="Despejo" sub="Tire da cabeça. Organize depois." />
-      <div className="entrar-2" style={{ display: "flex", flexDirection: "column", gap: "var(--e5)" }}>
+      <div data-encadeado className="bloco-tela" style={{ ["--i" as string]: 1, display: "flex", flexDirection: "column", gap: "var(--e5)" }}>
         <CampoDespejo />
-        <div className="segmentado" style={{ alignSelf: "flex-start" }}>
-          {(["caixa", "depois", "nao"] as const).map((p) => (
-            <button key={p} aria-pressed={pilha === p} onClick={() => { setPilha(p); parar(); }}>{{ caixa: "Caixa", depois: "Depois", nao: "Não" }[p]} · {n(p)}</button>
-          ))}
+        <div style={{ alignSelf: "flex-start", display: "flex", width: "100%" }}>
+          <Segmentado rotulo="Pilha" valor={pilha} aoMudar={(p) => { setPilha(p); parar(); }} opcoes={(["caixa", "depois", "nao"] as const).map((p) => [p, `${{ caixa: "Caixa", depois: "Depois", nao: "Não" }[p]} · ${n(p)}`] as [EstadoDespejo, string])} />
         </div>
         {pilha !== "caixa" ? <Pilha estado={pilha} /> : !caixa.length ? (
           <EstadoVazio Icone={Brain} titulo="Cabeça leve" descricao="Escreva aqui tudo o que estiver ocupando espaço. Depois, com calma, decida: Agora, Depois ou Não." />
@@ -800,10 +688,14 @@ export function TelaNotas({ id }: { id?: string }) {
   const notas = usar((e) => e.notas);
   const alvo = useNotaAberta();
   const hoje = hojeISO();
+  const celular = useCelular();
+  // No celular a lista é a tela; a nota abre por cima só quando a pessoa escolhe uma.
+  const [escolhida, setEscolhida] = useState(!!id);
   useEffect(() => {
     if (id) abrirNota({ nota: id });
-    else if (!alvo) abrirNota({ dia: hoje });
+    else if (!alvo && !celular) abrirNota({ dia: hoje });
   }, [id]);
+  useEffect(() => { if (alvo) setEscolhida(true); }, [alvo]);
   const anterior = useRef(alvo);
   useEffect(() => {
     // Nota solta criada e deixada em branco não fica acumulando.
@@ -820,7 +712,7 @@ export function TelaNotas({ id }: { id?: string }) {
   };
   const existe = alvo && ("dia" in alvo || notas.some((n) => n.id === alvo.nota));
   return (
-    <div style={{ display: "flex", flex: 1, minWidth: 0, height: "100%" }}>
+    <div className="tela-notas" data-editando={alvo && (!celular || escolhida) ? "" : undefined} style={{ display: "flex", flex: 1, minWidth: 0, height: "100%" }}>
       <div className="lista-notas">
         <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "44px 20px 16px" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 3, flex: 1 }}>
@@ -866,6 +758,7 @@ function EditorDeNota({ alvo }: { alvo: AlvoNota }) {
   return (
     <>
       <div style={{ display: "flex", alignItems: "center", gap: 4, height: 52, padding: "16px 24px 0" }}>
+        <button className="icone-botao so-celular" aria-label="Voltar" style={{ marginLeft: -12 }} onClick={() => abrirNota(null)}><ChevronLeft size={20} /></button>
         {nota && <span className="t-xs c3">Editada {haQuanto(nota.editadaEm)}</span>}
         <span style={{ flex: 1 }} />
         {nota && <button className="icone-botao" aria-label="Excluir nota" title="Excluir nota" onClick={() => folhas.confirmar("Excluir nota", `“${tituloDaNota(nota)}” será excluída. Dá para desfazer logo depois.`, () => { abrirNota(null); excluirNota(nota.id); })}><Trash2 size={14} /></button>}
@@ -972,7 +865,7 @@ export function TelaAjustes() {
   return (
     <>
       <Cabecalho titulo="Ajustes" sub={`Tasker ${versao}`} />
-      <div className="entrar-2" style={{ display: "flex", flexDirection: "column", gap: "var(--e3)" }}>
+      <div data-encadeado className="bloco-tela" style={{ ["--i" as string]: 1, display: "flex", flexDirection: "column", gap: "var(--e3)" }}>
         <Pasta Icone={CircleUserRound} titulo="Conta" subtitulo={e.modo === "local" ? "Usando só neste aparelho" : e.email ?? "Google"} aberta>
           {e.modo === "local" ? (
             <>
@@ -1005,7 +898,7 @@ export function TelaAjustes() {
 
         <Pasta Icone={Paintbrush} titulo="Aparência" subtitulo="Tema, contador e o que aparece no menu">
           <LinhaAjuste titulo="Tema" descricao="Vale para a janela e para o menu da barra">
-            <div className="segmentado">{(["sistema", "claro", "escuro"] as const).map((t) => <button key={t} aria-pressed={tema === t} onClick={() => mudarTema(t)}>{primeiraMaiuscula(t)}</button>)}</div>
+            <Segmentado rotulo="Tema" valor={tema} aoMudar={mudarTema} opcoes={(["sistema", "claro", "escuro"] as const).map((t) => [t, primeiraMaiuscula(t)] as [Tema, string])} />
           </LinhaAjuste>
           <LinhaAjuste titulo="Contar atrasadas" descricao={`Agora: ${n} tarefa${n === 1 ? "" : "s"}`}><Chave ligada={p.contarAtrasadas} rotulo="Contar atrasadas" aoMudar={() => alternar("contarAtrasadas")} /></LinhaAjuste>
           <LinhaAjuste titulo="Eventos no menu" descricao="Mostrar a agenda do dia acima das tarefas"><Chave ligada={p.mostrarEventosNoMenu} rotulo="Eventos no menu" aoMudar={() => alternar("mostrarEventosNoMenu")} /></LinhaAjuste>
@@ -1060,12 +953,6 @@ export function TelaAjustes() {
       </div>
     </>
   );
-}
-
-export function aplicarTema() {
-  const t = localStorage.getItem("tasker.tema") || "sistema";
-  const escuro = t === "escuro" || (t === "sistema" && matchMedia("(prefers-color-scheme: dark)").matches);
-  document.documentElement.dataset.tema = escuro ? "escuro" : "claro";
 }
 
 // MARK: Entrar (OnboardingView.swift)

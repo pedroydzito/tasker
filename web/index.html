@@ -12,8 +12,6 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Tasker" />
     <!-- A barra do sistema segue o tema (sem theme_color no manifesto). -->
-    <meta name="theme-color" content="#F7F7F7" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#151517" media="(prefers-color-scheme: dark)" />
     <!-- Só as duas fontes do primeiro quadro. -->
     <link rel="preload" href="./fonts/geist.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="preload" href="./fonts/bricolage-700.woff2" as="font" type="font/woff2" crossorigin />
@@ -29,6 +27,12 @@
           var t = localStorage.getItem("tasker.tema") || "sistema";
           var escuro = t === "escuro" || (t === "sistema" && matchMedia("(prefers-color-scheme: dark)").matches);
           document.documentElement.dataset.tema = escuro ? "escuro" : "claro";
+          // Barra do sistema: uma meta só, nossa, com a cor do fundo do tema (design system §9.1b).
+          var m = document.createElement("meta");
+          m.name = "theme-color";
+          m.setAttribute("data-tema-app", "");
+          m.content = escuro ? "#151517" : "#F7F7F7";
+          document.head.appendChild(m);
         } catch (e) {
           document.documentElement.dataset.tema = "claro";
         }
@@ -39,8 +43,13 @@
     <div id="raiz">
       <!-- Esqueleto com o formato da tela enquanto o JavaScript chega. -->
       <div class="esqueleto-casca" aria-hidden="true">
-        <div class="esqueleto-lateral"></div>
-        <div class="esqueleto-conteudo"><div></div><div></div><div></div></div>
+        <div class="esqueleto-lateral"><i class="e-marca"></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+        <div class="esqueleto-conteudo">
+          <div class="e-faixa"><i></i><i></i></div>
+          <i class="e-titulo"></i><i class="e-sub"></i>
+          <div class="e-cartao"><i></i><i></i><i></i></div>
+        </div>
+        <div class="e-pilula"></div>
       </div>
     </div>
     <script type="module" src="./src/main.tsx"></script>

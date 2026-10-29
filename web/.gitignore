@@ -1,5 +1,5 @@
-node_modules/
-dist/
 .env.local
+dist/
 e2e/capturas/
+node_modules/
 tsconfig.tsbuildinfo

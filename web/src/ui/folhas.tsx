@@ -12,6 +12,7 @@ import { criarEtiqueta, criarLista, editarEtiqueta, excluirEtiqueta, excluirList
 import { corDaLista, iconeDaLista, nomeDaLista } from "../dados/consultas";
 import { PALETA, normalizarBusca } from "../dados/util";
 import { irPara } from "./rota";
+import { Segmentado } from "./comuns";
 
 // Folhas (Folha.swift): um componente para todos os diálogos. Véu, caixa centrada com raio de
 // cartão, cabeçalho com título display e X, corpo rolável. Esc e clique no véu fecham.
@@ -28,14 +29,45 @@ let seq = 0;
 const ouvintes = new Set<() => void>();
 const emitir = () => ouvintes.forEach((f) => f());
 
+// §9.4-b — trava de rolagem com contagem: a primeira trava, a última solta.
+let travas = 0;
+export function trancarRolagem(): () => void {
+  travas += 1;
+  document.body.style.overflow = "hidden";
+  let solto = false;
+  return () => {
+    if (solto) return;
+    solto = true;
+    travas = Math.max(0, travas - 1);
+    if (!travas) document.body.style.overflow = "";
+  };
+}
+
+let saindo = false;
+let quemAbriu: HTMLElement | null = null;
+
 export const folhas = {
   abrir(titulo: string, conteudo: ReactNode, o: { largura?: number; descricao?: string } = {}) {
+    if (!atual) quemAbriu = document.activeElement as HTMLElement | null;
+    saindo = false;
     atual = { id: ++seq, titulo, conteudo, largura: o.largura ?? 400, descricao: o.descricao };
     emitir();
   },
+  /** Fecha com a animação de saída (a folha fica montada até ela acabar) e devolve o foco a quem abriu. */
   fechar() {
-    atual = null;
+    if (!atual || saindo) return;
+    saindo = true;
     emitir();
+    const id = atual.id;
+    const ms = matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : matchMedia("(max-width: 760px)").matches ? 200 : 160;
+    setTimeout(() => {
+      if (atual?.id !== id) return;
+      atual = null;
+      saindo = false;
+      emitir();
+      quemAbriu?.focus?.();
+      quemAbriu = null;
+    }, ms);
   },
   /** Confirmação padrão para tudo que remove algo. */
   confirmar(titulo: string, mensagem: string, acao: () => void, botao = "Excluir") {
@@ -73,23 +105,27 @@ function Confirmacao({ mensagem, botao, acao }: { mensagem: string; botao: strin
 
 export function HospedeDeFolhas() {
   const a = useSyncExternalStore((f) => { ouvintes.add(f); return () => ouvintes.delete(f); }, () => atual);
+  const sai = useSyncExternalStore((f) => { ouvintes.add(f); return () => ouvintes.delete(f); }, () => saindo);
+  const aberta = !!a;
   useEffect(() => {
-    if (!a) return;
+    if (!aberta) return;
+    const soltar = trancarRolagem();
     const k = (e: KeyboardEvent) => e.key === "Escape" && folhas.fechar();
     window.addEventListener("keydown", k);
-    return () => window.removeEventListener("keydown", k);
-  }, [a]);
+    return () => { window.removeEventListener("keydown", k); soltar(); };
+  }, [aberta]);
   if (!a) return null;
   return (
     <>
-      <div className="veu-modal" onClick={folhas.fechar} />
-      <div className="folha" role="dialog" aria-label={a.titulo} key={a.id} style={{ ["--largura" as string]: a.largura + "px" }}>
+      <div className={"veu-modal" + (sai ? " saindo" : "")} onClick={folhas.fechar} />
+      <div className={"folha" + (sai ? " saindo" : "")} role="dialog" aria-modal="true" aria-label={a.titulo} key={a.id} style={{ ["--largura" as string]: a.largura + "px" }}>
+        <span className="alca" aria-hidden />
         <div className="folha-cabecalho">
           <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "var(--e1)" }}>
             <h2 className="display d-lg">{a.titulo}</h2>
             {a.descricao && <span className="t-sm c3">{a.descricao}</span>}
           </div>
-          <button className="icone-botao" style={{ width: 28, height: 28, marginTop: -2, marginRight: -4 }} aria-label="Fechar" onClick={folhas.fechar}><X size={12} /></button>
+          <button className="icone-botao" style={{ width: 28, height: 28, marginTop: -2, marginRight: -4 }} aria-label="Fechar" onClick={folhas.fechar}><X size={14} /></button>
         </div>
         <div className="folha-corpo">{a.conteudo}</div>
       </div>
@@ -240,10 +276,7 @@ export function EditorDeLista({ listaId }: { listaId: string }) {
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--e3)" }}>
         <div style={{ display: "flex", alignItems: "center" }}>
           <span className="rotulo" style={{ flex: 1 }}>Ícone</span>
-          <div className="segmentado">
-            <button aria-pressed={modo === "icone"} onClick={() => setModo("icone")}>Ícone</button>
-            <button aria-pressed={modo === "inicial"} onClick={() => setModo("inicial")}>Inicial</button>
-          </div>
+          <Segmentado rotulo="Ícone" valor={modo} aoMudar={setModo} opcoes={[["icone", "Ícone"], ["inicial", "Inicial"]]} />
         </div>
         {modo === "icone" ? <SeletorDeIcone selecionado={icone} cor={cor} aoEscolher={setIcone} /> : <span className="t-xs c3">Mostra a primeira letra do nome sobre a cor da lista.</span>}
       </div>

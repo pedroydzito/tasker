@@ -1,19 +1,48 @@
-import { Menu } from "./Menu";
 import { CriadorDeEtiqueta, HospedeDeFolhas, NovaLista, folhas } from "./folhas";
-import { useEffect, useRef, useState } from "react";
-import { Menu as IconeMenu, ArrowUp, CircleAlert, Trash2, Circle, Brain, CalendarDays, ChartGantt, Check, ChevronDown, CircleCheck, CircleUserRound, CloudOff, Download, Hash, Inbox, NotepadText, Plus, RefreshCw, Search, Settings, Sun, Sunrise, X } from "lucide-react";
+import { Suspense, lazy, useEffect, useRef, useState, type ComponentType } from "react";
+import { ChevronUp, ArrowUp, CircleAlert, Trash2, Circle, Brain, CalendarDays, ChartGantt, Check, ChevronDown, CircleCheck, CircleUserRound, CloudOff, Download, Hash, Inbox, NotepadText, Plus, RefreshCw, Search, Settings, Sun, Sunrise, X } from "lucide-react";
 import { usar } from "../dados/armazem";
-import { criarDoTexto } from "../dados/acoes";
+import { criarDoTexto, novaNota } from "../dados/acoes";
 import { desfazerAgora, textoDoAviso, useAviso } from "../dados/avisos";
 import { buscar, contagemHoje, corDaLista, etiquetasOrdenadas, indice, nomeDaLista } from "../dados/consultas";
 import { puxar } from "../dados/sync";
 import { diaISO, hojeISO, rotuloCurto, somarDias } from "../dados/util";
-import { Folha, LadrilhoLista } from "./comuns";
+import { LadrilhoLista, querMenosMovimento, useTrilho } from "./comuns";
 import { Inspetor } from "./Inspetor";
 import { abrirNota, irPara, selecionar, useRota, useSelecionada, type Rota } from "./rota";
-import {
-  TelaAjustes, TelaAmanha, TelaCalendario, TelaConcluidas, TelaDespejo, TelaEntrar, TelaEtiqueta, TelaHoje, TelaLista, TelaNotas, TelaProximas, TelaTodas,
-} from "./telas";
+import { TelaAmanha, TelaHoje } from "./hoje";
+
+// Telas que não são a de abertura chegam sob demanda (desempenho §3) — e são pedidas no
+// primeiro ocioso, para a troca de tela já encontrar o código na mão (§11.4).
+const telas = () => import("./telas");
+const preguicosa = <K extends keyof Awaited<ReturnType<typeof telas>>>(k: K) =>
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  lazy(() => telas().then((m) => ({ default: m[k] as unknown as ComponentType<any> })));
+const TelaAjustes = preguicosa("TelaAjustes") as ComponentType;
+const TelaCalendario = preguicosa("TelaCalendario") as ComponentType;
+const TelaConcluidas = preguicosa("TelaConcluidas") as ComponentType;
+const TelaDespejo = preguicosa("TelaDespejo") as ComponentType;
+const TelaEntrar = preguicosa("TelaEntrar") as ComponentType;
+const TelaProximas = preguicosa("TelaProximas") as ComponentType;
+const TelaTodas = preguicosa("TelaTodas") as ComponentType;
+const TelaEtiqueta = preguicosa("TelaEtiqueta") as ComponentType<{ id: string }>;
+const TelaLista = preguicosa("TelaLista") as ComponentType<{ id: string }>;
+const TelaNotas = preguicosa("TelaNotas") as ComponentType<{ id?: string }>;
+const CampoDespejo = preguicosa("CampoDespejo") as ComponentType;
+const Menu = lazy(() => import("./Menu").then((m) => ({ default: m.Menu })));
+if (typeof window !== "undefined") ("requestIdleCallback" in window ? requestIdleCallback : setTimeout)(() => void telas());
+
+/** Enquanto o código da tela chega: o formato do cabeçalho e de um cartão (§10.6). */
+function EsperaTela() {
+  return (
+    <div className="esqueleto-casca" style={{ height: "auto" }} aria-hidden>
+      <div className="esqueleto-conteudo" style={{ padding: 0, margin: 0 }}>
+        <i className="e-titulo" /><i className="e-sub" />
+        <div className="e-cartao"><i /><i /><i /></div>
+      </div>
+    </div>
+  );
+}
 
 const ITENS: { tela: Rota["tela"]; rotulo: string; I: typeof Sun }[] = [
   { tela: "hoje", rotulo: "Hoje", I: Sun },
@@ -157,23 +186,129 @@ function Lateral({ rota, aoBuscar }: { rota: Rota; aoBuscar: () => void }) {
   );
 }
 
-/** Navegação do celular: a pílula do menu do Mac (rótulo só no ativo) + o restante numa gaveta. */
-function NavPilula({ rota, aoAbrirMais }: { rota: Rota; aoAbrirMais: () => void }) {
-  const abas: [Rota["tela"], typeof Sun, string][] = [["hoje", Sun, "Hoje"], ["calendario", CalendarDays, "Calendário"], ["despejo", Brain, "Despejo"], ["notas", NotepadText, "Notas"]];
+/** Faixa do celular (§9.7): o símbolo leva ao início; a pessoa fica sempre na ponta direita. */
+function FaixaCelular() {
+  const avatar = usar((e) => e.avatar);
+  const nome = usar((e) => e.nome ?? e.email);
   return (
-    <nav className="nav-pilula" aria-label="Navegação">
-      {abas.map(([tela, I, rotulo]) => {
-        const ativa = rota.tela === tela || (tela === "notas" && rota.tela === "nota");
-        return (
-          <button key={tela} className={"aba-pilula" + (ativa ? " ativa" : "")} aria-label={rotulo} aria-current={ativa} onClick={() => irPara({ tela } as Rota)}>
-            <I size={16} strokeWidth={2.2} />
-            {ativa && <span className="t-sm p-semi">{rotulo}</span>}
+    <div className="faixa-celular">
+      <button className="sem-veu" aria-label="Ir para o início" onClick={() => irPara({ tela: "hoje" })}>
+        <span className="simbolo"><Check size={15} strokeWidth={4} /></span>
+      </button>
+      <span style={{ display: "flex", alignItems: "center", gap: "var(--e2)" }}>
+        <button className="icone-botao" aria-label="Buscar" onClick={() => abrirBusca()}><Search size={18} /></button>
+        <button className="icone-botao" aria-label="Conta e ajustes" title={nome ?? "Conta"} onClick={() => irPara({ tela: "ajustes" })} style={{ color: "var(--acento)" }}>
+          {avatar ? <img src={avatar} alt="" width={30} height={30} style={{ borderRadius: 999 }} /> : <CircleUserRound size={28} strokeWidth={1.8} fill="currentColor" stroke="var(--fundo)" />}
+        </button>
+      </span>
+    </div>
+  );
+}
+
+/** Ação principal da tela (§14.3): o "+" da pílula faz o que a tela atual cria. */
+function acaoPrincipal(rota: Rota): { rotulo: string; fazer: () => void } | null {
+  const hoje = hojeISO();
+  switch (rota.tela) {
+    case "ajustes": return null;
+    case "despejo": return { rotulo: "Despejar", fazer: () => folhas.abrir("Despejar", <CampoDespejo />) };
+    case "notas": case "nota": return { rotulo: "Nova nota", fazer: () => { abrirNota({ nota: novaNota() }); irPara({ tela: "notas" }); } };
+    default: {
+      const padrao = {
+        prazo: rota.tela === "hoje" ? hoje : rota.tela === "amanha" || rota.tela === "proximas" ? somarDias(hoje, 1) : null,
+        listaId: rota.tela === "lista" ? rota.id : null,
+        etiqueta: rota.tela === "etiqueta" ? rota.id : null,
+      };
+      return { rotulo: "Nova tarefa", fazer: () => folhas.abrir("Nova tarefa", <NovaTarefaFolha padrao={padrao} />) };
+    }
+  }
+}
+
+function NovaTarefaFolha({ padrao }: { padrao: { prazo: string | null; listaId: string | null; etiqueta: string | null } }) {
+  const [texto, setTexto] = useState("");
+  const criar = () => { if (texto.trim()) { criarDoTexto(texto, padrao); setTexto(""); } };
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "var(--e3)" }}>
+      <div className="campo-menu">
+        <Plus size={16} className="c3" />
+        <input autoFocus placeholder="Adicionar tarefa" aria-label="Adicionar tarefa" value={texto} enterKeyHint="done"
+          onChange={(e) => setTexto(e.target.value)} onKeyDown={(e) => e.key === "Enter" && criar()} />
+      </div>
+      <span className="t-xs c3">Entende hoje, amanhã, sexta, 30/10, ~lista e #etiqueta. Enter adiciona e deixa pronto para a próxima.</span>
+      <button className="botao m b-primario largo" disabled={!texto.trim()} onClick={criar}>Adicionar tarefa</button>
+    </div>
+  );
+}
+
+/** Navegação do celular (§9.6): pílula flutuante, três destinos fixos, "mais" e a ação da tela. */
+function NavCelular({ rota }: { rota: Rota }) {
+  const [aberto, setAberto] = useState(false);
+  const [saindo, setSaindo] = useState(false);
+  const e = usar((x) => x);
+  const fixos: [Rota["tela"], typeof Sun, string][] = [["hoje", Sun, "Hoje"], ["calendario", CalendarDays, "Calendário"], ["despejo", Brain, "Despejo"]];
+  const noFixo = fixos.some(([t]) => t === rota.tela);
+  const ref = useTrilho<HTMLElement>(rota.tela + String(aberto));
+  const acao = acaoPrincipal(rota);
+  const fechar = () => {
+    // Volta para o botão (150ms, o mesmo número do CSS) e só então desmonta.
+    setSaindo(true);
+    setTimeout(() => { setAberto(false); setSaindo(false); }, querMenosMovimento() ? 0 : 150);
+  };
+  useEffect(() => { setAberto(false); setSaindo(false); }, [rota]);
+  const ir = (r: Rota) => { irPara(r); };
+  const item = (r: Rota, I: typeof Sun, rotulo: string, extra?: React.ReactNode) => {
+    const atual = rota.tela === r.tela && (!("id" in r) || ("id" in rota && rota.id === r.id));
+    return (
+      <button key={rotulo + ("id" in r ? r.id : "")} className="item-menu sem-afundar pressionavel" aria-current={atual} onClick={() => ir(r)}>
+        {extra ?? <I size={18} strokeWidth={2.1} />}
+        <span className="uma-linha" style={{ flex: 1 }}>{rotulo}</span>
+      </button>
+    );
+  };
+  return (
+    <>
+      {aberto && <div className={"fundo-menu animar-fade-in" + (saindo ? " saindo" : "")} onClick={fechar} />}
+      <div className="nav-celular">
+        <nav ref={ref} className="com-trilho" aria-label="Navegação" style={{ ["--trilho-cor" as string]: "var(--superficie2)" }}>
+          <span className="trilho" />
+          {fixos.map(([tela, I, rotulo]) => {
+            const ativa = rota.tela === tela && !aberto;
+            return (
+              <button key={tela} className="item-nav sem-veu sem-afundar pressionavel" aria-label={rotulo} aria-current={ativa} onClick={() => irPara({ tela } as Rota)}>
+                <I size={19} strokeWidth={2.1} />
+                {ativa && <span>{rotulo}</span>}
+              </button>
+            );
+          })}
+          <button className="item-nav so-icone mais sem-veu sem-afundar pressionavel" aria-label="Mais telas" aria-expanded={aberto} aria-current={aberto || !noFixo}
+            onClick={() => (aberto ? fechar() : setAberto(true))}>
+            <ChevronUp size={20} strokeWidth={2.1} />
           </button>
-        );
-      })}
-      <span style={{ width: 1, height: 22, background: "var(--borda)", margin: "0 2px", alignSelf: "center" }} />
-      <button className="icone-botao" style={{ width: 40, height: 40 }} aria-label="Listas, etiquetas e ajustes" onClick={aoAbrirMais}><IconeMenu size={16} /></button>
-    </nav>
+          {acao && (
+            <>
+              <span className="sep-nav" />
+              <button className="item-nav so-icone acao sem-veu pressionavel" aria-label={acao.rotulo} title={acao.rotulo} onClick={acao.fazer}>
+                <Plus size={22} strokeWidth={2.5} />
+              </button>
+            </>
+          )}
+          {aberto && (
+            <div className={"menu-mais " + (saindo ? "volta-para-o-botao" : "brota-do-botao")} role="menu">
+              {item({ tela: "amanha" }, Sunrise, "Amanhã")}
+              {item({ tela: "proximas" }, ChartGantt, "Próximas")}
+              {item({ tela: "todas" }, Inbox, "Todas")}
+              {item({ tela: "concluidas" }, CircleCheck, "Concluídas")}
+              {item({ tela: "notas" }, NotepadText, "Notas")}
+              <span className="rotulo">Listas</span>
+              {e.listas.map((l) => item({ tela: "lista", id: l.id }, Inbox, nomeDaLista(e, l.id), <LadrilhoLista listaId={l.id} tamanho={22} />))}
+              {e.etiquetas.length > 0 && <span className="rotulo">Etiquetas</span>}
+              {etiquetasOrdenadas(e).map((g) => item({ tela: "etiqueta", id: g.id }, Hash, g.nome, <Hash size={16} strokeWidth={2.6} color={g.cor} />))}
+              <div style={{ height: 1, background: "var(--borda)", margin: "2px 0" }} />
+              {item({ tela: "ajustes" }, Settings, "Ajustes")}
+            </div>
+          )}
+        </nav>
+      </div>
+    </>
   );
 }
 
@@ -224,7 +359,8 @@ function CriacaoRapida({ rota }: { rota: Rota }) {
 }
 
 /** Busca única (⌘K, BuscaView.swift): setas escolhem, Enter abre. */
-function Busca({ aoFechar }: { aoFechar: () => void }) {
+function ConteudoBusca() {
+  const aoFechar = folhas.fechar;
   const [q, setQ] = useState("");
   const [escolhido, setEscolhido] = useState(0);
   const e = usar((x) => x);
@@ -250,7 +386,6 @@ function Busca({ aoFechar }: { aoFechar: () => void }) {
   };
   const Icone = (x: (typeof r)[number]) => (x.tipo === "tarefa" ? (x.concluida ? CircleCheck : Circle) : x.tipo === "nota" ? NotepadText : x.tipo === "despejo" ? Brain : CalendarDays);
   return (
-    <Folha titulo="Buscar" aoFechar={aoFechar} largura={560}>
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--e3)" }}>
         <div className="campo-busca">
           <Search size={15} strokeWidth={2.6} className="c3" />
@@ -287,9 +422,10 @@ function Busca({ aoFechar }: { aoFechar: () => void }) {
           </div>
         )}
       </div>
-    </Folha>
   );
 }
+
+export const abrirBusca = () => folhas.abrir("Buscar", <ConteudoBusca />, { largura: 560 });
 
 /** Aviso do rodapé (ToastDesfazer): "excluído — Desfazer" ou o sucesso com o ícone verde. */
 function Toast() {
@@ -387,13 +523,11 @@ export function App() {
   const modo = usar((e) => e.modo);
   const rota = useRota();
   const sel = useSelecionada();
-  const [busca, setBusca] = useState(false);
-  const [gaveta, setGaveta] = useState(false);
   useEffect(() => {
     const k = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        setBusca((b) => !b);
+        abrirBusca();
       }
     };
     window.addEventListener("keydown", k);
@@ -401,29 +535,33 @@ export function App() {
   }, []);
   // Troca de tela fecha o inspetor da tela anterior.
   useEffect(() => () => selecionar(null), [rota]);
-  useEffect(() => setGaveta(false), [rota]);
 
   if (modo === "carregando") return null;
-  if (modo === "entrar") return <TelaEntrar />;
-  if (rota.tela === "menu") return <Menu />;
+  if (modo === "entrar") return <Suspense fallback={null}><TelaEntrar /></Suspense>;
+  if (rota.tela === "menu") return <Suspense fallback={null}><Menu /></Suspense>;
   return (
     <div className="casca">
-      <Lateral rota={rota} aoBuscar={() => setBusca(true)} />
+      <Lateral rota={rota} aoBuscar={abrirBusca} />
       <main className="principal">
-        <div className={"pagina" + (TELA_CHEIA.includes(rota.tela) ? " cheia" : "")}>
-          {TELA_CHEIA.includes(rota.tela) ? <Tela rota={rota} /> : (
+        {/* key: a tela nova monta de novo e a entrada roda a cada troca (§9.3). */}
+        <div key={rota.tela + ("id" in rota ? rota.id : "")} className={"pagina animar-tela" + (TELA_CHEIA.includes(rota.tela) ? " cheia" : "")}>
+          {TELA_CHEIA.includes(rota.tela) ? (
+            <>
+              <div className="faixa-solta"><FaixaCelular /></div>
+              <Suspense fallback={null}><Tela rota={rota} /></Suspense>
+            </>
+          ) : (
             <div className="pagina-conteudo">
+              <FaixaCelular />
               <AvisoInstalar />
-              <Tela rota={rota} />
+              <Suspense fallback={<EsperaTela />}><Tela rota={rota} /></Suspense>
             </div>
           )}
         </div>
         <CriacaoRapida rota={rota} />
         {sel && <Inspetor key={sel} id={sel} />}
       </main>
-      <NavPilula rota={rota} aoAbrirMais={() => setGaveta(true)} />
-      {gaveta && <><div className="veu-modal" onClick={() => setGaveta(false)} /><div className="gaveta" onClick={(e) => (e.target as HTMLElement).closest("button.item-lateral, .rodape-lateral button") && setGaveta(false)}><Lateral rota={rota} aoBuscar={() => { setGaveta(false); setBusca(true); }} /></div></>}
-      {busca && <Busca aoFechar={() => setBusca(false)} />}
+      <NavCelular rota={rota} />
       <Toast />
       <HospedeDeFolhas />
     </div>

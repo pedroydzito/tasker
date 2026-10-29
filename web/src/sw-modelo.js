@@ -6,12 +6,13 @@ const VERSAO = "tasker-__VERSAO__";
 const CASCA = __ARQUIVOS__;
 
 self.addEventListener("install", (e) => {
-  e.waitUntil(caches.open(VERSAO).then((c) => c.addAll(CASCA)));
+  // Um arquivo que falhe não derruba a instalação inteira (§8.7): cada um é tentado sozinho.
+  e.waitUntil(caches.open(VERSAO).then((c) => Promise.all(CASCA.map((u) => c.add(u).catch(() => {})))));
 });
 
 self.addEventListener("activate", (e) => {
   e.waitUntil(
-    caches.keys().then((ks) => Promise.all(ks.filter((k) => k.startsWith("tasker-") && k !== VERSAO).map((k) => caches.delete(k)))).then(() => self.clients.claim()),
+    caches.keys().then((ks) => Promise.all(ks.filter((k) => k.startsWith("tasker-") && k !== VERSAO).map((k) => caches.delete(k)))).then(() => self.clients.claim()).catch(() => {}),
   );
 });
 
@@ -25,10 +26,25 @@ self.addEventListener("fetch", (e) => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return; // Supabase, Google: sempre rede
   if (req.mode === "navigate") {
+    // A casca guardada responde NA HORA (a abertura não espera a rede); a rede atualiza o cache
+    // atrás, e a próxima abertura já vem nova. Resposta redirecionada nunca entra no cache.
     e.respondWith(
-      fetch(req)
-        .then((r) => (r.ok && !r.redirected ? r : caches.match("./index.html").then((c) => c || r)))
-        .catch(() => caches.match("./index.html", { ignoreSearch: true })),
+      caches.match("./index.html").then((guardada) => {
+        const daRede = fetch(req)
+          .then((r) => {
+            if (r.ok && !r.redirected && r.type === "basic") {
+              const copia = r.clone();
+              caches.open(VERSAO).then((c) => c.put("./index.html", copia)).catch(() => {});
+            }
+            return r;
+          })
+          .catch(() => guardada);
+        if (guardada) {
+          e.waitUntil(daRede.catch(() => {}));
+          return guardada;
+        }
+        return daRede;
+      }),
     );
     return;
   }

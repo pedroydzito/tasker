@@ -1,0 +1,299 @@
+/* Camada do design system (appdocs/design-system.md): interação, movimento, moldura e
+   navegação. As cores, raios e tamanhos do app (base.css, iguais aos do Mac) não mudam aqui —
+   aqui entra o PADRÃO: todo clicável responde, todo ícone reage, toda tela tem a mesma margem,
+   a mesma navegação no celular e a mesma coreografia de entrada. */
+
+:root {
+  /* §6.1 — além das durações do app */
+  --toque: 80ms;
+  /* §9.9 — camadas com nome, nada de número solto */
+  --z-nav: 40;
+  --z-menu-fundo: 30;
+  --z-dropdown: 50;
+  --z-avisos: 70;
+  --z-folha: 80;
+  /* §9.6 — 44px do item + 6px em cima e embaixo + 12px de folga */
+  --altura-nav: 4.75rem;
+  /* §9.2 — margem da página: a mesma em toda tela */
+  --pagina-x: 1.25rem;
+  --pagina-y: 1.75rem;
+  --veu-menu: color-mix(in srgb, #000 5%, transparent);
+}
+:root[data-tema="escuro"] { --veu-menu: color-mix(in srgb, #000 20%, transparent); }
+
+/* §5.2 — a largura útil não salta entre tela curta e tela longa */
+html, .pagina { scrollbar-gutter: stable; }
+html { -webkit-tap-highlight-color: transparent; }
+
+/* §7.5 — cursor e alvo */
+button:not(:disabled), [role="button"], label:has(> input[type="file"]), summary, a[href] { cursor: pointer; }
+button:disabled, [aria-disabled="true"] { cursor: not-allowed; }
+
+/* §7.4 — foco só no teclado */
+:focus-visible { outline: 2px solid var(--acento); outline-offset: 2px; border-radius: 4px; }
+input:focus-visible, textarea:focus-visible { outline: none; }
+
+/* ===== §7.1 O piso: todo controle responde ao ponteiro e ao toque ===== */
+@media (prefers-reduced-motion: no-preference) {
+  :is(button, [role="button"], summary, label[for], a[href], .pressionavel, .interativo):not(:disabled, [aria-disabled="true"]) {
+    transition-property: transform, opacity, background-color, background-image, color, border-color, box-shadow;
+    transition-duration: var(--rapido);
+    transition-timing-function: var(--curva);
+  }
+  /* Quem não tem gesto próprio afunda 3%. */
+  :is(button, [role="button"], summary, label[for], a[href]):not(:disabled, [aria-disabled="true"], .interativo, .pressionavel, .sem-afundar):active {
+    transform: scale(0.97);
+    transition-duration: var(--toque);
+  }
+  .pressionavel:active:not(:disabled) { transform: scale(0.94); transition-duration: var(--toque); }
+  .botao:active:not(:disabled) { transform: scale(0.98); }
+  .linha-tarefa:active, .linha-nota:active, .linha-pilha:active, .resultado:active { transform: scale(0.995); transition-duration: var(--toque); }
+}
+@media (hover: hover) {
+  :is(button, [role="button"], summary, label[for], a[href]):not(:disabled, [aria-disabled="true"], .sem-veu):hover {
+    background-image: linear-gradient(var(--veu-hover), var(--veu-hover));
+  }
+}
+:is(button, [role="button"], summary, label[for], a[href]):not(:disabled, [aria-disabled="true"], .sem-veu):active {
+  background-image: linear-gradient(var(--veu-ativo), var(--veu-ativo));
+}
+/* No celular o hover gruda depois do toque: nada de hover fora de (hover: hover). */
+@media (hover: none) {
+  .linha-tarefa:hover, .linha-nota:hover, .linha-pilha:hover, .linha-sub:hover, .item-lateral:hover,
+  .icone-botao:hover, .b-fantasma:hover, .veu:hover, .opcao-lista:hover, .dia-mes:hover, .sync:hover, .pasta-cabecalho:hover { background-color: transparent; }
+  .afunda:hover { transform: none; filter: none; }
+}
+
+/* ===== §7.3 Ícones que reagem ===== */
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  :is(button, [role="button"], a[href], label):not(:disabled) > svg:only-child { transition: transform var(--rapido) var(--curva); }
+  :is(button, [role="button"], a[href], label):not(:disabled):hover > svg:only-child { transform: scale(1.12); }
+  /* Gestos nomeados: saem do rótulo do botão, não de uma marcação por botão. */
+  :is([aria-label^="Excluir" i], [aria-label^="Apagar" i], [aria-label^="Remover" i], [title^="Excluir" i], [title^="Apagar" i], [data-icone="lixeira"]):hover > svg:only-child { animation: tampa-lixeira 420ms var(--curva); }
+  :is([aria-label^="Editar" i], [aria-label^="Renomear" i], [title^="Editar" i], [data-icone="editar"]):hover > svg:only-child { animation: rabiscar 460ms var(--curva); }
+  :is([aria-label^="Fechar" i], [title^="Fechar" i]):hover > svg:only-child { transform: rotate(12deg); }
+  :is([aria-label^="Buscar" i], [data-icone="buscar"]):hover > svg:only-child, .botao-busca:hover .icone svg { transform: scale(1.1) rotate(-6deg); }
+  :is([aria-label^="Nov" i], [aria-label^="Criar" i], [aria-label^="Adicionar" i], [data-icone="criar"]):hover > svg:only-child { transform: rotate(12deg) scale(1.06); }
+  :is([aria-label^="Voltar" i]):hover > svg:only-child { transform: translateX(-2px); }
+  :is([aria-label^="Avançar" i], [aria-label^="Próxim" i]):hover > svg:only-child { transform: translateX(2px); }
+  :is([aria-label^="Enviar" i], [aria-label^="Abrir" i], [title^="Abrir" i], [aria-label^="Exportar" i]):hover > svg:only-child { transform: translate(2px, -2px) scale(1.06); }
+  :is([aria-label^="Sincronizar" i], [title^="Sincronizar" i]):hover svg { transform: rotate(-30deg); }
+  :is([aria-label*="lembrete" i], [data-icone="sino"]):hover > svg:only-child { animation: balancar-sino 620ms var(--curva); }
+}
+:is(button, [role="button"], a[href]):not(:disabled):active > svg:only-child { transform: scale(0.9); }
+@keyframes tampa-lixeira { 30% { transform: rotate(-12deg) translateY(-1px); } 60% { transform: rotate(6deg); } 100% { transform: none; } }
+@keyframes rabiscar { 25% { transform: translate(1.5px, -1.5px) rotate(-8deg); } 55% { transform: translate(-1px, 1px) rotate(6deg); } 100% { transform: none; } }
+@keyframes balancar-sino { 15% { transform: rotate(-14deg); } 35% { transform: rotate(11deg); } 55% { transform: rotate(-7deg); } 75% { transform: rotate(4deg); } 100% { transform: none; } }
+
+/* Miniatura cresce devagar dentro da moldura (§7.3) */
+.zoom-suave { overflow: hidden; }
+.zoom-suave img { transition: transform var(--normal) var(--curva); }
+@media (hover: hover) { .zoom-suave:hover img { transform: scale(1.045); } }
+
+/* ===== §6 Movimento: entrada sempre com `backwards` (o último quadro nunca fica aplicado) ===== */
+@keyframes entrar-tela { from { opacity: 0; transform: translateY(8px); } }
+@keyframes entrar-encadeado { from { opacity: 0; transform: translateY(10px); } }
+@keyframes surgir { from { opacity: 0; transform: translateY(10px); } }
+@keyframes surgir-baixo { from { opacity: 0; transform: translateY(10px) scale(0.95); } }
+@keyframes sumir { to { opacity: 0; } }
+@keyframes folha-sobe { from { opacity: 0; transform: translateY(100%); } }
+@keyframes folha-desce { to { opacity: 0; transform: translateY(100%); } }
+@keyframes subir-folha { from { opacity: 0; transform: translateY(24px) scale(0.985); } }
+@keyframes folha-some { to { opacity: 0; transform: translateY(10px); } }
+@keyframes brotar-do-canto { from { opacity: 0; transform: scale(0.82) translateY(8px); } }
+@keyframes voltar-para-o-canto { to { opacity: 0; transform: scale(0.86) translateY(6px); } }
+@keyframes vazio-entrando { from { opacity: 0; transform: translateY(10px) scale(0.9); } }
+@keyframes vazio-boiando { 50% { transform: translateY(-2px) scale(1.05); } }
+@keyframes respirar-contador { 40% { transform: scale(1.16); color: var(--acento-texto); } }
+@keyframes crescer-da-base { from { transform: scaleY(0); } }
+@keyframes entrar-painel { from { opacity: 0; transform: translateX(calc(28px * var(--sentido, 1))); } }
+@keyframes fadeIn { from { opacity: 0; } }
+
+/* A tela nova entra subindo 8px; com blocos encadeados, só os blocos animam (48ms entre eles). */
+.animar-tela { animation: entrar-tela 180ms var(--curva) backwards; }
+.animar-tela:has([data-encadeado]) { animation: none; }
+.animar-tela [data-encadeado] { animation: entrar-encadeado var(--normal) var(--curva) backwards; animation-delay: calc(var(--i, 0) * 48ms); }
+.entrar { animation: entrar-encadeado var(--normal) var(--curva) backwards; }
+.entrar-2 { animation: entrar-encadeado var(--normal) var(--curva) 48ms backwards; }
+.animar-surgir { animation: surgir 400ms cubic-bezier(0.16, 1, 0.3, 1) backwards; }
+.animar-fade-in { animation: fadeIn 200ms ease-out backwards; }
+.brota-do-botao { animation: brotar-do-canto 200ms var(--curva) backwards; transform-origin: bottom right; }
+.volta-para-o-botao { animation: voltar-para-o-canto 150ms var(--curva-saida) forwards; transform-origin: bottom right; }
+.respira-contador { display: inline-block; animation: respirar-contador 620ms var(--curva); }
+.troca-painel { animation: entrar-painel 260ms var(--curva) backwards; }
+.cartao-linhas.entrar { animation: entrar-encadeado var(--normal) var(--curva) backwards; }
+/* Linhas que chegam numa lista já na tela */
+.linha-tarefa { animation: surgir-baixo 200ms var(--curva) backwards; }
+.animar-tela .linha-tarefa { animation: none; }
+
+/* §6.3 — o título encolhe conforme a página rola (sem JavaScript, só onde existe) */
+@supports (animation-timeline: scroll()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .cabecalho-encolhe {
+      animation: encolher-cabecalho linear both;
+      animation-timeline: scroll(nearest);
+      animation-range: 0 220px;
+      transform-origin: left top;
+    }
+  }
+}
+@keyframes encolher-cabecalho { to { transform: scale(0.72); opacity: 0.55; } }
+
+/* §8.11 — estado vazio entra e boia */
+.estado-vazio { padding: 56px var(--e6); text-align: center; }
+.estado-vazio > svg:first-child { animation: vazio-entrando 400ms var(--curva) backwards, vazio-boiando 3.2s ease-in-out 400ms infinite; }
+
+/* §6.5 — movimento reduzido: tudo instantâneo, nada se move */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ===== §8.5 Trilho: o fundo do ativo viaja de um item para o outro ===== */
+.com-trilho { position: relative; isolation: isolate; }
+.trilho {
+  position: absolute; left: 0; top: 0; z-index: -1; pointer-events: none;
+  transition: transform var(--normal) var(--curva), width var(--normal) var(--curva), height var(--normal) var(--curva), opacity var(--rapido);
+}
+.com-trilho:not([data-trilho-pronto]) > [aria-pressed="true"], .com-trilho:not([data-trilho-pronto]) > [aria-current="true"] { background: var(--trilho-cor); }
+.segmentado.com-trilho > button[aria-pressed="true"] { background: transparent; box-shadow: none; }
+.segmentado.com-trilho:not([data-trilho-pronto]) > button[aria-pressed="true"] { background: var(--superficie); }
+.segmentado > .trilho { background: var(--superficie); border-radius: 999px; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06); }
+.segmentado > button { position: relative; }
+
+/* ===== §9.6 Navegação do celular: pílula flutuante, medidas exatas ===== */
+.nav-celular { display: none; }
+@media (max-width: 760px) {
+  .nav-celular {
+    display: flex; position: fixed; inset-inline: 0; bottom: 0; z-index: var(--z-nav); justify-content: center;
+    padding: 0 var(--e4) calc(12px + env(safe-area-inset-bottom)); pointer-events: none;
+  }
+  .nav-celular > nav {
+    pointer-events: auto; position: relative; display: flex; align-items: center; gap: var(--e1); padding: 6px;
+    border-radius: 999px; border: 1px solid var(--borda); box-shadow: var(--sombra-alta);
+    background: color-mix(in srgb, var(--superficie) 82%, transparent);
+    backdrop-filter: blur(24px) saturate(1.4); -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  }
+  .nav-celular .trilho { background: var(--superficie2); border-radius: 999px; }
+  .item-nav {
+    display: flex; align-items: center; gap: var(--e2); height: 44px; padding: 0 var(--e4); border-radius: 999px;
+    font-size: var(--t-sm); font-weight: 600; color: var(--texto3); white-space: nowrap;
+  }
+  .item-nav[aria-current="true"] { color: var(--texto); }
+  .item-nav[aria-current="true"] svg { color: var(--acento); }
+  .item-nav.so-icone { width: 44px; padding: 0; justify-content: center; }
+  .item-nav.mais svg { transition: transform var(--normal) var(--curva); }
+  .item-nav.mais[aria-expanded="true"] svg { transform: rotate(180deg); }
+  .item-nav.acao { color: var(--texto); }
+  .sep-nav { width: 1px; height: 24px; margin: 0 2px; background: var(--borda); flex: none; }
+  .menu-mais {
+    position: absolute; bottom: calc(100% + 12px); right: 0; width: 15rem; max-height: min(60dvh, 30rem); overflow: auto;
+    display: flex; flex-direction: column; gap: var(--e1); padding: 6px; border-radius: var(--raio-g); border: 1px solid var(--borda);
+    box-shadow: var(--sombra-alta); background: color-mix(in srgb, var(--superficie) 92%, transparent);
+    backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); scrollbar-width: none;
+  }
+  .menu-mais .item-menu {
+    display: flex; align-items: center; gap: var(--e3); min-height: 44px; padding: 0 var(--e3); border-radius: var(--raio-m);
+    font-size: var(--t-sm); font-weight: 600; color: var(--texto2); text-align: left; width: 100%;
+  }
+  .menu-mais .item-menu[aria-current="true"] { background: var(--superficie2); color: var(--texto); }
+  .menu-mais .item-menu[aria-current="true"] > svg { color: var(--acento); }
+  .menu-mais .rotulo { padding: var(--e2) var(--e3) 2px; }
+  .fundo-menu { position: fixed; inset: 0; z-index: var(--z-menu-fundo); background: var(--veu-menu); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
+}
+
+/* ===== §9.2 / §9.7 Moldura da página no celular: a mesma em toda tela ===== */
+.faixa-celular { display: none; }
+@media (max-width: 760px) {
+  .lateral, .barra-flutuante, .nav-pilula { display: none !important; }
+  .pagina-conteudo {
+    max-width: none; gap: var(--e6);
+    padding: calc(var(--pagina-y) + env(safe-area-inset-top)) var(--pagina-x) calc(var(--altura-nav) + env(safe-area-inset-bottom) + var(--e8));
+  }
+  .faixa-celular { display: flex; align-items: center; justify-content: space-between; gap: var(--e2); }
+  .faixa-celular .simbolo { width: 30px; height: 30px; border-radius: 8.4px; }
+  /* Título de tela: um tamanho só no celular, e o rótulo logo abaixo, como no Mac. */
+  .cabecalho-tela h1 { font-size: var(--t-display); }
+  .cabecalho-tela { min-height: 52px; }
+  /* Alvo de toque de 44px (§7.5): cresce o alvo, não o ícone. */
+  .icone-botao { width: 44px; height: 44px; }
+  .linha-tarefa, .linha-tarefa.compacta { min-height: 52px; padding-top: 12px; padding-bottom: 12px; }
+  .item-lateral { min-height: 44px; }
+  .botao { height: 40px; }
+  .botao.m { height: 44px; }
+  /* Segmentado: altura de botão e linha inteira (§5.3). */
+  .segmentado { display: flex; width: 100%; align-self: stretch !important; }
+  .segmentado > button { flex: 1; height: 38px; }
+  .chave { width: 48px; height: 28px; }
+  .chave::after { width: 24px; height: 24px; }
+  .chave[aria-checked="true"]::after { transform: translateX(20px); }
+  .toast { bottom: calc(var(--altura-nav) + env(safe-area-inset-bottom) + var(--e3)); }
+  /* §4.4 — o iOS não dá zoom ao focar um campo */
+  input, textarea, select { font-size: max(16px, 1em) !important; }
+}
+
+/* ===== §8.4 Folha: subindo no celular, centrada a partir do tablet ===== */
+.veu-modal { z-index: var(--z-folha); backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); animation: fadeIn 200ms ease-out backwards; }
+.veu-modal.saindo { animation: sumir 160ms var(--curva-saida) forwards; }
+.folha { z-index: calc(var(--z-folha) + 1); animation: subir-folha 240ms var(--curva) backwards; transform: translate(-50%, -50%); }
+@keyframes subir-folha-centro { from { opacity: 0; transform: translate(-50%, calc(-50% + 24px)) scale(0.985); } }
+.folha { animation-name: subir-folha-centro; }
+.folha.saindo { animation: folha-some-centro 160ms var(--curva-saida) forwards; }
+@keyframes folha-some-centro { to { opacity: 0; transform: translate(-50%, calc(-50% + 10px)); } }
+.folha .alca { display: none; }
+@media (max-width: 760px) {
+  .folha {
+    left: 0; right: 0; top: auto; bottom: 0; width: 100%; max-width: none; max-height: 85dvh; transform: none;
+    border-radius: var(--raio-cartao) var(--raio-cartao) 0 0; border-bottom: 0; padding-bottom: env(safe-area-inset-bottom);
+    animation: folha-sobe 280ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  }
+  .folha.saindo { animation: folha-desce 200ms var(--curva-saida) forwards; }
+  .folha .alca { display: block; width: 40px; height: 4px; border-radius: 999px; background: var(--borda-forte); margin: 10px auto 2px; flex: none; }
+}
+.toast { z-index: var(--z-avisos); animation: surgir-baixo 200ms cubic-bezier(0.16, 1, 0.3, 1) backwards; }
+.toast.saindo { animation: sumir 160ms var(--curva-saida) forwards; }
+.dropdown-listas { animation: surgir-baixo 200ms var(--curva) backwards; }
+
+/* ===== Detalhe no celular: uma tela, com voltar à esquerda (§10.2) ===== */
+.so-celular { display: none; }
+@media (max-width: 760px) {
+  .so-celular { display: inline-flex; }
+  .so-desktop { display: none !important; }
+  .inspetor { animation: entrar-painel 260ms var(--curva) backwards; padding-top: env(safe-area-inset-top); }
+}
+
+/* ===== Telas de colunas próprias (Calendário, Notas) no celular ===== */
+@media (max-width: 760px) {
+  .pagina.cheia { overflow: auto; display: block; }
+  .tela-calendario { flex-direction: column; height: auto !important; }
+  .tela-calendario > .pagina { overflow: visible; padding: calc(var(--pagina-y) + env(safe-area-inset-top)) var(--pagina-x) var(--e4) !important; }
+  .agenda-dia { display: flex !important; width: auto; border: 0; background: none; padding: 0 var(--pagina-x) calc(var(--altura-nav) + env(safe-area-inset-bottom) + var(--e8)); }
+  .tela-calendario .dia-cal { padding: 4px; }
+  .tela-notas { height: auto !important; }
+  .lista-notas { width: 100%; border: 0; background: none; }
+  .lista-notas > div:first-child { padding: calc(var(--pagina-y) + env(safe-area-inset-top)) var(--pagina-x) var(--e4) !important; }
+  .lista-notas > div:last-child { padding: 0 calc(var(--pagina-x) - 10px) calc(var(--altura-nav) + env(safe-area-inset-bottom) + var(--e8)) !important; overflow: visible !important; }
+  .editor-nota { position: fixed; inset: 0; z-index: calc(var(--z-nav) + 1); padding-top: env(safe-area-inset-top); animation: entrar-painel 260ms var(--curva) backwards; }
+  .tela-notas:not([data-editando]) .editor-nota { display: none; }
+}
+
+/* Um ritmo só entre os blocos de qualquer tela no celular (§5.1: 24px entre blocos). */
+@media (max-width: 760px) {
+  .bloco-tela { gap: var(--e6) !important; }
+  .faixa-solta { padding: calc(var(--pagina-y) + env(safe-area-inset-top)) var(--pagina-x) 0; }
+  .tela-calendario > .pagina { padding-top: var(--e6) !important; }
+  .lista-notas > div:first-child { padding-top: var(--e6) !important; }
+}
+@media (max-width: 760px) {
+  .lista-notas h1 { font-size: var(--t-display); }
+  .inspetor > div:nth-child(2) { padding-bottom: calc(var(--altura-nav) + env(safe-area-inset-bottom) + var(--e8)) !important; }
+  .editor-nota > div:last-child { padding-bottom: calc(var(--e8) + env(safe-area-inset-bottom)) !important; }
+  /* Concluídas: os números em cima, o período numa linha inteira embaixo. */
+  .resumo-topo { flex-wrap: wrap; row-gap: var(--e4); }
+  .resumo-topo > .segmentado { order: 3; }
+  .grafico-x span:nth-child(even) { visibility: hidden; }
+}

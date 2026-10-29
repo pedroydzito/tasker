@@ -126,13 +126,30 @@ h1, h2, h3, p { margin: 0; }
 .riscado { text-decoration: line-through; text-decoration-color: var(--texto3); }
 .uma-linha { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 
-/* Esqueleto da casca (antes do JS) */
+/* Esqueleto da casca (antes do JS): o formato da tela que vai chegar (design system §8.10). */
 .esqueleto-casca { display: flex; height: 100%; }
-.esqueleto-lateral { width: 256px; border-right: 1px solid var(--borda); }
-.esqueleto-conteudo { flex: 1; padding: 44px 40px; max-width: 880px; display: flex; flex-direction: column; gap: 14px; }
-.esqueleto-conteudo div { height: 44px; border-radius: var(--raio-cartao); background: var(--superficie2); }
-.esqueleto-conteudo div:first-child { width: 160px; height: 32px; }
-@media (max-width: 720px) { .esqueleto-lateral { display: none; } .esqueleto-conteudo { padding: 24px 16px; } }
+.esqueleto-casca i { display: block; border-radius: var(--raio-m); background: var(--superficie2); position: relative; overflow: hidden; }
+.esqueleto-casca i::after { content: ""; position: absolute; inset: 0; transform: translateX(-100%); background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--texto) 6%, transparent), transparent); animation: brilho 1.6s infinite; }
+@keyframes brilho { to { transform: translateX(100%); } }
+.esqueleto-lateral { width: 256px; flex: none; border-right: 1px solid var(--borda); padding: 40px 12px; display: flex; flex-direction: column; gap: 10px; }
+.esqueleto-lateral i { height: 26px; margin: 0 10px; }
+.esqueleto-lateral .e-marca { width: 110px; height: 24px; margin-bottom: 20px; }
+.esqueleto-conteudo { flex: 1; max-width: 880px; margin: 0 auto; padding: 44px 40px; display: flex; flex-direction: column; gap: 10px; }
+.esqueleto-conteudo .e-titulo { width: 140px; height: 32px; }
+.esqueleto-conteudo .e-sub { width: 240px; height: 14px; margin-bottom: 14px; }
+.e-cartao { border: 1px solid var(--borda); background: var(--superficie); border-radius: var(--raio-cartao); padding: 12px; display: flex; flex-direction: column; gap: 14px; }
+.e-cartao i { height: 18px; }
+.e-cartao i:nth-child(2) { width: 70%; }
+.e-cartao i:nth-child(3) { width: 55%; }
+.e-faixa, .e-pilula { display: none; }
+@media (max-width: 760px) {
+  .esqueleto-lateral { display: none; }
+  .esqueleto-conteudo { padding: calc(1.75rem + env(safe-area-inset-top)) 1.25rem; gap: 10px; }
+  .e-faixa { display: flex; justify-content: space-between; margin-bottom: 14px; }
+  .e-faixa i { width: 30px; height: 30px; border-radius: 9px; }
+  .e-faixa i:last-child { border-radius: 999px; }
+  .e-pilula { display: block; position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(12px + env(safe-area-inset-bottom)); width: 250px; height: 58px; border-radius: 999px; background: var(--superficie); border: 1px solid var(--borda); }
+}
 
 /* Véu de hover + toque (o mesmo do app Mac) */
 .veu { position: relative; border-radius: var(--raio-m); transition: background-color var(--rapido) var(--curva), transform 80ms var(--curva); }
@@ -398,7 +415,6 @@ h1, h2, h3, p { margin: 0; }
 @media (max-width: 760px) {
   .agenda-dia { display: none; }
   .lista-notas { width: 100%; }
-  .lista-notas + .editor-nota { display: none; }
 }
 .campo-despejo { display: flex; align-items: flex-start; gap: var(--e3); padding: 11px var(--e3) 11px var(--e4); border-radius: var(--raio-m); background: var(--superficie2); }
 .campo-despejo textarea { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; resize: none; font-size: var(--t-md); line-height: 22px; color: var(--texto); padding: 0; }
@@ -419,7 +435,8 @@ h1, h2, h3, p { margin: 0; }
 .grafico-area { flex: 1; position: relative; display: flex; flex-direction: column; }
 .grafico-linha { position: absolute; left: 0; right: 0; height: 1px; background: var(--borda); }
 .grafico-barras { flex: 1; display: flex; align-items: flex-end; position: relative; }
-.grafico-coluna { flex: 1; height: 100%; position: relative; z-index: 1; display: flex; flex-direction: column; justify-content: flex-end; padding: 0 8%; border-left: 1px solid var(--borda); }
+.grafico-coluna { flex: 1; min-width: 0; height: 100%; position: relative; z-index: 1; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; border-left: 1px solid var(--borda); }
+.grafico-coluna > div { transform-origin: bottom; animation: crescer-da-base 520ms var(--curva) backwards; animation-delay: calc(min(var(--i, 0), 12) * 55ms); }
 .grafico-x { display: flex; height: 22px; align-items: flex-end; }
 .grafico-x span { flex: 1; font-size: 10px; color: var(--texto3); padding-left: 2px; white-space: nowrap; }
 .dica-grafico { position: absolute; z-index: 3; min-width: 150px; display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; background: var(--superficie); border: 1px solid var(--borda); border-radius: var(--raio-m); box-shadow: var(--sombra-alta); pointer-events: none; }

@@ -1,6 +1,6 @@
 import { CriadorDeEtiqueta, folhas } from "./folhas";
 import { useEffect, useRef, useState } from "react";
-import { ArrowUpRight, CornerLeftUp, Download, Hash, Paperclip, Pause, Play, Plus, Trash2, X } from "lucide-react";
+import { ChevronLeft, ArrowUpRight, CornerLeftUp, Download, Hash, Paperclip, Pause, Play, Plus, Trash2, X } from "lucide-react";
 import { mesmaLista, usar } from "../dados/armazem";
 import { anexar, concluir, criarTarefa, definirEtiquetas, definirTempo, excluirTarefa, alternarCronometro, moverTarefa, removerAnexo, salvarTarefa } from "../dados/acoes";
 import { corDaLista, etiquetasOrdenadas, horarioDe, indice, notasVisiveis, tempoDe, tituloDe } from "../dados/consultas";
@@ -176,9 +176,10 @@ export function Inspetor({ id }: { id: string }) {
       onDragOver={(e) => { e.preventDefault(); setArrastando(true); }} onDragLeave={() => setArrastando(false)}
       onDrop={(e) => { e.preventDefault(); setArrastando(false); for (const f of Array.from(e.dataTransfer.files)) void anexar(id, f); }}>
       <div style={{ display: "flex", justifyContent: "flex-end", gap: "var(--e1)", padding: "16px 20px 12px" }}>
+        <button className="icone-botao so-celular" aria-label="Voltar" style={{ marginRight: "auto", marginLeft: -12 }} onClick={() => selecionar(null)}><ChevronLeft size={20} /></button>
         {t.link && <a className="icone-botao" href={t.link} target="_blank" rel="noreferrer" title="Abrir no Google" aria-label="Abrir no Google"><ArrowUpRight size={14} /></a>}
         <button className="icone-botao" title="Excluir tarefa" aria-label="Excluir tarefa" onClick={() => folhas.confirmar("Excluir tarefa", `“${tituloDe(t)}” será excluída. Dá para desfazer logo depois.`, () => { excluirTarefa(id); selecionar(null); })}><Trash2 size={14} /></button>
-        <button className="icone-botao" title="Fechar painel" aria-label="Fechar painel" onClick={() => selecionar(null)}><X size={14} /></button>
+        <button className="icone-botao so-desktop" title="Fechar painel" aria-label="Fechar painel" onClick={() => selecionar(null)}><X size={14} /></button>
       </div>
       <div style={{ flex: 1, overflow: "auto", padding: "12px 24px", display: "flex", flexDirection: "column", gap: "var(--e6)", scrollbarWidth: "none" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--e3)" }}>
