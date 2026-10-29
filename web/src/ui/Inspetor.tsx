@@ -1,7 +1,8 @@
+import { CriadorDeEtiqueta, folhas } from "./folhas";
 import { useEffect, useRef, useState } from "react";
 import { ArrowUpRight, CornerLeftUp, Download, Hash, Paperclip, Pause, Play, Plus, Trash2, X } from "lucide-react";
 import { mesmaLista, usar } from "../dados/armazem";
-import { anexar, concluir, criarTarefa, definirEtiquetas, definirTempo, excluirTarefa, alternarCronometro, moverTarefa, removerAnexo, salvarTarefa, criarEtiqueta } from "../dados/acoes";
+import { anexar, concluir, criarTarefa, definirEtiquetas, definirTempo, excluirTarefa, alternarCronometro, moverTarefa, removerAnexo, salvarTarefa } from "../dados/acoes";
 import { corDaLista, etiquetasOrdenadas, horarioDe, indice, notasVisiveis, tempoDe, tituloDe } from "../dados/consultas";
 import { lerArquivo } from "../dados/espelho";
 import { supabase } from "../dados/nuvem";
@@ -94,7 +95,7 @@ function Subtarefas({ maeId, listaId }: { maeId: string; listaId: string }) {
           <div key={f.id} className="linha-sub">
             <Circulo feito={f.concluida} cor={cor} aoClicar={() => concluir(f.id, !f.concluida)} />
             <button className="t-sm afunda" style={{ flex: 1, textAlign: "left", color: f.concluida ? "var(--texto3)" : "var(--texto)", textDecoration: f.concluida ? "line-through" : undefined }} onClick={() => selecionar(f.id)}>{tituloDe(f)}</button>
-            <button className="icone-botao some-sem-hover" aria-label="Excluir subtarefa" onClick={() => { if (confirm(`“${tituloDe(f)}” será excluída. Dá para desfazer logo depois.`)) excluirTarefa(f.id); }}><Trash2 size={13} /></button>
+            <button className="icone-botao some-sem-hover" aria-label="Excluir subtarefa" onClick={() => folhas.confirmar("Excluir subtarefa", `“${tituloDe(f)}” será excluída. Dá para desfazer logo depois.`, () => excluirTarefa(f.id))}><Trash2 size={13} /></button>
           </div>
         ))}
         <div style={{ display: "flex", alignItems: "center", gap: "var(--e3)", padding: filhas.length ? "9px 12px" : "4px 0" }} title="Enter adiciona e já deixa pronto para a próxima">
@@ -176,7 +177,7 @@ export function Inspetor({ id }: { id: string }) {
       onDrop={(e) => { e.preventDefault(); setArrastando(false); for (const f of Array.from(e.dataTransfer.files)) void anexar(id, f); }}>
       <div style={{ display: "flex", justifyContent: "flex-end", gap: "var(--e1)", padding: "16px 20px 12px" }}>
         {t.link && <a className="icone-botao" href={t.link} target="_blank" rel="noreferrer" title="Abrir no Google" aria-label="Abrir no Google"><ArrowUpRight size={14} /></a>}
-        <button className="icone-botao" title="Excluir tarefa" aria-label="Excluir tarefa" onClick={() => { if (confirm(`“${tituloDe(t)}” será excluída. Dá para desfazer logo depois.`)) { excluirTarefa(id); selecionar(null); } }}><Trash2 size={14} /></button>
+        <button className="icone-botao" title="Excluir tarefa" aria-label="Excluir tarefa" onClick={() => folhas.confirmar("Excluir tarefa", `“${tituloDe(t)}” será excluída. Dá para desfazer logo depois.`, () => { excluirTarefa(id); selecionar(null); })}><Trash2 size={14} /></button>
         <button className="icone-botao" title="Fechar painel" aria-label="Fechar painel" onClick={() => selecionar(null)}><X size={14} /></button>
       </div>
       <div style={{ flex: 1, overflow: "auto", padding: "12px 24px", display: "flex", flexDirection: "column", gap: "var(--e6)", scrollbarWidth: "none" }}>
@@ -212,7 +213,7 @@ export function Inspetor({ id }: { id: string }) {
                       </button>
                     ))}
                     {todas.length > 0 && <div style={{ height: 1, background: "var(--borda)", margin: "3px 0" }} />}
-                    <button className="opcao-lista t-sm" onClick={() => { const n = prompt("Nome da etiqueta"); if (n?.trim()) { const g = criarEtiqueta(n.trim().replace(/^#/, "")); mudar({ etiquetas: [...r.etiquetas, g.id] }); } setEtiquetasAbertas(false); }}>Nova etiqueta…</button>
+                    <button className="opcao-lista t-sm" onClick={() => { setEtiquetasAbertas(false); folhas.abrir("Nova etiqueta", <CriadorDeEtiqueta aoCriar={(g) => setR((x) => x && { ...x, etiquetas: [...x.etiquetas, g] })} />); }}>Nova etiqueta…</button>
                   </div>
                 )}
               </span>

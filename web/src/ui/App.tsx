@@ -1,7 +1,8 @@
+import { CriadorDeEtiqueta, HospedeDeFolhas, NovaLista, folhas } from "./folhas";
 import { useEffect, useRef, useState } from "react";
-import { ArrowUp, Circle, Brain, CalendarDays, ChartGantt, Check, ChevronDown, CircleCheck, CircleUserRound, CloudOff, Download, Hash, Inbox, NotepadText, Plus, RefreshCw, Search, Settings, Sun, Sunrise, X } from "lucide-react";
+import { ArrowUp, CircleAlert, Trash2, Circle, Brain, CalendarDays, ChartGantt, Check, ChevronDown, CircleCheck, CircleUserRound, CloudOff, Download, Hash, Inbox, NotepadText, Plus, RefreshCw, Search, Settings, Sun, Sunrise, X } from "lucide-react";
 import { usar } from "../dados/armazem";
-import { criarDoTexto, criarEtiqueta, criarLista } from "../dados/acoes";
+import { criarDoTexto } from "../dados/acoes";
 import { desfazerAgora, textoDoAviso, useAviso } from "../dados/avisos";
 import { buscar, contagemHoje, corDaLista, etiquetasOrdenadas, indice, nomeDaLista } from "../dados/consultas";
 import { puxar } from "../dados/sync";
@@ -133,12 +134,12 @@ function Lateral({ rota, aoBuscar }: { rota: Rota; aoBuscar: () => void }) {
         {ITENS.slice(0, 6).map(item)}
         <CabecalhoSecaoLateral titulo="Caderno" recolhida={cadernoFechado} alternar={alternarCaderno} />
         {!cadernoFechado && ITENS.slice(6).map(item)}
-        <CabecalhoSecaoLateral titulo="Listas" recolhida={listasFechadas} alternar={alternarListas} acao={() => { const n = prompt("Nome da nova lista"); if (n?.trim()) criarLista(n.trim()); }} />
+        <CabecalhoSecaoLateral titulo="Listas" recolhida={listasFechadas} alternar={alternarListas} acao={() => folhas.abrir("Nova lista", <NovaLista />, { largura: 420 })} />
         {!listasFechadas && e.listas.map((l) => (
           <ItemLateral key={l.id} ativo={rota.tela === "lista" && rota.id === l.id} tinta={corDaLista(e, l.id)} titulo={nomeDaLista(e, l.id)}
             contagem={ind.porLista.get(l.id)?.length ?? 0} icone={<LadrilhoLista listaId={l.id} tamanho={22} />} aoClicar={() => irPara({ tela: "lista", id: l.id })} />
         ))}
-        <CabecalhoSecaoLateral titulo="Etiquetas" recolhida={etiquetasFechadas} alternar={alternarEtiquetas} acao={() => { const n = prompt("Nome da nova etiqueta"); if (n?.trim()) { const g = criarEtiqueta(n.trim().replace(/^#/, "")); irPara({ tela: "etiqueta", id: g.id }); } }} />
+        <CabecalhoSecaoLateral titulo="Etiquetas" recolhida={etiquetasFechadas} alternar={alternarEtiquetas} acao={() => folhas.abrir("Nova etiqueta", <CriadorDeEtiqueta aoCriar={(id) => irPara({ tela: "etiqueta", id })} />)} />
         {!etiquetasFechadas && etiquetasOrdenadas(e).map((g) => (
           <ItemLateral key={g.id} ativo={rota.tela === "etiqueta" && rota.id === g.id} titulo={g.nome}
             contagem={ind.abertas.filter((t) => e.etiquetasDaTarefa[t.id]?.includes(g.id)).length}
@@ -283,13 +284,22 @@ function Busca({ aoFechar }: { aoFechar: () => void }) {
   );
 }
 
+/** Aviso do rodapé (ToastDesfazer): "excluído — Desfazer" ou o sucesso com o ícone verde. */
 function Toast() {
   const a = useAviso();
   if (!a) return null;
+  if (a.tipo === "desfazer")
+    return (
+      <div className="toast" role="status" key={a.id}>
+        <Trash2 size={12} strokeWidth={2.6} className="c3" />
+        <span className="t-sm p-medio uma-linha">{textoDoAviso(a)}</span>
+        <button className="botao b-fantasma" style={{ color: "var(--acento)", flex: "none" }} title="Desfazer a exclusão" onClick={desfazerAgora}>Desfazer</button>
+      </div>
+    );
   return (
-    <div className={"toast " + a.tipo} role="status">
-      <span className="t-sm" style={a.tipo === "erro" ? { color: "var(--perigo)" } : undefined}>{a.tipo === "sucesso" ? "✓ " : ""}{textoDoAviso(a)}</span>
-      {a.tipo === "desfazer" && <button className="botao b-superficie" onClick={desfazerAgora}>Desfazer</button>}
+    <div className="toast sucesso" role="status" key={a.id}>
+      {a.tipo === "erro" ? <CircleAlert size={13} strokeWidth={2.6} color="var(--perigo-texto)" /> : <CircleCheck size={13} strokeWidth={2.6} color="var(--sucesso)" />}
+      <span className="t-sm p-medio uma-linha">{textoDoAviso(a)}</span>
     </div>
   );
 }
@@ -389,6 +399,7 @@ function Menu() {
         {!ts.length && <div className="vazio t-sm c3">Nada por aqui.</div>}
       </div>
       <Toast />
+      <HospedeDeFolhas />
     </div>
   );
 }
@@ -432,6 +443,7 @@ export function App() {
       <NavPilula rota={rota} />
       {busca && <Busca aoFechar={() => setBusca(false)} />}
       <Toast />
+      <HospedeDeFolhas />
     </div>
   );
 }

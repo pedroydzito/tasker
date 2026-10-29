@@ -1,17 +1,19 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { ArchiveRestore, BadgeCheck, Brain, Check, CircleCheck, CircleX, Clock, Ellipsis, Hand, ImagePlus, Layers2, Zap, CalendarCheck, Circle, SquarePen, ArrowUpRight, ChevronLeft, ChevronRight, NotepadText, BatteryFull, BatteryLow, Calendar, ChevronDown, ChevronUp, Hash, ListChecks, Pencil, Plus, Sun, Sunrise, Trash2 } from "lucide-react";
+import { EditorDeEtiqueta, EditorDeLista, Nota, folhas } from "./folhas";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { CircleUserRound, HardDrive, Laptop, Paintbrush, Settings, ArchiveRestore, BadgeCheck, Brain, Check, CircleCheck, CircleX, Clock, Ellipsis, Hand, ImagePlus, Layers2, Zap, CalendarCheck, Circle, SquarePen, ArrowUpRight, ChevronLeft, ChevronRight, NotepadText, BatteryFull, BatteryLow, Calendar, ChevronDown, ChevronUp, Hash, ListChecks, Pencil, Plus, Sun, Sunrise, Trash2 } from "lucide-react";
 import { mesmaLista, usar } from "../dados/armazem";
 import {
   adiarAtrasadas, apagarDespejo, despejar, despejoParaNota, despejoParaTarefa, esvaziarNao, excluirNota, fazerAgora, guardarFoto,
-  moverDespejo, editarDespejo, resolverEtiquetas, descartarSeVazia, mudarPrefs, editarEtiqueta, criarDoTexto, novaNota, atualizarNota, escreverNoDia, revisaoDaSemana, tarefaDaLinha, criarLista, excluirLista, renomearLista,
+  moverDespejo, criarTarefa, editarDespejo, resolverEtiquetas, descartarSeVazia, mudarPrefs, criarDoTexto, novaNota, atualizarNota, escreverNoDia, revisaoDaSemana, tarefaDaLinha,
 } from "../dados/acoes";
-import { tempoDe, listaPadrao, tituloDe, corDaLista, etiquetasOrdenadas, eventosDoDia, indice, nomeDaLista, pendentesDaNota } from "../dados/consultas";
-import { entrarComGoogle, reconectarGoogle, sair, usarSemConta } from "../dados/sync";
+import { contagemHoje, tempoDe, listaPadrao, tituloDe, corDaLista, eventosDoDia, indice, nomeDaLista, pendentesDaNota } from "../dados/consultas";
+import { entrarComGoogle, puxar, reconectarGoogle, sair, usarSemConta } from "../dados/sync";
+import { ler as lerEstado } from "../dados/armazem";
 import type { EstadoDespejo, ItemDespejo, Tarefa, Tema } from "../dados/tipos";
 import { lerArquivo } from "../dados/espelho";
 import { supabase } from "../dados/nuvem";
 import { duracaoCurta, lerCriacaoRapida, deISO, diaISO, hojeISO, primeiraMaiuscula, rotuloCurto, rotuloLongo, somarDias } from "../dados/util";
-import { Cabecalho, CartaoLinhas, ChipLista, EstadoVazio, LadrilhoLista, LinhaTarefa, Secao, SeletorData, Vazio } from "./comuns";
+import { DropdownListas, Cabecalho, CartaoLinhas, ChipLista, EstadoVazio, LadrilhoLista, LinhaTarefa, Secao, SeletorData } from "./comuns";
 import { abrirNota, abrirNotaDoDia, irPara, useNotaAberta, type AlvoNota } from "./rota";
 
 const raiz = (ts: Tarefa[]) => ts.filter((t) => !t.mae);
@@ -439,15 +441,10 @@ export function TelaLista({ id }: { id: string }) {
   const existe = usar((e) => e.listas.some((x) => x.id === id));
   const nome = usar((e) => nomeDaLista(e, id));
   const cor = usar((e) => corDaLista(e, id));
-  const fixa = usar((e) => e.listaFixa === id);
   const ts = usar((e) => raiz(indice(e).porLista.get(id) ?? []).sort((a, b) => (a.posicao < b.posicao ? -1 : 1)), mesmaLista);
   const feitas = usar((e) => indice(e).concluidasPorLista.get(id) ?? [], mesmaLista);
   if (!existe) return <EstadoVazio Icone={ListChecks} titulo="Lista não encontrada" />;
-  const editar = () => {
-    const n = prompt("Nome da lista", nome);
-    if (n?.trim() && n.trim() !== nome) renomearLista(id, n.trim());
-    else if (n === "" && !fixa && confirm(`“${nome}” e as tarefas dela serão excluídas, também no Google Tasks. Dá para desfazer logo depois.`)) { excluirLista(id); irPara({ tela: "hoje" }); }
-  };
+  const editar = () => folhas.abrir("Personalizar lista", <EditorDeLista listaId={id} />, { largura: 440 });
   return (
     <>
       <Cabecalho titulo={nome} sub={textoContagem(ts.length)} esquerda={
@@ -474,7 +471,7 @@ export function TelaEtiqueta({ id }: { id: string }) {
     <>
       <Cabecalho titulo={"#" + g.nome} sub="Etiqueta · só no Tasker" />
       <div className="entrar-2" style={{ display: "flex", flexDirection: "column", gap: "var(--e6)" }}>
-        <div><button className="botao b-superficie" onClick={() => { const n = prompt("Nome da etiqueta", g.nome); if (n?.trim()) editarEtiqueta(id, { nome: n.trim() }); }}><Pencil size={13} /> Editar etiqueta</button></div>
+        <div><button className="botao b-superficie" onClick={() => folhas.abrir("Editar etiqueta", <EditorDeEtiqueta id={id} />, { largura: 380 })}><Pencil size={13} /> Editar etiqueta</button></div>
         <Secao titulo="Tarefas" contagem={ts.length}>
           {ts.length ? linhas(ts) : <EstadoVazio Icone={Hash} titulo="Nenhuma tarefa aqui" descricao="Clique com o botão direito numa tarefa → Etiquetas." />}
         </Secao>
@@ -871,7 +868,7 @@ function EditorDeNota({ alvo }: { alvo: AlvoNota }) {
       <div style={{ display: "flex", alignItems: "center", gap: 4, height: 52, padding: "16px 24px 0" }}>
         {nota && <span className="t-xs c3">Editada {haQuanto(nota.editadaEm)}</span>}
         <span style={{ flex: 1 }} />
-        {nota && <button className="icone-botao" aria-label="Excluir nota" title="Excluir nota" onClick={() => { if (confirm(`“${tituloDaNota(nota)}” será excluída. Dá para desfazer logo depois.`)) { abrirNota(null); excluirNota(nota.id); } }}><Trash2 size={14} /></button>}
+        {nota && <button className="icone-botao" aria-label="Excluir nota" title="Excluir nota" onClick={() => folhas.confirmar("Excluir nota", `“${tituloDaNota(nota)}” será excluída. Dá para desfazer logo depois.`, () => { abrirNota(null); excluirNota(nota.id); })}><Trash2 size={14} /></button>}
       </div>
       <div style={{ flex: 1, overflow: "auto", padding: "0 24px 32px", display: "flex", flexDirection: "column", gap: 16 }}>
         {dia ? (
@@ -907,77 +904,160 @@ function EditorDeNota({ alvo }: { alvo: AlvoNota }) {
   );
 }
 
-// MARK: Ajustes
+// MARK: Ajustes (SettingsView.swift): lista de assuntos (pastas), na ordem em que se procura.
+
+function Pasta({ Icone, titulo, subtitulo, aberta = false, children }: { Icone: typeof Sun; titulo: string; subtitulo: string; aberta?: boolean; children: ReactNode }) {
+  const [aberto, setAberto] = useState(aberta);
+  return (
+    <div className="pasta">
+      <button className="pasta-cabecalho" aria-expanded={aberto} onClick={() => setAberto(!aberto)}>
+        <Icone size={16} strokeWidth={1.9} className="c2" style={{ width: 22, flex: "none" }} />
+        <span style={{ display: "flex", flexDirection: "column", gap: 1, flex: 1, minWidth: 0, textAlign: "left" }}>
+          <span className="t-sm p-semi">{titulo}</span>
+          <span className="t-xs c3 uma-linha">{subtitulo}</span>
+        </span>
+        <ChevronDown size={12} strokeWidth={2.6} className="c3" style={{ transform: aberto ? "rotate(180deg)" : undefined, transition: "transform var(--normal) var(--curva)" }} />
+      </button>
+      {aberto && <div className="pasta-corpo entrar">{children}</div>}
+    </div>
+  );
+}
+
+function LinhaAjuste({ titulo, descricao, children }: { titulo: string; descricao?: string; children?: ReactNode }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: "var(--e3)" }}>
+      <span style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, minWidth: 0 }}>
+        <span className="t-sm p-medio">{titulo}</span>
+        {descricao && <span className="t-xs c3">{descricao}</span>}
+      </span>
+      {children}
+    </div>
+  );
+}
+
+const Chave = ({ ligada, rotulo, aoMudar }: { ligada: boolean; rotulo: string; aoMudar: () => void }) => (
+  <button className="chave" role="switch" aria-checked={ligada} aria-label={rotulo} onClick={aoMudar} />
+);
+
+function exportarDados() {
+  const e = lerEstado();
+  const dados = { versao: 1, exportadoEm: new Date().toISOString(), listas: e.listas, tarefas: Object.values(e.tarefas), etiquetas: e.etiquetas, etiquetasDaTarefa: e.etiquetasDaTarefa, notas: e.notas, despejo: e.despejo, tempos: e.tempos };
+  const url = URL.createObjectURL(new Blob([JSON.stringify(dados, null, 2)], { type: "application/json" }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `Tasker ${new Date().toLocaleDateString("pt-BR").replace(/\//g, "-")}.json`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+async function importarDados(arquivo: File): Promise<number> {
+  const d = JSON.parse(await arquivo.text()) as { tarefas?: { titulo: string; notas?: string; prazo?: string | null; concluida?: boolean }[] };
+  if (!Array.isArray(d.tarefas)) throw new Error("formato");
+  let n = 0;
+  for (const t of d.tarefas) if (t.titulo && !t.concluida) { criarTarefa({ titulo: t.titulo, notas: t.notas, prazo: t.prazo ?? null, silencioso: true }); n++; }
+  return n;
+}
 
 export function TelaAjustes() {
   const e = usar((x) => x);
   const [tema, setTema] = useState<Tema>(() => (localStorage.getItem("tasker.tema") as Tema) || "sistema");
-  const mudarTema = (t: Tema) => {
-    setTema(t);
-    localStorage.setItem("tasker.tema", t);
-    aplicarTema();
-  };
-  const chave = (rotulo: string, k: "contarAtrasadas" | "mostrarEventosNoMenu" | "mostrarAtrasadasNoMenu" | "somAoConcluir") => (
-    <div className="linha-tarefa" style={{ cursor: "default" }}>
-      <span className="t-md" style={{ flex: 1 }}>{rotulo}</span>
-      <button className="chave" role="switch" aria-checked={e.prefs[k]} aria-label={rotulo} onClick={() => mudarPrefs((p) => ({ [k]: !p[k] }))} />
-    </div>
-  );
+  const [msgDados, setMsgDados] = useState<[string, "info" | "erro"] | null>(null);
+  const [listasAbertas, setListasAbertas] = useState(false);
+  const mudarTema = (t: Tema) => { setTema(t); localStorage.setItem("tasker.tema", t); aplicarTema(); };
+  const p = e.prefs;
+  const alternar = (k: "contarAtrasadas" | "mostrarEventosNoMenu" | "mostrarAtrasadasNoMenu" | "somAoConcluir" | "energiaBaixa") => mudarPrefs((x) => ({ [k]: !x[k] }));
+  const n = contagemHoje(e);
+  const padrao = listaPadrao(e);
+  const versao = (import.meta.env.VITE_VERSAO as string | undefined) ?? "web";
   return (
     <>
-      <Cabecalho titulo="Ajustes" />
-      <Secao titulo="Conta">
-        <div className="linha-tarefa" style={{ cursor: "default" }}>
-          <span style={{ flex: 1 }}>
-            <span className="t-md p-semi" style={{ display: "block" }}>{e.modo === "conta" ? e.nome || e.email : "Sem conta (só neste aparelho)"}</span>
-            <span className="t-xs c3">{e.modo === "conta" ? `${e.email ?? ""} · ${e.pendencias ? `${e.pendencias} alteração(ões) esperando rede` : "tudo sincronizado"}` : "Entre com o Google para sincronizar Tasks e Agenda."}</span>
-          </span>
-          {e.modo === "conta" ? <button className="botao b-superficie" onClick={() => void sair()}>Sair</button> : <button className="botao b-primario" onClick={() => void entrarComGoogle()}>Entrar com Google</button>}
-        </div>
-        {e.googlePendente && (
-          <div className="linha-tarefa" style={{ cursor: "default" }}>
-            <span className="t-md" style={{ flex: 1 }}>O Google precisa ser reconectado.</span>
-            <button className="botao b-primario" onClick={() => void reconectarGoogle()}>Reconectar</button>
-          </div>
+      <Cabecalho titulo="Ajustes" sub={`Tasker ${versao}`} />
+      <div className="entrar-2" style={{ display: "flex", flexDirection: "column", gap: "var(--e3)" }}>
+        <Pasta Icone={CircleUserRound} titulo="Conta" subtitulo={e.modo === "local" ? "Usando só neste aparelho" : e.email ?? "Google"} aberta>
+          {e.modo === "local" ? (
+            <>
+              <Nota texto="Suas tarefas estão guardadas só neste aparelho. Conecte o Google para sincronizar com o celular e o Mac — depois use Dados → Importar para levar as tarefas de agora." />
+              <button className="botao m b-primario largo" onClick={() => void entrarComGoogle()}><CircleUserRound size={15} />Entrar com Google</button>
+            </>
+          ) : (
+            <>
+              <div style={{ display: "flex", alignItems: "center", gap: "var(--e3)" }}>
+                <span style={{ width: 40, height: 40, borderRadius: 99, overflow: "hidden", background: "var(--superficie2)", border: "1px solid var(--borda)", display: "inline-flex", alignItems: "center", justifyContent: "center", flex: "none" }} className="t-lg p-semi c2">
+                  {e.avatar ? <img src={e.avatar} alt="" width={40} height={40} /> : (e.nome ?? e.email ?? "?")[0].toUpperCase()}
+                </span>
+                <span style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, minWidth: 0 }}>
+                  <span className="t-sm p-semi">{e.nome ?? "Conta Google"}</span>
+                  <span className="t-xs c3">{e.email}</span>
+                </span>
+                <button className="botao b-superficie" onClick={() => void sair()}>Sair da conta</button>
+              </div>
+              {e.googlePendente && (
+                <Nota tom="aviso" texto="O Google precisa ser reconectado para as tarefas e a agenda voltarem a sincronizar.">
+                  <div><button className="botao b-primario" onClick={() => void reconectarGoogle()}>Reconectar</button></div>
+                </Nota>
+              )}
+              <LinhaAjuste titulo="Alterações esperando a rede" descricao={e.pendencias ? "Sobem sozinhas quando a internet voltar" : "Tudo já está no servidor"}>
+                <span className="t-sm p-semi numeros c2">{e.pendencias}</span>
+              </LinhaAjuste>
+            </>
+          )}
+        </Pasta>
+
+        <Pasta Icone={Paintbrush} titulo="Aparência" subtitulo="Tema, contador e o que aparece no menu">
+          <LinhaAjuste titulo="Tema" descricao="Vale para a janela e para o menu da barra">
+            <div className="segmentado">{(["sistema", "claro", "escuro"] as const).map((t) => <button key={t} aria-pressed={tema === t} onClick={() => mudarTema(t)}>{primeiraMaiuscula(t)}</button>)}</div>
+          </LinhaAjuste>
+          <LinhaAjuste titulo="Contar atrasadas" descricao={`Agora: ${n} tarefa${n === 1 ? "" : "s"}`}><Chave ligada={p.contarAtrasadas} rotulo="Contar atrasadas" aoMudar={() => alternar("contarAtrasadas")} /></LinhaAjuste>
+          <LinhaAjuste titulo="Eventos no menu" descricao="Mostrar a agenda do dia acima das tarefas"><Chave ligada={p.mostrarEventosNoMenu} rotulo="Eventos no menu" aoMudar={() => alternar("mostrarEventosNoMenu")} /></LinhaAjuste>
+          <LinhaAjuste titulo="Atrasadas no menu" descricao="Mostrar a seção “Em atraso”"><Chave ligada={p.mostrarAtrasadasNoMenu} rotulo="Atrasadas no menu" aoMudar={() => alternar("mostrarAtrasadasNoMenu")} /></LinhaAjuste>
+        </Pasta>
+
+        <Pasta Icone={ListChecks} titulo="Tarefas" subtitulo="Lista padrão, som e energia">
+          <LinhaAjuste titulo="Lista padrão" descricao="Para onde vão as tarefas novas">
+            <span style={{ position: "relative" }}>
+              {padrao && <button className="afunda" onClick={() => setListasAbertas(!listasAbertas)}><ChipLista listaId={padrao} /></button>}
+              {listasAbertas && <div style={{ position: "absolute", right: 0, top: 30, zIndex: 5, width: 240 }}><DropdownListas atual={padrao} aoEscolher={(id) => { mudarPrefs(() => ({ listaPadrao: id })); setListasAbertas(false); }} /></div>}
+            </span>
+          </LinhaAjuste>
+          <LinhaAjuste titulo="Som ao concluir"><Chave ligada={p.somAoConcluir} rotulo="Som ao concluir" aoMudar={() => alternar("somAoConcluir")} /></LinhaAjuste>
+          <LinhaAjuste titulo="Estou sem energia" descricao="O Hoje mostra uma coisa por vez, sem atrasadas e sem número na barra"><Chave ligada={p.energiaBaixa} rotulo="Estou sem energia" aoMudar={() => alternar("energiaBaixa")} /></LinhaAjuste>
+        </Pasta>
+
+        {e.modo === "conta" && (
+          <Pasta Icone={Calendar} titulo="Agenda e sincronização" subtitulo="Quais agendas aparecem">
+            {!e.agendas.length && <Nota texto="Nenhuma agenda carregada ainda." />}
+            {e.agendas.map((a) => (
+              <LinhaAjuste key={a.id} titulo={a.titulo}>
+                <Chave ligada={p.agendasVisiveis[a.id] !== false} rotulo={a.titulo} aoMudar={() => mudarPrefs((x) => ({ agendasVisiveis: { ...x.agendasVisiveis, [a.id]: x.agendasVisiveis[a.id] === false } }))} />
+              </LinhaAjuste>
+            ))}
+            <div style={{ display: "flex", justifyContent: "flex-end" }}><button className="botao b-superficie" onClick={() => void puxar(true)}>Sincronizar agora</button></div>
+          </Pasta>
         )}
-      </Secao>
-      <Secao titulo="Aparência">
-        <div className="linha-tarefa" style={{ cursor: "default" }}>
-          <span className="t-md" style={{ flex: 1 }}>Tema</span>
-          <div className="segmentado">
-            {(["sistema", "claro", "escuro"] as const).map((t) => <button key={t} aria-pressed={tema === t} onClick={() => mudarTema(t)}>{primeiraMaiuscula(t)}</button>)}
-          </div>
-        </div>
-      </Secao>
-      <Secao titulo="Comportamento">
-        {chave("Contar atrasadas no número de hoje", "contarAtrasadas")}
-        {chave("Eventos no menu", "mostrarEventosNoMenu")}
-        {chave("Atrasadas no menu", "mostrarAtrasadasNoMenu")}
-        {chave("Som ao concluir", "somAoConcluir")}
-      </Secao>
-      {e.agendas.length > 0 && (
-        <Secao titulo="Agendas">
-          {e.agendas.map((a) => (
-            <div key={a.id} className="linha-tarefa" style={{ cursor: "default" }}>
-              <span style={{ width: 10, height: 10, borderRadius: 9, background: a.cor }} />
-              <span className="t-md" style={{ flex: 1 }}>{a.titulo}</span>
-              <button className="chave" role="switch" aria-label={a.titulo} aria-checked={e.prefs.agendasVisiveis[a.id] !== false} onClick={() => mudarPrefs((p) => ({ agendasVisiveis: { ...p.agendasVisiveis, [a.id]: p.agendasVisiveis[a.id] === false } }))} />
-            </div>
-          ))}
-        </Secao>
-      )}
-      <Secao titulo="Listas" acao={<button className="botao b-fantasma t-xs" onClick={() => { const n = prompt("Nova lista"); if (n?.trim()) criarLista(n.trim()); }}>+ Nova</button>}>
-        {e.listas.map((l) => (
-          <div key={l.id} className="linha-tarefa" style={{ cursor: "default" }}>
-            <span className="t-md" style={{ flex: 1 }}>{nomeDaLista(e, l.id)}</span>
-            <button className="chip" aria-pressed={e.prefs.listaPadrao === l.id} onClick={() => mudarPrefs(() => ({ listaPadrao: l.id }))}>Padrão</button>
-          </div>
-        ))}
-      </Secao>
-      <Secao titulo="Etiquetas">
-        {etiquetasOrdenadas(e).map((g) => <div key={g.id} className="linha-tarefa" style={{ color: g.cor }}>#{g.nome}</div>)}
-        {!e.etiquetas.length && <Vazio texto="Escreva #nome ao criar uma tarefa." />}
-      </Secao>
+
+        <Pasta Icone={HardDrive} titulo="Dados" subtitulo="Exportar e importar listas, tarefas e etiquetas">
+          <LinhaAjuste titulo="Exportar tudo" descricao="Um arquivo .json para guardar ou levar a outro aparelho"><button className="botao b-superficie" onClick={exportarDados}>Exportar…</button></LinhaAjuste>
+          <LinhaAjuste titulo="Importar" descricao="Junta um arquivo exportado às suas listas">
+            <label className="botao b-superficie" style={{ cursor: "pointer" }}>Importar…
+              <input type="file" accept="application/json,.json" hidden onChange={async (x) => {
+                const f = x.target.files?.[0];
+                x.target.value = "";
+                if (!f) return;
+                try { const total = await importarDados(f); setMsgDados([`${total} tarefa${total === 1 ? "" : "s"} importada${total === 1 ? "" : "s"}.`, "info"]); }
+                catch { setMsgDados(["Esse arquivo não pôde ser importado. Use um arquivo exportado pelo Tasker.", "erro"]); }
+              }} />
+            </label>
+          </LinhaAjuste>
+          {msgDados && <Nota texto={msgDados[0]} tom={msgDados[1]} />}
+        </Pasta>
+
+        <Pasta Icone={Settings} titulo="Geral" subtitulo={`Atalhos e versão ${versao}`}>
+          <LinhaAjuste titulo="Nova tarefa"><span className="tecla">N</span></LinhaAjuste>
+          <LinhaAjuste titulo="Buscar"><span className="tecla">⌘ K</span></LinhaAjuste>
+          <LinhaAjuste titulo="Criação rápida" descricao="hoje · amanhã · sexta · 30/10 · ~lista · #etiqueta" />
+          <LinhaAjuste titulo="Funciona sem internet" descricao="Tudo fica guardado neste aparelho e sobe quando a rede voltar" />
+        </Pasta>
+      </div>
     </>
   );
 }
@@ -988,16 +1068,35 @@ export function aplicarTema() {
   document.documentElement.dataset.tema = escuro ? "escuro" : "claro";
 }
 
-// MARK: Entrar
+// MARK: Entrar (OnboardingView.swift)
 
 export function TelaEntrar() {
   return (
-    <div style={{ minHeight: "100%", display: "grid", placeItems: "center", padding: 24 }}>
-      <div style={{ maxWidth: 380, display: "flex", flexDirection: "column", gap: 16, textAlign: "center" }}>
-        <h1 className="display d-display">Tasker</h1>
-        <p className="t-md c2">Suas tarefas do Google, sua agenda e suas notas — no Mac, no celular e no navegador. Funciona offline.</p>
-        <button className="botao b-primario" style={{ height: 44 }} onClick={() => void entrarComGoogle()}>Entrar com Google</button>
-        <button className="botao b-fantasma" onClick={usarSemConta}>Usar sem conta</button>
+    <div style={{ height: "100%", overflow: "auto" }}>
+      <div style={{ maxWidth: 560, margin: "0 auto", padding: "64px 32px", display: "flex", flexDirection: "column", gap: "var(--e6)" }}>
+        <div className="entrar" style={{ display: "flex", flexDirection: "column", gap: "var(--e3)" }}>
+          <span className="simbolo" style={{ width: 52, height: 52, borderRadius: 52 * 0.28 }}><Check size={26} strokeWidth={4} /></span>
+          <h1 className="display d-display">Bem-vindo ao Tasker</h1>
+          <p className="t-lg c2">Suas tarefas e os eventos do dia, no Mac, no celular e no navegador — também sem internet.</p>
+        </div>
+        <div className="cartao entrar-2" style={{ padding: "var(--e5)", display: "flex", flexDirection: "column", gap: "var(--e4)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "var(--e3)" }}>
+            <span style={{ width: 36, height: 36, borderRadius: "var(--raio-m)", background: "color-mix(in srgb, var(--acento) 12%, transparent)", color: "var(--acento)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontWeight: 800 }}>G</span>
+            <span style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              <span className="t-md p-semi">Conectar Google Tasks e Agenda</span>
+              <span className="t-sm c3">Sincroniza com o celular, com o Mac e com o navegador.</span>
+            </span>
+          </div>
+          <button className="botao m b-primario largo" onClick={() => void entrarComGoogle()}><CircleUserRound size={15} />Entrar com Google</button>
+        </div>
+        <div className="cartao entrar-2" style={{ padding: "var(--e5)", display: "flex", alignItems: "center", gap: "var(--e3)" }}>
+          <span style={{ width: 36, height: 36, borderRadius: "var(--raio-m)", background: "var(--superficie2)", color: "var(--texto2)", display: "inline-flex", alignItems: "center", justifyContent: "center", flex: "none" }}><Laptop size={16} strokeWidth={2.2} /></span>
+          <span style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1 }}>
+            <span className="t-md p-semi">Usar sem conta</span>
+            <span className="t-sm c3">Tudo fica só neste aparelho. Dá para exportar e conectar o Google depois.</span>
+          </span>
+          <button className="botao m b-superficie" onClick={usarSemConta}>Começar</button>
+        </div>
       </div>
     </div>
   );

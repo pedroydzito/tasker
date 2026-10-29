@@ -445,3 +445,8 @@ h1, h2, h3, p { margin: 0; }
 .some-sem-hover { opacity: 0; }
 .linha-sub:hover .some-sem-hover { opacity: 1; }
 @media (hover: none) { .some-sem-hover { opacity: 1; } }
+.pasta { background: var(--superficie); border: 1px solid var(--borda); border-radius: var(--raio-cartao); overflow: hidden; }
+.pasta-cabecalho { display: flex; align-items: center; gap: var(--e3); width: 100%; padding: var(--e4) var(--e5); }
+.pasta-cabecalho:hover { background: var(--veu-hover); }
+.pasta-corpo { border-top: 1px solid var(--borda); padding: var(--e5); display: flex; flex-direction: column; gap: var(--e4); }
+.tecla { font-size: var(--t-xs); font-weight: 600; color: var(--texto2); padding: var(--e1) var(--e2); border-radius: var(--raio-p); background: var(--superficie2); border: 1px solid var(--borda); }

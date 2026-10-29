@@ -23,7 +23,7 @@ try {
   const erros = [];
   p.on("pageerror", (e) => erros.push(e.message));
   await p.goto(BASE);
-  await p.getByText("Usar sem conta").click();
+  await p.getByRole("button", { name: "Começar" }).click();
   await p.getByRole("heading", { name: "Hoje" }).waitFor();
   ok(true, "entra sem conta");
 

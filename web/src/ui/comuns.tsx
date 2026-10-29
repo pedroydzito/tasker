@@ -1,7 +1,8 @@
+import { iconePorNome } from "./folhas";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
-  AlertCircle, AlignLeft, ChevronDown, Briefcase, Book, Calendar, CalendarDays, Check, ChevronLeft, ChevronRight, Circle, Clock, Dumbbell, Folder, Heart, Home,
-  Inbox, List, Music, Pause, Play, Plane, ShoppingCart, Star, Sun, Tag, X, type LucideIcon,
+  AlertCircle, AlignLeft, ChevronDown, Calendar, CalendarDays, Check, ChevronLeft, ChevronRight, Circle, Clock,
+  Inbox, Pause, Play, Sun, Tag, X, type LucideIcon,
 } from "lucide-react";
 import { usar } from "../dados/armazem";
 import { alternarCronometro, concluir } from "../dados/acoes";
@@ -10,15 +11,10 @@ import type { Tarefa } from "../dados/tipos";
 import { deISO, diaISO, hojeISO, primeiraMaiuscula, rotuloComAtraso, rotuloCurto, rotuloLongo, somarDias } from "../dados/util";
 import { selecionar, useSelecionada } from "./rota";
 
-/** Ícones das listas: os nomes SF guardados nas preferências viram ícones lucide. */
-const ICONES: Record<string, LucideIcon> = {
-  "tray": Inbox, "briefcase": Briefcase, "house": Home, "cart": ShoppingCart, "heart": Heart, "star": Star, "book": Book,
-  "airplane": Plane, "music.note": Music, "dumbbell": Dumbbell, "folder": Folder, "calendar": Calendar, "sun.max": Sun, "list.bullet": List,
-};
-export const NOMES_ICONES = Object.keys(ICONES);
+/** Ícone de uma lista (nome SF guardado nas preferências → ícone equivalente). */
 export function IconeLista({ nome, tamanho = 15 }: { nome: string | null; tamanho?: number }) {
-  const I = (nome && ICONES[nome.replace(/\.fill$/, "")]) || Circle;
-  return <I size={tamanho} strokeWidth={2} />;
+  const I = iconePorNome(nome) ?? Circle;
+  return <I size={tamanho} strokeWidth={1.8} />;
 }
 
 /** Círculo de concluir (CheckCircle): borda na cor da lista; no hover, véu 14% e o check aparece. */
