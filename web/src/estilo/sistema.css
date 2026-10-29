@@ -394,3 +394,23 @@ input:focus-visible, textarea:focus-visible { outline: none; }
 .secao-menu svg { transition: transform var(--normal) var(--curva); }
 .secao-menu[aria-expanded="false"] svg { transform: rotate(-90deg); }
 .secao-menu .rotulo { padding: 0 !important; }
+
+/* Menu de contexto da tarefa */
+.fundo-contexto { position: fixed; inset: 0; z-index: var(--z-dropdown); }
+.menu-contexto {
+  position: fixed; z-index: calc(var(--z-dropdown) + 1); width: 220px; max-height: 300px; overflow: auto; padding: 5px;
+  display: flex; flex-direction: column; background: var(--superficie); border: 1px solid var(--borda); border-radius: var(--raio-g); box-shadow: var(--sombra-alta);
+}
+.menu-contexto > button, .menu-contexto > a { display: flex; align-items: center; gap: var(--e2); min-height: 30px; padding: 0 var(--e3); border-radius: var(--raio-p); font-size: var(--t-sm); font-weight: 500; text-align: left; color: var(--texto); text-decoration: none; }
+.menu-contexto > .sub { padding-left: var(--e4); }
+.menu-contexto > .perigo { color: var(--perigo-texto); }
+.menu-contexto hr { border: 0; height: 1px; background: var(--borda); margin: 4px 6px; }
+@media (max-width: 760px) { .menu-contexto > button, .menu-contexto > a { min-height: 40px; } }
+
+/* Barra lateral: o trilho desliza sob o item ativo (na cor da lista quando é lista). */
+.lateral-rolagem > .trilho { border-radius: var(--raio-m); background: var(--superficie2); }
+.lateral-rolagem.com-trilho .item-lateral.ativo { background: transparent; }
+.lateral-rolagem.com-trilho:not([data-trilho-pronto]) .item-lateral.ativo { background: var(--tinta); }
+.item-lateral { position: relative; }
+@media (hover: hover) { .item-lateral:not(.ativo):hover { background: var(--veu-hover); } }
+.item-lateral.alvo-soltar { box-shadow: inset 0 0 0 2px var(--cor-alvo); }

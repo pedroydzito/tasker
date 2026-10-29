@@ -1,3 +1,4 @@
+import { propsContexto } from "./contexto";
 import { iconePorNome } from "./folhas";
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import {
@@ -145,6 +146,9 @@ export function LinhaTarefa({ t, mostrarData = true, mostrarLista = true, compac
         style={{ paddingLeft: 12 + nivel * 26, opacity: t.provisoria ? 0.55 : undefined }}
         onClick={() => (detalhe ? setExpandida(!expandida) : selecionar(t.id))}
         data-tarefa={t.id}
+        {...propsContexto(t.id)}
+        draggable={!compacta}
+        onDragStart={(ev) => { ev.dataTransfer.setData("text/tasker-tarefa", t.id); ev.dataTransfer.effectAllowed = "move"; }}
       >
         <Circulo feito={feito} cor={cor} aoClicar={concluirComPausa} />
         {compacta ? (
@@ -406,6 +410,8 @@ export function useTrilho<T extends HTMLElement>(dep: unknown) {
       t.style.width = a.offsetWidth + "px";
       t.style.height = a.offsetHeight + "px";
       t.style.transform = `translate(${a.offsetLeft}px, ${a.offsetTop}px)`;
+      const tinta = getComputedStyle(a).getPropertyValue("--tinta").trim();
+      if (tinta) t.style.background = tinta;
       c.setAttribute("data-trilho-pronto", "");
     };
     medir();

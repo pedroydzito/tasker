@@ -1,3 +1,5 @@
+import { moverTarefa } from "../dados/acoes";
+import { HospedeDoContexto } from "./contexto";
 import { CampoTarefa } from "./campo";
 import { CriadorDeEtiqueta, HospedeDeFolhas, NovaLista, folhas } from "./folhas";
 import { Suspense, lazy, useEffect, useState, type ComponentType } from "react";
@@ -86,12 +88,17 @@ function CabecalhoSecaoLateral({ titulo, recolhida, alternar, acao }: { titulo: 
   );
 }
 
-function ItemLateral({ ativo, tinta, titulo, contagem, icone, aoClicar }: { ativo: boolean; tinta?: string; titulo: string; contagem?: number | null; icone: React.ReactNode; aoClicar: () => void }) {
+function ItemLateral({ ativo, tinta, titulo, contagem, icone, aoClicar, aoSoltar }: { ativo: boolean; tinta?: string; titulo: string; contagem?: number | null; icone: React.ReactNode; aoClicar: () => void; aoSoltar?: (tarefa: string) => void }) {
+  const [alvo, setAlvo] = useState(false);
   return (
     <button
-      className={"item-lateral" + (ativo ? " ativo" : "")}
-      style={ativo && tinta ? { background: `color-mix(in srgb, ${tinta} 16%, transparent)` } : undefined}
+      className={"item-lateral sem-veu" + (ativo ? " ativo" : "") + (alvo ? " alvo-soltar" : "")}
+      aria-current={ativo}
+      style={{ ["--tinta" as string]: tinta ? `color-mix(in srgb, ${tinta} 16%, transparent)` : "var(--superficie2)", ["--cor-alvo" as string]: tinta ?? "var(--acento)" }}
       onClick={aoClicar}
+      onDragOver={aoSoltar ? (ev) => { if (ev.dataTransfer.types.includes("text/tasker-tarefa")) { ev.preventDefault(); setAlvo(true); } } : undefined}
+      onDragLeave={aoSoltar ? () => setAlvo(false) : undefined}
+      onDrop={aoSoltar ? (ev) => { ev.preventDefault(); setAlvo(false); const id = ev.dataTransfer.getData("text/tasker-tarefa"); if (id) aoSoltar(id); } : undefined}
       title={contagem ? `${titulo} · ${contagem}` : titulo}
     >
       <span className="icone">{icone}</span>
@@ -134,6 +141,7 @@ function Lateral({ rota, aoBuscar }: { rota: Rota; aoBuscar: () => void }) {
   const [listasFechadas, alternarListas] = useRecolhida("sidebar.listsCollapsed");
   const [etiquetasFechadas, alternarEtiquetas] = useRecolhida("sidebar.tagsCollapsed");
   const ind = indice(e);
+  const trilho = useTrilho<HTMLDivElement>(JSON.stringify(rota) + cadernoFechado + listasFechadas + etiquetasFechadas + e.listas.length);
   const amanha = (ind.porDia.get(somarDias(hojeISO(), 1)) ?? []).filter((t) => !t.mae).length;
   const contagens: Partial<Record<Rota["tela"], number | null>> = {
     hoje: e.prefs.energiaBaixa ? null : contagemHoje(e),
@@ -154,7 +162,8 @@ function Lateral({ rota, aoBuscar }: { rota: Rota; aoBuscar: () => void }) {
           {e.avatar ? <img src={e.avatar} alt="" width={26} height={26} style={{ borderRadius: 999 }} /> : <CircleUserRound size={24} strokeWidth={1.8} fill="currentColor" stroke="var(--fundo)" />}
         </button>
       </div>
-      <Rolagem casca="casca-lateral" className="lateral-rolagem">
+      <Rolagem casca="casca-lateral" className="lateral-rolagem com-trilho" rolagemRef={trilho}>
+        <span className="trilho" />
         <button className="botao-busca" onClick={aoBuscar}>
           <span className="icone"><Search size={14} /></span>
           <span style={{ flex: 1, textAlign: "left" }}>Buscar</span>
@@ -166,7 +175,8 @@ function Lateral({ rota, aoBuscar }: { rota: Rota; aoBuscar: () => void }) {
         <CabecalhoSecaoLateral titulo="Listas" recolhida={listasFechadas} alternar={alternarListas} acao={() => folhas.abrir("Nova lista", <NovaLista />, { largura: 420 })} />
         {!listasFechadas && e.listas.map((l) => (
           <ItemLateral key={l.id} ativo={rota.tela === "lista" && rota.id === l.id} tinta={corDaLista(e, l.id)} titulo={nomeDaLista(e, l.id)}
-            contagem={ind.porLista.get(l.id)?.length ?? 0} icone={<LadrilhoLista listaId={l.id} tamanho={22} />} aoClicar={() => irPara({ tela: "lista", id: l.id })} />
+            contagem={ind.porLista.get(l.id)?.length ?? 0} icone={<LadrilhoLista listaId={l.id} tamanho={22} />} aoClicar={() => irPara({ tela: "lista", id: l.id })}
+            aoSoltar={(tarefa) => { if (e.tarefas[tarefa] && e.tarefas[tarefa].listaId !== l.id) moverTarefa(tarefa, l.id); }} />
         ))}
         <CabecalhoSecaoLateral titulo="Etiquetas" recolhida={etiquetasFechadas} alternar={alternarEtiquetas} acao={() => folhas.abrir("Nova etiqueta", <CriadorDeEtiqueta aoCriar={(id) => irPara({ tela: "etiqueta", id })} />)} />
         {!etiquetasFechadas && etiquetasOrdenadas(e).map((g) => (
@@ -501,6 +511,7 @@ export function App() {
       <NavCelular rota={rota} />
       <Toast />
       <HospedeDeFolhas />
+      <HospedeDoContexto />
     </div>
   );
 }
