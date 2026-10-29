@@ -223,7 +223,7 @@ function NavCelular({ rota }: { rota: Rota }) {
   const e = usar((x) => x);
   const fixos: [Rota["tela"], typeof Sun, string][] = [["hoje", Sun, "Hoje"], ["calendario", CalendarDays, "Calendário"], ["despejo", Brain, "Despejo"]];
   const noFixo = fixos.some(([t]) => t === rota.tela);
-  const ref = useTrilho<HTMLElement>(rota.tela + String(aberto));
+  const ref = useTrilho<HTMLElement>(rota.tela + String(aberto), { arrastavel: (el) => { const tela = el.dataset.tela as Rota["tela"] | undefined; if (tela) irPara({ tela } as Rota); } });
   const fechar = () => {
     // Volta para o botão (150ms, o mesmo número do CSS) e só então desmonta.
     setSaindo(true);
@@ -249,7 +249,7 @@ function NavCelular({ rota }: { rota: Rota }) {
           {fixos.map(([tela, I, rotulo]) => {
             const ativa = rota.tela === tela && !aberto;
             return (
-              <button key={tela} className="item-nav sem-veu sem-afundar pressionavel" aria-label={rotulo} aria-current={ativa} onClick={() => irPara({ tela } as Rota)}>
+              <button key={tela} data-trilho="" data-tela={tela} className="item-nav sem-veu sem-afundar pressionavel" aria-label={rotulo} aria-current={ativa} onClick={() => irPara({ tela } as Rota)}>
                 <I size={19} strokeWidth={2.1} />
                 {ativa && <span>{rotulo}</span>}
               </button>
@@ -490,6 +490,8 @@ export function App() {
     <div className="casca">
       <Lateral rota={rota} aoBuscar={abrirBusca} />
       <main className="principal">
+        {/* Primeira sincronização da conta, sem nada ainda: a espera que não sabe o tamanho. */}
+        <BarraSync />
         {/* key: a tela nova monta de novo e a entrada roda a cada troca (§9.3). */}
         <Rolagem key={rota.tela + ("id" in rota ? rota.id : "")} casca={"casca-pagina" + (TELA_CHEIA.includes(rota.tela) ? " cheia" : "")} className={"pagina animar-tela" + (TELA_CHEIA.includes(rota.tela) ? " cheia" : "")}>
           {TELA_CHEIA.includes(rota.tela) ? (
@@ -530,4 +532,9 @@ function MenuSemConta() {
       <button className="botao m b-primario" onClick={abrir}>Configurar</button>
     </div>
   );
+}
+
+function BarraSync() {
+  const mostrar = usar((e) => e.modo === "conta" && e.sincronizando && !e.ultimaSync);
+  return mostrar ? <div className="barra-espera barra-sync" role="progressbar" aria-label="Sincronizando pela primeira vez" /> : null;
 }

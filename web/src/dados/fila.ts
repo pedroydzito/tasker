@@ -8,8 +8,8 @@ import { uuid } from "./util";
 // Uma operação por vez, em ordem, parando na primeira falha de rede. Só falha de rede fica;
 // erro do pedido sai da fila com um aviso. Cinco falhas de rede seguidas: desiste e avisa (§7.4).
 
-const MAX_TENTATIVAS = 5;
 let processando = false;
+let proximaVolta: ReturnType<typeof setTimeout> | null = null;
 let filaEmMemoria: Operacao[] = [];
 /** Quem quer saber quando um id provisório vira definitivo (o armazém troca nas tarefas). */
 let aoTrocarId: (provisorio: string, definitivo: string) => void = () => {};
@@ -73,17 +73,13 @@ export async function processarFila(): Promise<void> {
           break;
         }
         if (ehErroDeRede(e)) {
+          // Falha de rede nunca descarta: é o offline chegando atrasado. Espera crescente
+          // (20 s, 40 s, 80 s… até 5 min), mesmo com o aparelho dizendo "online" (operação §5.1).
           op.tentativas += 1;
-          if (op.tentativas >= MAX_TENTATIVAS) {
-            filaEmMemoria.shift();
-            await apagarOperacao(op.id).catch(() => {});
-            definir({ pendencias: filaEmMemoria.length });
-            avisar("Uma alteração não conseguiu subir depois de várias tentativas.", { erro: true });
-            continue;
-          }
           await gravarOperacao(op).catch(() => {});
-          // Espera crescente com jitter antes da próxima volta (§7.4).
-          setTimeout(() => void processarFila(), op.tentativas * 2000 + Math.random() * 800);
+          const espera = Math.min(300_000, 20_000 * 2 ** Math.min(op.tentativas - 1, 4)) + Math.random() * 1500;
+          if (proximaVolta) clearTimeout(proximaVolta);
+          proximaVolta = setTimeout(() => { proximaVolta = null; void processarFila(); }, espera);
           break;
         }
         // Erro do pedido: repetir não adianta. Sai da fila e avisa.

@@ -4,6 +4,7 @@ import { confirmarPendente } from "./avisos";
 import { lerEstado, limparTudo } from "./espelho";
 import { carregarFila, descartarFila, esperandoFila, idsComPendencia, processarFila } from "./fila";
 import { conferirAmbiente, ehErroDeRede, ErroReconectar, funcaoGoogle, google, SUPABASE_URL, supabase } from "./nuvem";
+import { comPrazo } from "./nuvem";
 import { PREFERENCIAS_PADRAO, type Agenda, type Anexo, type Estado, type Evento, type ItemDespejo, type Lista, type Nota, type Tarefa } from "./tipos";
 import { diaISO } from "./util";
 
@@ -60,6 +61,8 @@ export async function iniciar() {
       return;
     }
     if (saiuEm && Date.now() - saiuEm > 15_000 && navigator.onLine) void puxar(true);
+    // A fila não depende só do evento "online": cada volta ao app tenta de novo (operação §5.1).
+    void processarFila();
     saiuEm = 0;
   });
   window.addEventListener("pagehide", gravarAgora);
@@ -208,6 +211,19 @@ export async function reconectarGoogle() {
 // MARK: Puxar do servidor
 
 /** Confere o servidor. Dentro da janela de frescor, não pergunta nada (a não ser `forcar`). */
+let tentativasDeRede = 0;
+let novaTentativa: ReturnType<typeof setTimeout> | null = null;
+function agendarNovaTentativa() {
+  if (novaTentativa) return;
+  const espera = [4_000, 10_000, 25_000, 60_000][Math.min(tentativasDeRede, 3)];
+  tentativasDeRede += 1;
+  novaTentativa = setTimeout(() => {
+    novaTentativa = null;
+    // Só com a aba visível e o aparelho online; senão a volta ao app e o "online" cuidam disso.
+    if (document.visibilityState === "visible" && navigator.onLine) void puxar(true);
+  }, espera);
+}
+
 export function puxar(forcar = false): Promise<void> {
   const e = ler();
   if (e.modo !== "conta" || !navigator.onLine) return Promise.resolve();
@@ -221,8 +237,13 @@ export function puxar(forcar = false): Promise<void> {
     try {
       await processarFila();
       const eventos = forcar || Date.now() - ultimosEventos > JANELA_EVENTOS;
-      const [g] = await Promise.allSettled([puxarGoogle(), puxarTabelas(), eventos ? puxarEventos() : Promise.resolve()]);
+      // Independentes: saem juntas, cada uma com o seu prazo (desempenho §4.20).
+      const partes = await Promise.allSettled([comPrazo(puxarGoogle(), 45_000), comPrazo(puxarTabelas(), 15_000), eventos ? comPrazo(puxarEventos(), 20_000) : Promise.resolve()]);
+      const [g] = partes;
       ultimaPuxada = Date.now();
+      // Rede fraca: o que veio é do aparelho; tenta de novo sozinho em 4, 10, 25 e 60 s (§4.19).
+      if (partes.some((r) => r.status === "rejected" && ehErroDeRede(r.reason))) agendarNovaTentativa();
+      else tentativasDeRede = 0;
       if (g.status === "rejected" && g.reason instanceof ErroReconectar) definir({ googlePendente: true });
       else if (g.status === "rejected" && !ehErroDeRede(g.reason)) definir({ erro: String((g.reason as Error)?.message ?? g.reason) });
       else definir({ erro: null, ultimaSync: new Date().toISOString(), googlePendente: g.status === "fulfilled" ? false : ler().googlePendente });

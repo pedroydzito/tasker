@@ -144,11 +144,11 @@ h1, h2, h3, p { margin: 0; }
 .e-faixa, .e-pilula { display: none; }
 @media (max-width: 760px) {
   .esqueleto-lateral { display: none; }
-  .esqueleto-conteudo { padding: calc(1.75rem + env(safe-area-inset-top)) 1.25rem; gap: 10px; }
+  .esqueleto-conteudo { padding: calc(1.75rem + var(--seguro-top)) 1.25rem; gap: 10px; }
   .e-faixa { display: flex; justify-content: space-between; margin-bottom: 14px; }
   .e-faixa i { width: 30px; height: 30px; border-radius: 9px; }
   .e-faixa i:last-child { border-radius: 999px; }
-  .e-pilula { display: block; position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(12px + env(safe-area-inset-bottom)); width: 250px; height: 58px; border-radius: 999px; background: var(--superficie); border: 1px solid var(--borda); }
+  .e-pilula { display: block; position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(12px + var(--seguro-bottom)); width: 250px; height: 58px; border-radius: 999px; background: var(--superficie); border: 1px solid var(--borda); }
 }
 
 /* Véu de hover + toque (o mesmo do app Mac) */
@@ -264,7 +264,7 @@ h1, h2, h3, p { margin: 0; }
 }
 .circulo:hover { background: color-mix(in srgb, var(--cor) 14%, transparent); color: var(--cor); }
 .circulo:active { transform: scale(0.85); }
-.circulo.feito { background: var(--cor); color: #fff; }
+.circulo.feito { background: var(--cor); color: #fff; color: oklch(from var(--cor) clamp(0, (0.72 - l) * 9999, 1) 0 0); }
 
 /* Layout */
 .casca { display: flex; height: 100%; }
@@ -293,15 +293,15 @@ h1, h2, h3, p { margin: 0; }
 .nav-pilula { display: none; }
 @media (max-width: 760px) {
   .lateral { display: none; }
-  .pagina-conteudo { padding: calc(20px + env(safe-area-inset-top)) 16px 170px; }
+  .pagina-conteudo { padding: calc(20px + var(--seguro-top)) 16px 170px; }
   .inspetor { position: fixed; inset: 0; width: auto; z-index: 40; border: 0; }
-  .barra-flutuante { bottom: calc(84px + env(safe-area-inset-bottom)); width: calc(100% - 24px); }
+  .barra-flutuante { bottom: calc(84px + var(--seguro-bottom)); width: calc(100% - 24px); }
   .nav-pilula {
-    display: flex; position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(12px + env(safe-area-inset-bottom)); z-index: 30;
+    display: flex; position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(12px + var(--seguro-bottom)); z-index: 30;
     gap: var(--e1); padding: 6px; border-radius: 999px; border: 1px solid var(--borda);
     background: var(--superficie); box-shadow: var(--sombra-alta);
   }
-  .toast { bottom: calc(150px + env(safe-area-inset-bottom)); }
+  .toast { bottom: calc(150px + var(--seguro-bottom)); }
 }
 
 .divisoria { width: 1px; flex: none; background: var(--borda); position: relative; cursor: col-resize; }
@@ -472,7 +472,7 @@ h1, h2, h3, p { margin: 0; }
 .aba-pilula.ativa span { color: var(--texto); }
 .aba-pilula:active { transform: scale(0.94); }
 .gaveta { position: fixed; z-index: 52; left: 0; top: 0; bottom: 0; width: min(300px, 86vw); display: flex; animation: gaveta var(--normal) var(--curva); box-shadow: var(--sombra-alta); }
-.gaveta .lateral { display: flex !important; width: 100%; padding-top: env(safe-area-inset-top); }
+.gaveta .lateral { display: flex !important; width: 100%; padding-top: var(--seguro-top); }
 .gaveta .marca { padding-top: 20px; }
 @keyframes gaveta { from { transform: translateX(-100%); } }
 /* Menu da barra do Mac */

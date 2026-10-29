@@ -47,11 +47,15 @@ export async function google<T = unknown>(metodo: string, url: string, corpo?: u
   try {
     const { data } = await sb.auth.getSession();
     const token = data.session?.access_token;
+    // Todo pedido que a pessoa espera tem prazo (operação §5.1): leitura 12 s, escrita 25 s.
+    const controle = new AbortController();
+    const prazo = setTimeout(() => controle.abort(), metodo === "GET" ? 12_000 : 25_000);
     resposta = await fetch(`${SUPABASE_URL}/functions/v1/google`, {
+      signal: controle.signal,
       method: "POST",
       headers: { "Content-Type": "application/json", apikey: SUPABASE_KEY ?? "", Authorization: `Bearer ${token ?? SUPABASE_KEY}` },
       body: JSON.stringify({ metodo, url, corpo }),
-    });
+    }).finally(() => clearTimeout(prazo));
   } catch (e) {
     throw new ErroDeRede(String(e));
   }
@@ -75,4 +79,12 @@ export async function funcaoGoogle(acao: "salvar_token" | "status" | "desconecta
   const { data, error } = await sb.functions.invoke("google", { body: { acao, ...extra } });
   if (error) throw error;
   return data as { ok?: boolean; conectado?: boolean };
+}
+
+/** Promessa com prazo: estourou, vira falha de rede (e quem chamou cai no que há no aparelho). */
+export function comPrazo<T>(p: PromiseLike<T>, ms: number): Promise<T> {
+  return Promise.race([
+    Promise.resolve(p),
+    new Promise<T>((_, rej) => setTimeout(() => rej(new ErroDeRede(`prazo de ${ms} ms`)), ms)),
+  ]);
 }

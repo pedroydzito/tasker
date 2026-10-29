@@ -1,4 +1,5 @@
 import { createRoot } from "react-dom/client";
+import { ligarEfeitos } from "./ui/efeitos";
 import { ligarFavicon } from "./ui/favicon";
 import "./estilo/base.css";
 import "./estilo/sistema.css";
@@ -55,6 +56,7 @@ if (ponte) {
 }
 
 ligarFavicon();
+ligarEfeitos();
 void iniciar();
 createRoot(document.getElementById("raiz")!).render(<App />);
 

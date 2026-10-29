@@ -27,7 +27,7 @@ function DiaComItens({ dia }: { dia: string }) {
   const [recolhido, setRecolhido] = useState(false);
   const resumo = [nEventos ? `${nEventos} evento${nEventos === 1 ? "" : "s"}` : "", ts.length ? `${ts.length} tarefa${ts.length === 1 ? "" : "s"}` : ""].filter(Boolean).join(" · ");
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "var(--e2)" }}>
+    <div className="secao-longa" style={{ display: "flex", flexDirection: "column", gap: "var(--e2)", containIntrinsicSize: "auto 160px" }}>
       <button className="afunda" style={{ display: "flex", alignItems: "baseline", gap: 6, width: "100%" }} onClick={() => setRecolhido(!recolhido)}>
         <span className="t-lg p-semi">{rotuloCurto(dia, hojeISO())}</span>
         <span className="t-sm c3">{deISO(dia).toLocaleDateString("pt-BR", { day: "numeric", month: "short" })}</span>
@@ -212,7 +212,7 @@ export function TelaConcluidas() {
       <div data-encadeado className="bloco-tela" style={{ ["--i" as string]: 1, display: "flex", flexDirection: "column", gap: "var(--e6)" }}>
         <ResumoConcluidas />
         {[...grupos.keys()].sort().reverse().map((d) => (
-          <Secao key={d} titulo={d ? rotuloCurto(d, hoje) : "Sem data"} contagem={grupos.get(d)!.length}>{linhas(grupos.get(d)!, { data: false })}</Secao>
+          <Secao key={d} longa titulo={d ? rotuloCurto(d, hoje) : "Sem data"} contagem={grupos.get(d)!.length}>{linhas(grupos.get(d)!, { data: false })}</Secao>
         ))}
         {feitas.length > limite && <button className="botao b-fantasma" onClick={() => setLimite(limite + 40)}>Mostrar mais</button>}
       </div>
@@ -889,8 +889,8 @@ export function TelaAjustes() {
           ) : (
             <>
               <div style={{ display: "flex", alignItems: "center", gap: "var(--e3)" }}>
-                <span style={{ width: 40, height: 40, borderRadius: 99, overflow: "hidden", background: "var(--superficie2)", border: "1px solid var(--borda)", display: "inline-flex", alignItems: "center", justifyContent: "center", flex: "none" }} className="t-lg p-semi c2">
-                  {e.avatar ? <img src={e.avatar} alt="" width={40} height={40} /> : (e.nome ?? e.email ?? "?")[0].toUpperCase()}
+                <span style={{ width: 40, height: 40, borderRadius: 99, overflow: "hidden", background: "var(--superficie2)", border: "1px solid var(--borda)", display: "inline-flex", alignItems: "center", justifyContent: "center", flex: "none" }} className="p-semi c2 avatar-inicial">
+                  {e.avatar ? <img src={e.avatar} alt="" width={40} height={40} /> : <span className="letra">{(e.nome ?? e.email ?? "?")[0].toUpperCase()}</span>}
                 </span>
                 <span style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, minWidth: 0 }}>
                   <span className="t-sm p-semi">{e.nome ?? "Conta Google"}</span>

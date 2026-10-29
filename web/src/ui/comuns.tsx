@@ -129,7 +129,7 @@ export function LinhaTarefa({ t, mostrarData = true, mostrarLista = true, compac
   const meta = (nota || etiquetas.length > 0) && (
     <span className="meta-linha">
       {nota && (<><AlignLeft size={10} /><span className="uma-linha" style={{ maxWidth: 220 }}>{nota}</span></>)}
-      {etiquetas.map((g) => <span key={g.id} style={{ color: g.cor }}>#{g.nome}</span>)}
+      {etiquetas.map((g) => <span key={g.id} className="tag-link" style={{ color: g.cor }}>#{g.nome}</span>)}
     </span>
   );
   const dataEl = data && (
@@ -190,10 +190,10 @@ export function BotaoTempo({ id }: { id: string }) {
 }
 
 /** Seção: "TÍTULO · n ˅" (recolhível), ação fantasma à direita, cartão com as linhas. */
-export function Secao({ titulo, contagem, tom, acao, recolhida = false, children }: { titulo: string; contagem?: number; tom?: string; acao?: ReactNode; recolhida?: boolean; children: ReactNode }) {
+export function Secao({ titulo, contagem, tom, acao, recolhida = false, longa = false, children }: { titulo: string; contagem?: number; tom?: string; acao?: ReactNode; recolhida?: boolean; longa?: boolean; children: ReactNode }) {
   const [fechada, setFechada] = useState(recolhida);
   return (
-    <section style={{ display: "flex", flexDirection: "column", gap: "var(--e2)" }}>
+    <section className={longa ? "secao-longa" : undefined} style={{ display: "flex", flexDirection: "column", gap: "var(--e2)", containIntrinsicSize: longa ? `auto ${48 + (contagem ?? 3) * 44}px` : undefined }}>
       <div style={{ display: "flex", alignItems: "center", gap: "var(--e2)", padding: "0 var(--e1)" }}>
         <button className="cabecalho-secao afunda" onClick={() => setFechada(!fechada)} aria-expanded={!fechada}>
           <span style={{ color: tom }}>{titulo}{contagem !== undefined ? ` · ${contagem}` : ""}</span>
@@ -394,43 +394,130 @@ export { CalendarDays, Clock, Tag, Inbox, Sun };
 /**
  * Trilho (§8.5): o fundo do item ativo viaja de um item para o outro. O contêiner tem a classe
  * `com-trilho` e um `<span className="trilho" />`; o ativo é o filho com aria-pressed/aria-current.
- * Antes da primeira medida, o próprio item pinta o fundo (sem piscar).
+ * Medida pela diferença dos retângulos (não offsetLeft); medida igual não regrava; contêiner que
+ * muda de tamanho acompanha sem animar. Com `arrastavel`, o fundo se pega com o dedo e se leva até
+ * outra opção (largura interpolada entre os centros, encaixe ao soltar, clique seguinte engolido).
  */
-export function useTrilho<T extends HTMLElement>(dep: unknown) {
+export function useTrilho<T extends HTMLElement>(dep: unknown, o: { arrastavel?: (alvo: HTMLElement) => void; soDoAtivo?: boolean } = {}) {
   const ref = useRef<T>(null);
+  const opcoes = useRef(o);
+  opcoes.current = o;
   useEffect(() => {
     const c = ref.current;
     if (!c) return;
     const t = c.querySelector<HTMLElement>(":scope > .trilho");
-    const medir = () => {
-      const a = c.querySelector<HTMLElement>(':scope > [aria-pressed="true"], :scope > [aria-current="true"]');
-      if (!t) return;
-      if (!a) { t.style.opacity = "0"; return; }
+    if (!t) return;
+    let assinatura = "";
+    let arrastando = false;
+    const caixa = (el: HTMLElement) => {
+      const rc = c.getBoundingClientRect(), r = el.getBoundingClientRect();
+      return { x: r.left - rc.left + c.scrollLeft - c.clientLeft, y: r.top - rc.top + c.scrollTop - c.clientTop, w: r.width, h: r.height };
+    };
+    const pintar = (b: { x: number; y: number; w: number; h: number }, animar: boolean) => {
+      t.style.transition = animar ? "" : "none";
       t.style.opacity = "1";
-      t.style.width = a.offsetWidth + "px";
-      t.style.height = a.offsetHeight + "px";
-      t.style.transform = `translate(${a.offsetLeft}px, ${a.offsetTop}px)`;
+      t.style.width = b.w + "px";
+      t.style.height = b.h + "px";
+      t.style.transform = `translate(${b.x}px, ${b.y}px)`;
+      if (!animar) void t.offsetWidth;
+    };
+    const ativo = () => c.querySelector<HTMLElement>(':scope > [aria-pressed="true"], :scope > [aria-current="true"]');
+    const medir = (animar = true) => {
+      if (arrastando) return;
+      const a = ativo();
+      if (!a) { t.style.opacity = "0"; assinatura = ""; return; }
+      const b = caixa(a);
+      const sig = [b.x, b.y, b.w, b.h].map(Math.round).join("|");
+      if (sig === assinatura) return;
+      const primeira = !assinatura;
+      assinatura = sig;
+      pintar(b, animar && !primeira);
       const tinta = getComputedStyle(a).getPropertyValue("--tinta").trim();
       if (tinta) t.style.background = tinta;
       c.setAttribute("data-trilho-pronto", "");
     };
-    medir();
-    const o = new ResizeObserver(medir);
-    o.observe(c);
-    for (const f of Array.from(c.children)) o.observe(f);
-    return () => o.disconnect();
+    medir(false);
+    requestAnimationFrame(() => medir(true));
+    // Quem mudou de tamanho foi o contêiner (ou a fonte chegou): acompanha sem animar.
+    const ro = new ResizeObserver(() => medir(false));
+    ro.observe(c);
+    for (const f of Array.from(c.children)) ro.observe(f);
+
+    // Arrastar o fundo entre as opções.
+    const itens = () => Array.from(c.querySelectorAll<HTMLElement>(":scope > [data-trilho]")).map((el) => ({ el, ...caixa(el) })).sort((a, b) => a.x - b.x);
+    let inicio: { x: number; y: number; id: number } | null = null;
+    let sobre: HTMLElement | null = null;
+    const down = (e: PointerEvent) => {
+      if (!opcoes.current.arrastavel || e.button !== 0) return;
+      const op = (e.target as HTMLElement).closest<HTMLElement>("[data-trilho]");
+      if (!op || op.parentElement !== c) return;
+      if (opcoes.current.soDoAtivo && op !== ativo()) return;
+      inicio = { x: e.clientX, y: e.clientY, id: e.pointerId };
+    };
+    const move = (e: PointerEvent) => {
+      if (!inicio || e.pointerId !== inicio.id) return;
+      const dx = e.clientX - inicio.x, dy = e.clientY - inicio.y;
+      if (!arrastando) {
+        if (Math.abs(dy) > 8 && Math.abs(dy) > Math.abs(dx)) { inicio = null; return; }
+        if (Math.abs(dx) < 6) return;
+        arrastando = true;
+        c.setPointerCapture(e.pointerId);
+        c.setAttribute("data-trilho-arrastando", "");
+      }
+      e.preventDefault();
+      const lista = itens();
+      if (!lista.length) return;
+      const x = e.clientX - c.getBoundingClientRect().left + c.scrollLeft;
+      const centros = lista.map((i) => i.x + i.w / 2);
+      let w = lista[0].w;
+      if (x >= centros[centros.length - 1]) w = lista[lista.length - 1].w;
+      else for (let i = 0; i < lista.length - 1; i++) if (x >= centros[i] && x < centros[i + 1]) { const k = (x - centros[i]) / (centros[i + 1] - centros[i]); w = lista[i].w + (lista[i + 1].w - lista[i].w) * k; }
+      const perto = lista.reduce((m, i, n) => (Math.abs(centros[n] - x) < Math.abs(centros[lista.indexOf(m)] - x) ? i : m), lista[0]);
+      const esq = Math.min(Math.max(x - w / 2, lista[0].x), lista[lista.length - 1].x + lista[lista.length - 1].w - w);
+      pintar({ x: esq, y: perto.y, w, h: perto.h }, false);
+      if (perto.el !== sobre) { sobre = perto.el; navigator.vibrate?.(8); }
+    };
+    const up = (e: PointerEvent) => {
+      if (!inicio || e.pointerId !== inicio.id) return;
+      inicio = null;
+      if (!arrastando) return;
+      arrastando = false;
+      c.removeAttribute("data-trilho-arrastando");
+      // O clique que o navegador dispara depois do pointerup é engolido.
+      const engolir = (ev: Event) => { ev.stopPropagation(); ev.preventDefault(); };
+      c.addEventListener("click", engolir, { capture: true, once: true });
+      setTimeout(() => c.removeEventListener("click", engolir, { capture: true }), 400);
+      const alvo = sobre;
+      sobre = null;
+      assinatura = "";
+      t.style.transition = "transform var(--tempo-rapido, 150ms) var(--curva), width var(--tempo-rapido, 150ms) var(--curva)";
+      if (alvo) opcoes.current.arrastavel?.(alvo);
+      requestAnimationFrame(() => { const a = ativo(); if (a) { const b = caixa(a); t.style.width = b.w + "px"; t.style.transform = `translate(${b.x}px, ${b.y}px)`; } setTimeout(() => { t.style.transition = ""; medir(false); }, 320); });
+    };
+    const cancel = () => { if (arrastando) { arrastando = false; c.removeAttribute("data-trilho-arrastando"); assinatura = ""; medir(true); } inicio = null; sobre = null; };
+    c.addEventListener("pointerdown", down);
+    c.addEventListener("pointermove", move);
+    c.addEventListener("pointerup", up);
+    c.addEventListener("pointercancel", cancel);
+    return () => {
+      ro.disconnect();
+      c.removeEventListener("pointerdown", down);
+      c.removeEventListener("pointermove", move);
+      c.removeEventListener("pointerup", up);
+      c.removeEventListener("pointercancel", cancel);
+    };
   }, [dep]);
   return ref;
 }
 
 /** Segmentado: escolhas lado a lado, com o trilho deslizando sob a escolhida. */
 export function Segmentado<V extends string | number | boolean>({ opcoes, valor, aoMudar, rotulo }: { opcoes: [V, ReactNode][]; valor: V; aoMudar: (v: V) => void; rotulo?: string }) {
-  const ref = useTrilho<HTMLDivElement>(String(valor) + opcoes.length);
+  const ref = useTrilho<HTMLDivElement>(String(valor) + opcoes.length, { arrastavel: (el) => { const i = Number(el.dataset.indice); if (opcoes[i]) aoMudar(opcoes[i][0]); }, soDoAtivo: true });
   return (
     <div ref={ref} className="segmentado com-trilho" role="group" aria-label={rotulo} style={{ ["--trilho-cor" as string]: "var(--superficie)" }}>
       <span className="trilho" />
-      {opcoes.map(([v, r]) => (
-        <button key={String(v)} className="sem-veu sem-afundar pressionavel" aria-pressed={v === valor} onClick={() => aoMudar(v)}>{r}</button>
+      {opcoes.map(([v, r], i) => (
+        <button key={String(v)} data-trilho="" data-indice={i} className="sem-veu sem-afundar pressionavel" aria-pressed={v === valor} onClick={() => aoMudar(v)}>{r}</button>
       ))}
     </div>
   );

@@ -12,8 +12,14 @@
   --z-dropdown: 50;
   --z-avisos: 70;
   --z-folha: 80;
-  /* §9.6 — 44px do item + 6px em cima e embaixo + 12px de folga */
-  --altura-nav: 4.75rem;
+  /* §9.6 — a altura da pílula mais a folga até a borda */
+  --altura-nav: 5.5rem;
+  /* Áreas seguras: o que o sistema reserva (entalhe, barra de gestos) ou o que a casca nativa pedir. */
+  --seguro-top: max(env(safe-area-inset-top, 0px), var(--casca-topo, 0px));
+  --seguro-bottom: max(env(safe-area-inset-bottom, 0px), var(--casca-base, 0px));
+  /* A terceira curva, exceção: passa um triz do destino e volta (encaixe, chave). */
+  --curva-mola: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --superficie-hover: color-mix(in srgb, var(--texto) 4%, var(--superficie));
   /* §9.2 — margem da página: a mesma em toda tela */
   --pagina-x: 1.25rem;
   --pagina-y: 1.75rem;
@@ -162,7 +168,7 @@ input:focus-visible, textarea:focus-visible { outline: none; }
 @media (max-width: 760px) {
   .nav-celular {
     display: flex; position: fixed; inset-inline: 0; bottom: 0; z-index: var(--z-nav); justify-content: center;
-    padding: 0 var(--e4) calc(12px + env(safe-area-inset-bottom)); pointer-events: none;
+    padding: 0 var(--e4) calc(12px + var(--seguro-bottom)); pointer-events: none;
   }
   .nav-celular > nav {
     pointer-events: auto; position: relative; display: flex; align-items: center; gap: var(--e1); padding: 6px;
@@ -204,7 +210,7 @@ input:focus-visible, textarea:focus-visible { outline: none; }
   .lateral, .barra-flutuante, .nav-pilula { display: none !important; }
   .pagina-conteudo {
     max-width: none; gap: var(--e6);
-    padding: calc(var(--pagina-y) + env(safe-area-inset-top)) var(--pagina-x) calc(var(--altura-nav) + env(safe-area-inset-bottom) + var(--e8));
+    padding: calc(var(--pagina-y) + var(--seguro-top)) var(--pagina-x) calc(var(--altura-nav) + var(--seguro-bottom) + var(--e8));
   }
   .faixa-celular { display: flex; align-items: center; justify-content: space-between; gap: var(--e2); }
   .faixa-celular .simbolo { width: 30px; height: 30px; border-radius: 8.4px; }
@@ -223,7 +229,7 @@ input:focus-visible, textarea:focus-visible { outline: none; }
   .chave { width: 48px; height: 28px; }
   .chave::after { width: 24px; height: 24px; }
   .chave[aria-checked="true"]::after { transform: translateX(20px); }
-  .toast { bottom: calc(var(--altura-nav) + env(safe-area-inset-bottom) + var(--e3)); }
+  .toast { bottom: calc(var(--altura-nav) + var(--seguro-bottom) + var(--e3)); }
   /* §4.4 — o iOS não dá zoom ao focar um campo */
 }
 
@@ -239,7 +245,7 @@ input:focus-visible, textarea:focus-visible { outline: none; }
 @media (max-width: 760px) {
   .folha {
     left: 0; right: 0; top: auto; bottom: 0; width: 100%; max-width: none; max-height: 85dvh; transform: none;
-    border-radius: var(--raio-cartao) var(--raio-cartao) 0 0; border-bottom: 0; padding-bottom: env(safe-area-inset-bottom);
+    border-radius: var(--raio-cartao) var(--raio-cartao) 0 0; border-bottom: 0; padding-bottom: var(--seguro-bottom);
     animation: folha-sobe 280ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
   }
   .folha.saindo { animation: folha-desce 200ms var(--curva-saida) forwards; }
@@ -254,35 +260,35 @@ input:focus-visible, textarea:focus-visible { outline: none; }
 @media (max-width: 760px) {
   .so-celular { display: inline-flex; }
   .so-desktop { display: none !important; }
-  .inspetor { animation: entrar-painel 260ms var(--curva) backwards; padding-top: env(safe-area-inset-top); }
+  .inspetor { animation: entrar-painel 260ms var(--curva) backwards; padding-top: var(--seguro-top); }
 }
 
 /* ===== Telas de colunas próprias (Calendário, Notas) no celular ===== */
 @media (max-width: 760px) {
   .pagina.cheia { overflow: auto; display: block; }
   .tela-calendario { flex-direction: column; height: auto !important; }
-  .tela-calendario > .pagina { overflow: visible; padding: calc(var(--pagina-y) + env(safe-area-inset-top)) var(--pagina-x) var(--e4) !important; }
-  .agenda-dia { display: flex !important; width: auto; border: 0; background: none; padding: 0 var(--pagina-x) calc(var(--altura-nav) + env(safe-area-inset-bottom) + var(--e8)); }
+  .tela-calendario > .pagina { overflow: visible; padding: calc(var(--pagina-y) + var(--seguro-top)) var(--pagina-x) var(--e4) !important; }
+  .agenda-dia { display: flex !important; width: auto; border: 0; background: none; padding: 0 var(--pagina-x) calc(var(--altura-nav) + var(--seguro-bottom) + var(--e8)); }
   .tela-calendario .dia-cal { padding: 4px; }
   .tela-notas { height: auto !important; }
   .lista-notas { width: 100%; border: 0; background: none; }
-  .lista-notas > div:first-child { padding: calc(var(--pagina-y) + env(safe-area-inset-top)) var(--pagina-x) var(--e4) !important; }
-  .lista-notas > div:last-child { padding: 0 calc(var(--pagina-x) - 10px) calc(var(--altura-nav) + env(safe-area-inset-bottom) + var(--e8)) !important; overflow: visible !important; }
-  .editor-nota { position: fixed; inset: 0; z-index: calc(var(--z-nav) + 1); padding-top: env(safe-area-inset-top); animation: entrar-painel 260ms var(--curva) backwards; }
+  .lista-notas > div:first-child { padding: calc(var(--pagina-y) + var(--seguro-top)) var(--pagina-x) var(--e4) !important; }
+  .lista-notas > div:last-child { padding: 0 calc(var(--pagina-x) - 10px) calc(var(--altura-nav) + var(--seguro-bottom) + var(--e8)) !important; overflow: visible !important; }
+  .editor-nota { position: fixed; inset: 0; z-index: calc(var(--z-nav) + 1); padding-top: var(--seguro-top); animation: entrar-painel 260ms var(--curva) backwards; }
   .tela-notas:not([data-editando]) .editor-nota { display: none; }
 }
 
 /* Um ritmo só entre os blocos de qualquer tela no celular (§5.1: 24px entre blocos). */
 @media (max-width: 760px) {
   .bloco-tela { gap: var(--e6) !important; }
-  .faixa-solta { padding: calc(var(--pagina-y) + env(safe-area-inset-top)) var(--pagina-x) 0; }
+  .faixa-solta { padding: calc(var(--pagina-y) + var(--seguro-top)) var(--pagina-x) 0; }
   .tela-calendario > .pagina { padding-top: var(--e6) !important; }
   .lista-notas > div:first-child { padding-top: var(--e6) !important; }
 }
 @media (max-width: 760px) {
   .lista-notas h1 { font-size: var(--t-display); }
-  .inspetor > div:nth-child(2) { padding-bottom: calc(var(--altura-nav) + env(safe-area-inset-bottom) + var(--e8)) !important; }
-  .editor-nota > div:last-child { padding-bottom: calc(var(--e8) + env(safe-area-inset-bottom)) !important; }
+  .inspetor > div:nth-child(2) { padding-bottom: calc(var(--altura-nav) + var(--seguro-bottom) + var(--e8)) !important; }
+  .editor-nota > div:last-child { padding-bottom: calc(var(--e8) + var(--seguro-bottom)) !important; }
   /* Concluídas: os números em cima, o período numa linha inteira embaixo. */
   .resumo-topo { flex-wrap: wrap; row-gap: var(--e4); }
   .resumo-topo > .segmentado { order: 3; }
@@ -322,7 +328,7 @@ input:focus-visible, textarea:focus-visible { outline: none; }
 .ind-rolagem.visivel { opacity: 1; }
 .ind-rolagem svg { transform: scaleX(1.6); }
 /* A página principal some debaixo da pílula no celular: o indicador fica acima dela. */
-@media (max-width: 760px) { .casca-pagina > .ind-rolagem.baixo { bottom: calc(var(--altura-nav) + env(safe-area-inset-bottom)); } }
+@media (max-width: 760px) { .casca-pagina > .ind-rolagem.baixo { bottom: calc(var(--altura-nav) + var(--seguro-bottom)); } }
 /* Barras de rolagem discretas: o indicador já diz que há mais. */
 .rolagem-casca > :first-child { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--texto3) 40%, transparent) transparent; }
 .casca-pagina { flex: 1; }
@@ -360,7 +366,7 @@ input:focus-visible, textarea:focus-visible { outline: none; }
 .cartao-opcao { padding: var(--e5); display: flex; align-items: center; flex-wrap: wrap; gap: var(--e3); }
 .cartao-opcao-texto { display: flex; flex-direction: column; gap: 2px; flex: 1 1 200px; min-width: 0; }
 @media (max-width: 760px) {
-  .tela-entrar { padding: calc(var(--pagina-y) + env(safe-area-inset-top) + 24px) var(--pagina-x) calc(var(--e8) + env(safe-area-inset-bottom)); }
+  .tela-entrar { padding: calc(var(--pagina-y) + var(--seguro-top) + 24px) var(--pagina-x) calc(var(--e8) + var(--seguro-bottom)); }
   .cartao-opcao > .botao { flex: 1 1 100%; }
 }
 .menu-sem-conta { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--e3); padding: var(--e8); text-align: center; background: var(--fundo); }
@@ -416,3 +422,42 @@ input:focus-visible, textarea:focus-visible { outline: none; }
   .cabecalho-secao:hover svg, .secao-lateral > button:first-child:hover svg, .secao-menu:hover svg { color: var(--texto2); }
 }
 .b-fantasma { transition: color var(--rapido) var(--curva), transform var(--toque) var(--curva); }
+
+/* Trilho arrastável (§8.5) */
+.com-trilho[data-trilho-arrastando] > [data-trilho] { background-image: none !important; }
+.segmentado.com-trilho > [aria-pressed="true"] { touch-action: pan-y; }
+.nav-celular nav { touch-action: pan-y; }
+/* A pílula usa 10% do próprio texto no fundo do ativo: no escuro a superficie-2 sumia. */
+@media (max-width: 760px) { .nav-celular .trilho { background: color-mix(in srgb, var(--texto) 10%, transparent) !important; } }
+
+/* ===== §6.7 Efeitos de classe ===== */
+/* Etiqueta que responde pelo texto: cresce um fio e vai para o acento (sem fundo recortado). */
+.tag-link { display: inline-block; transition: transform var(--rapido) var(--curva), color var(--rapido) var(--curva); }
+@media (hover: hover) { .tag-link:hover { transform: scale(1.06); color: var(--acento-texto) !important; } }
+.tag-link:active { transform: scale(0.97); }
+/* O cartão que aquece no toque: responde no pointerdown, antes de a tela trocar. */
+.aquecendo { transform: scale(0.985) !important; filter: brightness(1.06); transition: transform 400ms var(--curva), filter 400ms var(--curva) !important; }
+:root[data-tema="escuro"] .aquecendo { filter: brightness(1.12); }
+/* O ícone do estado vazio segue o ponteiro de longe (translate compõe com a flutuação). */
+.estado-vazio > svg:first-child { translate: calc(var(--px, 0) * 5px) calc(var(--py, 0) * 5px); transition: translate 400ms var(--curva); }
+/* A inicial do avatar cresce com o círculo. */
+.avatar-inicial { container-type: inline-size; }
+.avatar-inicial > .letra { font-size: 44cqw; line-height: 1; }
+/* Área de toque de 44px sem mudar o desenho. */
+@media (pointer: coarse) {
+  .alvo-toque, .seta-sub, .chips-campo > button, .so-afunda { position: relative; }
+  .alvo-toque::after, .seta-sub::after, .chips-campo > button::after { content: ""; position: absolute; left: 50%; top: 50%; width: max(100%, 44px); height: max(100%, 44px); transform: translate(-50%, -50%); }
+}
+/* Seções compridas só custam quando aparecem (desempenho §6.12). */
+.secao-longa { content-visibility: auto; contain-intrinsic-size: auto 420px; }
+/* Leitura sem reancoragem: o editor de nota cresce sem puxar a rolagem. */
+.editor-nota, .editor-nota * { overflow-anchor: none; }
+/* Barra que sobe do rodapé ao chegar. */
+@keyframes entra-barra { from { transform: translate(-50%, calc(100% + 1rem)); } }
+@media (min-width: 761px) { .barra-flutuante { animation: entra-barra 420ms var(--curva) backwards; } }
+/* Espera sem medida: um terço da largura correndo de um lado ao outro. */
+@keyframes barra-indeterminada { from { transform: translateX(-100%); } to { transform: translateX(300%); } }
+.barra-espera { position: relative; height: 2px; overflow: hidden; border-radius: 999px; background: var(--superficie2); }
+.barra-espera::after { content: ""; position: absolute; inset: 0 auto 0 0; width: 33%; border-radius: inherit; background: var(--acento); animation: barra-indeterminada 1.4s var(--curva) infinite; }
+@media (prefers-reduced-motion: reduce) { .barra-espera::after { width: 100%; opacity: 0.5; animation: none; } }
+.barra-sync { position: absolute; top: 0; left: 0; right: 0; z-index: 4; }

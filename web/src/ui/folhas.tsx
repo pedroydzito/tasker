@@ -11,7 +11,7 @@ import {
 import { usar } from "../dados/armazem";
 import { criarEtiqueta, criarLista, editarEtiqueta, excluirEtiqueta, excluirLista, mudarPrefs, renomearLista } from "../dados/acoes";
 import { corDaLista, iconeDaLista, nomeDaLista } from "../dados/consultas";
-import { PALETA, normalizarBusca } from "../dados/util";
+import { PALETA, letraSobre, normalizarBusca } from "../dados/util";
 import { irPara } from "./rota";
 import { Segmentado } from "./comuns";
 
@@ -176,7 +176,7 @@ function SeletorDeIcone({ selecionado, cor, aoEscolher }: { selecionado: string 
       <div style={{ height: 172, overflow: "auto", display: "grid", gridTemplateColumns: "repeat(9, 1fr)", gap: 6, padding: 2, alignContent: "start" }}>
         {resultados.map(([n, I]) => (
           <button key={n} title={n} className="afunda" onClick={() => aoEscolher(n)}
-            style={{ height: 36, borderRadius: "var(--raio-m)", display: "inline-flex", alignItems: "center", justifyContent: "center", background: selecionado === n ? cor : "var(--superficie2)", color: selecionado === n ? "#fff" : "var(--texto2)" }}>
+            style={{ height: 36, borderRadius: "var(--raio-m)", display: "inline-flex", alignItems: "center", justifyContent: "center", background: selecionado === n ? cor : "var(--superficie2)", color: selecionado === n ? letraSobre(cor) : "var(--texto2)" }}>
             <I size={15} strokeWidth={1.8} />
           </button>
         ))}

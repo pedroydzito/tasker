@@ -264,3 +264,12 @@ export function corDaChave(id: string): string {
   for (const b of new TextEncoder().encode(id)) h = (h * 33n + BigInt(b)) & 0xffffffffffffffffn;
   return PALETA[Number(((h * 3n) & 0xffffffffffffffffn) % BigInt(PALETA.length))];
 }
+
+/**
+ * Letra sobre uma cor que não é token de papel (design system §8.1): branca em cor escura ou média,
+ * preta só em cor clara. Corte em L ≈ 0,72 no OKLCH (não o empate de contraste).
+ */
+export function letraSobre(cor: string): string {
+  if (typeof CSS !== "undefined" && CSS.supports?.("color", "oklch(from red l 0 0)")) return `oklch(from ${cor} clamp(0, (0.72 - l) * 9999, 1) 0 0)`;
+  return "#fff";
+}
