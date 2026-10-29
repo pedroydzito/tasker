@@ -1,92 +1,163 @@
 import { useMemo, useState } from "react";
-import { Battery, BatteryLow, Camera, Plus, Trash2 } from "lucide-react";
+import { ArrowUpRight, BatteryFull, BatteryLow, Calendar, Camera, ChevronDown, ChevronUp, Hash, ListChecks, Pencil, Plus, Sun, Sunrise, Trash2 } from "lucide-react";
 import { mesmaLista, usar } from "../dados/armazem";
 import {
   adiarAtrasadas, apagarDespejo, despejar, despejoParaNota, despejoParaTarefa, esvaziarNao, excluirNota, fazerAgora, guardarFoto,
-  moverDespejo, mudarPrefs, novaNota, atualizarNota, escreverNoDia, revisaoDaSemana, tarefaDaLinha, criarLista, excluirLista, renomearLista,
+  moverDespejo, mudarPrefs, editarEtiqueta, novaNota, atualizarNota, escreverNoDia, revisaoDaSemana, tarefaDaLinha, criarLista, excluirLista, renomearLista,
 } from "../dados/acoes";
-import { etiquetasOrdenadas, eventosDoDia, indice, nomeDaLista, pendentesDaNota } from "../dados/consultas";
+import { corDaLista, etiquetasOrdenadas, eventosDoDia, indice, nomeDaLista, pendentesDaNota } from "../dados/consultas";
 import { entrarComGoogle, reconectarGoogle, sair, usarSemConta } from "../dados/sync";
 import type { EstadoDespejo, Tarefa, Tema } from "../dados/tipos";
-import { deISO, diaISO, hojeISO, primeiraMaiuscula, rotuloLongo, somarDias } from "../dados/util";
-import { Cabecalho, LinhaTarefa, Secao, Vazio } from "./comuns";
+import { deISO, diaISO, hojeISO, primeiraMaiuscula, rotuloCurto, rotuloLongo, somarDias } from "../dados/util";
+import { Cabecalho, CartaoLinhas, EstadoVazio, LadrilhoLista, LinhaTarefa, Secao, Vazio } from "./comuns";
 import { irPara } from "./rota";
 
-const lista = (ts: Tarefa[], opc: { data?: boolean; lista?: boolean } = {}) =>
-  ts.map((t) => <LinhaTarefa key={t.id} t={t} mostrarData={opc.data ?? true} mostrarLista={opc.lista ?? true} />);
 const raiz = (ts: Tarefa[]) => ts.filter((t) => !t.mae);
+const linhas = (ts: Tarefa[], opc: { data?: boolean; lista?: boolean } = {}) =>
+  ts.map((t) => <LinhaTarefa key={t.id} t={t} mostrarData={opc.data ?? true} mostrarLista={opc.lista ?? true} />);
+export const textoContagem = (n: number) => (n === 0 ? "Nada pendente" : `${n} tarefa${n === 1 ? "" : "s"} para concluir`);
+const hora = (iso: string) => new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 
-function Eventos({ dia }: { dia: string }) {
+let eventosRecolhidos = (() => { try { return localStorage.getItem("eventsCollapsed") === "1"; } catch { return false; } })();
+
+/** Eventos do Google Calendar (EventsCard): sem fundo, barra de cor, horário e título; seta recolhe. */
+export function Eventos({ dia, compacto = false, recolhivel = true }: { dia: string; compacto?: boolean; recolhivel?: boolean }) {
   const evs = usar((e) => eventosDoDia(e, dia), mesmaLista);
+  const [fechado, setFechado] = useState(eventosRecolhidos);
   if (!evs.length) return null;
+  const mostrar = recolhivel && fechado ? evs.slice(0, 1) : evs;
+  const agora = Date.now();
   return (
-    <Secao titulo="Agenda">
-      {evs.map((ev) => (
-        <a key={ev.id} className="linha-tarefa" href={ev.link ?? undefined} target="_blank" rel="noreferrer">
-          <span style={{ width: 4, alignSelf: "stretch", borderRadius: 2, background: ev.cor }} />
-          <span className="t-md uma-linha" style={{ flex: 1 }}>{ev.titulo}</span>
-          <span className="t-xs c3">{ev.diaTodo ? "Dia todo" : new Date(ev.inicio).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</span>
-        </a>
-      ))}
-    </Secao>
+    <div style={{ display: "flex", alignItems: "flex-start" }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        {mostrar.map((ev) => (
+          <a key={ev.id} className="evento afunda" href={ev.link ?? undefined} target="_blank" rel="noreferrer" title="Abrir no Google Calendar"
+            style={{ ["--cor" as string]: ev.cor, padding: compacto ? "6px 0" : "7px 0", opacity: new Date(ev.fim).getTime() < agora ? 0.45 : 1 }}>
+            <span className="evento-barra" />
+            <span className="t-xs p-medio c3 numeros" style={{ minWidth: 74 }}>{ev.diaTodo ? "Dia todo" : `${hora(ev.inicio)}–${hora(ev.fim)}`}</span>
+            <span className="t-sm p-medio uma-linha">{ev.titulo}</span>
+            <ArrowUpRight size={10} strokeWidth={3} className="evento-seta" />
+          </a>
+        ))}
+      </div>
+      {recolhivel && evs.length > 1 && (
+        <button className="icone-botao" style={{ width: 26, height: 26, marginTop: compacto ? 1 : 3 }} aria-label={fechado ? "Mostrar todos os eventos" : "Mostrar menos"}
+          onClick={() => { eventosRecolhidos = !fechado; setFechado(!fechado); try { localStorage.setItem("eventsCollapsed", fechado ? "0" : "1"); } catch { /* nada */ } }}>
+          {fechado ? <ChevronDown size={11} /> : <ChevronUp size={11} />}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function BotaoEnergia() {
+  const baixa = usar((e) => e.prefs.energiaBaixa);
+  return (
+    <button className={"icone-botao" + (baixa ? " ativo" : "")} aria-label="Energia"
+      title={baixa ? "Tô sem energia — clique para ver tudo" : "Tenho energia — clique se estiver sem energia"}
+      onClick={() => mudarPrefs((p) => ({ energiaBaixa: !p.energiaBaixa }))}>
+      {baixa ? <BatteryLow size={16} /> : <BatteryFull size={16} />}
+    </button>
   );
 }
 
 export function TelaHoje() {
   const hoje = hojeISO();
+  const baixa = usar((e) => e.prefs.energiaBaixa);
+  const atrasadas = usar((e) => (e.prefs.energiaBaixa ? [] : raiz(indice(e).atrasadas)), mesmaLista);
   const tarefas = usar((e) => raiz(indice(e).hoje), mesmaLista);
-  const atrasadas = usar((e) => raiz(indice(e).atrasadas), mesmaLista);
-  const feitas = usar((e) => indice(e).concluidasHoje.length);
-  const energia = usar((e) => e.prefs.energiaBaixa);
-  // Energia baixa: só as três primeiras, sem cobrar o resto.
-  const visiveis = energia ? tarefas.slice(0, 3) : tarefas;
+  const feitas = usar((e) => indice(e).concluidasHoje, mesmaLista);
+  const vazio = !tarefas.length && !atrasadas.length;
+  const concluidas = feitas.length > 0 && (
+    <Secao titulo="Concluídas" contagem={feitas.length} recolhida>{linhas(feitas, { data: false })}</Secao>
+  );
   return (
     <>
-      <Cabecalho
-        titulo="Hoje"
-        sub={primeiraMaiuscula(deISO(hoje).toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" })) + (feitas ? ` · ${feitas} feita${feitas > 1 ? "s" : ""}` : "")}
-        direita={
-          <button className="chip" aria-pressed={energia} title="Energia baixa" onClick={() => mudarPrefs((p) => ({ energiaBaixa: !p.energiaBaixa }))}>
-            {energia ? <BatteryLow size={14} /> : <Battery size={14} />}
-          </button>
-        }
-      />
-      <Eventos dia={hoje} />
-      {!energia && atrasadas.length > 0 && (
-        <Secao titulo="Atrasadas" acao={<button className="botao b-fantasma t-xs" onClick={adiarAtrasadas}>Passar para hoje</button>}>{lista(atrasadas)}</Secao>
-      )}
-      <Secao titulo={energia ? "Só isto, hoje" : "Tarefas"}>{visiveis.length ? lista(visiveis, { data: false }) : <Vazio texto="Nada para hoje." />}</Secao>
+      <Cabecalho titulo="Hoje" sub={baixa ? rotuloLongo(hoje) : `${rotuloLongo(hoje)} · ${textoContagem(atrasadas.length + tarefas.length)}`} direita={<BotaoEnergia />} />
+      <div className="entrar-2" style={{ display: "flex", flexDirection: "column", gap: "var(--e5)" }}>
+        <Eventos dia={hoje} />
+        {atrasadas.length > 0 && (
+          <Secao titulo="Em atraso" contagem={atrasadas.length} tom="var(--perigo-texto)" acao={<button className="botao b-fantasma" onClick={adiarAtrasadas}>Mover para hoje</button>}>
+            {linhas(atrasadas)}
+          </Secao>
+        )}
+        {vazio && concluidas}
+        {!tarefas.length ? (
+          !atrasadas.length && <EstadoVazio Icone={Sun} titulo="Nada pendente" descricao="As tarefas com data de hoje aparecem aqui." />
+        ) : !atrasadas.length ? (
+          <CartaoLinhas>{linhas(tarefas, { data: false })}</CartaoLinhas>
+        ) : (
+          <Secao titulo="Hoje" contagem={tarefas.length}>{linhas(tarefas, { data: false })}</Secao>
+        )}
+        {!vazio && concluidas}
+      </div>
+    </>
+  );
+}
+
+function Dia({ titulo, dia }: { titulo: string; dia: string }) {
+  const ts = usar((e) => raiz(indice(e).porDia.get(dia) ?? []), mesmaLista);
+  const temEventos = usar((e) => eventosDoDia(e, dia).length > 0);
+  return (
+    <>
+      <Cabecalho titulo={titulo} sub={`${rotuloLongo(dia)} · ${textoContagem(ts.length)}`} />
+      <div className="entrar-2" style={{ display: "flex", flexDirection: "column", gap: "var(--e4)" }}>
+        {!ts.length && !temEventos ? (
+          <EstadoVazio Icone={Sunrise} titulo="Dia livre" descricao={`Nada marcado para ${titulo.toLowerCase()}.`} />
+        ) : (
+          <>
+            <Eventos dia={dia} />
+            {ts.length > 0 && <CartaoLinhas>{linhas(ts, { data: false })}</CartaoLinhas>}
+          </>
+        )}
+      </div>
     </>
   );
 }
 
 export function TelaAmanha() {
-  const dia = somarDias(hojeISO(), 1);
+  return <Dia titulo="Amanhã" dia={somarDias(hojeISO(), 1)} />;
+}
+
+function DiaComItens({ dia }: { dia: string }) {
   const ts = usar((e) => raiz(indice(e).porDia.get(dia) ?? []), mesmaLista);
+  const nEventos = usar((e) => eventosDoDia(e, dia).length);
+  const [recolhido, setRecolhido] = useState(false);
+  const resumo = [nEventos ? `${nEventos} evento${nEventos === 1 ? "" : "s"}` : "", ts.length ? `${ts.length} tarefa${ts.length === 1 ? "" : "s"}` : ""].filter(Boolean).join(" · ");
   return (
-    <>
-      <Cabecalho titulo="Amanhã" sub={rotuloLongo(dia)} />
-      <Eventos dia={dia} />
-      <Secao titulo="Tarefas">{ts.length ? lista(ts, { data: false }) : <Vazio texto="Nada marcado para amanhã." />}</Secao>
-    </>
+    <div style={{ display: "flex", flexDirection: "column", gap: "var(--e2)" }}>
+      <button className="afunda" style={{ display: "flex", alignItems: "baseline", gap: 6, width: "100%" }} onClick={() => setRecolhido(!recolhido)}>
+        <span className="t-lg p-semi">{rotuloCurto(dia, hojeISO())}</span>
+        <span className="t-sm c3">{deISO(dia).toLocaleDateString("pt-BR", { day: "numeric", month: "short" })}</span>
+        <span style={{ flex: 1 }} />
+        {recolhido && <span className="t-xs c3">{resumo}</span>}
+        <ChevronDown size={11} strokeWidth={3} className="c3" style={{ transform: recolhido ? "rotate(-90deg)" : undefined, transition: "transform var(--normal) var(--curva)" }} />
+      </button>
+      {!recolhido && (
+        <div className="entrar" style={{ display: "flex", flexDirection: "column", gap: "var(--e2)" }}>
+          <Eventos dia={dia} recolhivel={false} />
+          {ts.length > 0 && <CartaoLinhas>{linhas(ts, { data: false })}</CartaoLinhas>}
+        </div>
+      )}
+    </div>
   );
 }
 
 export function TelaProximas() {
   const hoje = hojeISO();
   const porDia = usar((e) => indice(e).porDia);
-  const dias = Array.from({ length: 14 }, (_, i) => somarDias(hoje, i + 1));
+  const comEventos = usar((e) => new Set(e.eventos.map((ev) => ev.inicio.slice(0, 10))), (a, b) => a.size === b.size && [...a].every((x) => b.has(x)));
+  const dias = Array.from({ length: 14 }, (_, i) => somarDias(hoje, i + 1)).filter((d) => (porDia.get(d) ?? []).some((t) => !t.mae) || comEventos.has(d));
   return (
     <>
       <Cabecalho titulo="Próximas" sub="Os próximos 14 dias" />
-      {dias.map((d) => {
-        const ts = raiz(porDia.get(d) ?? []);
-        return ts.length ? <Secao key={d} titulo={rotuloLongo(d)}>{lista(ts, { data: false })}</Secao> : null;
-      })}
+      <div className="entrar-2" style={{ display: "flex", flexDirection: "column", gap: "var(--e6)" }}>
+        {!dias.length && <EstadoVazio Icone={Calendar} titulo="Duas semanas livres" descricao="Tarefas e eventos dos próximos dias aparecem aqui." />}
+        {dias.map((d) => <DiaComItens key={d} dia={d} />)}
+      </div>
     </>
   );
 }
-
 export function TelaCalendario() {
   const hoje = hojeISO();
   const [mes, setMes] = useState(hoje.slice(0, 7));
@@ -121,26 +192,61 @@ export function TelaCalendario() {
         })}
       </div>
       <Eventos dia={dia} />
-      <Secao titulo={rotuloLongo(dia)}>{ts.length ? lista(ts, { data: false }) : <Vazio texto="Nada neste dia." />}</Secao>
+      <Secao titulo={rotuloLongo(dia)}>{ts.length ? linhas(ts, { data: false }) : <Vazio texto="Nada neste dia." />}</Secao>
     </>
   );
 }
 
 export function TelaTodas() {
-  const listas = usar((e) => e.listas);
-  const porLista = usar((e) => indice(e).porLista);
+  const [porLista, setPorLista] = useState(() => { try { return localStorage.getItem("allGroupByList") === "1"; } catch { return false; } });
+  const e = usar((x) => x);
+  const i = indice(e);
+  const mudar = (v: boolean) => { setPorLista(v); try { localStorage.setItem("allGroupByList", v ? "1" : "0"); } catch { /* nada */ } };
+  const grupo = (titulo: string, ts: Tarefa[], tom?: string) => (ts.length ? <Secao key={titulo} titulo={titulo} contagem={raiz(ts).length} tom={tom}>{linhas(raiz(ts))}</Secao> : null);
   return (
     <>
-      <Cabecalho titulo="Todas" />
-      {listas.map((l) => {
-        const ts = raiz(porLista.get(l.id) ?? []);
-        return ts.length ? <Secao key={l.id} titulo={l.titulo}>{lista(ts, { lista: false })}</Secao> : null;
-      })}
+      <Cabecalho titulo="Todas" sub={textoContagem(raiz(i.abertas).length)} />
+      <div className="entrar-2" style={{ display: "flex", flexDirection: "column", gap: "var(--e6)", alignItems: "stretch" }}>
+        <div className="segmentado" style={{ alignSelf: "flex-start" }}>
+          <button aria-pressed={!porLista} onClick={() => mudar(false)}>Por data</button>
+          <button aria-pressed={porLista} onClick={() => mudar(true)}>Por lista</button>
+        </div>
+        {porLista
+          ? e.listas.map((l) => {
+              const ts = raiz(i.porLista.get(l.id) ?? []);
+              return ts.length ? <Secao key={l.id} titulo={nomeDaLista(e, l.id)} contagem={ts.length} tom={corDaLista(e, l.id)}>{linhas(ts, { lista: false })}</Secao> : null;
+            })
+          : [grupo("Em atraso", i.atrasadas, "var(--perigo-texto)"), grupo("Hoje", i.hoje), grupo("Em breve", i.depois), grupo("Sem data", i.semData)]}
+      </div>
     </>
   );
 }
 
 export function TelaConcluidas() {
+  const feitas = usar((e) => indice(e).concluidas);
+  const [limite, setLimite] = useState(40);
+  const hoje = hojeISO();
+  const grupos = new Map<string, Tarefa[]>();
+  for (const t of feitas.slice(0, limite)) {
+    const d = t.concluidaEm ? diaISO(new Date(t.concluidaEm)) : "";
+    grupos.set(d, [...(grupos.get(d) ?? []), t]);
+  }
+  return (
+    <>
+      <Cabecalho titulo="Concluídas" sub={`${feitas.length} tarefas até aqui`} />
+      <div className="entrar-2" style={{ display: "flex", flexDirection: "column", gap: "var(--e6)" }}>
+        <ResumoConcluidas />
+        {[...grupos.keys()].sort().reverse().map((d) => (
+          <Secao key={d} titulo={d ? rotuloCurto(d, hoje) : "Sem data"} contagem={grupos.get(d)!.length}>{linhas(grupos.get(d)!, { data: false })}</Secao>
+        ))}
+        {feitas.length > limite && <button className="botao b-fantasma" onClick={() => setLimite(limite + 40)}>Mostrar mais</button>}
+      </div>
+    </>
+  );
+}
+
+/** Resumo do gráfico de concluídas (ResumoConcluidas.swift). */
+function ResumoConcluidas() {
   const feitas = usar((e) => indice(e).concluidas);
   const hoje = hojeISO();
   const [dica, setDica] = useState<number | null>(null);
@@ -154,50 +260,54 @@ export function TelaConcluidas() {
     return m;
   }, [feitas]);
   const max = Math.max(1, ...dias.map((d) => contagem.get(d) ?? 0));
-  const total = dias.reduce((s, d) => s + (contagem.get(d) ?? 0), 0);
   return (
-    <>
-      <Cabecalho titulo="Concluídas" sub={`${total} nos últimos 30 dias`} />
-      <div className="cartao" style={{ padding: 16, position: "relative" }} onMouseLeave={() => setDica(null)}>
-        <div style={{ display: "flex", alignItems: "flex-end", gap: 3, height: 120 }}>
-          {dias.map((d, i) => {
-            const n = contagem.get(d) ?? 0;
-            return (
-              <div key={d} onMouseEnter={() => setDica(i)} style={{ flex: 1, height: "100%", display: "flex", alignItems: "flex-end" }}>
-                <div style={{ width: "100%", height: `${Math.max(3, (n / max) * 100)}%`, borderRadius: 4, background: n ? "var(--acento)" : "var(--superficie3)", opacity: dica === null || dica === i ? 1 : 0.5 }} />
-              </div>
-            );
-          })}
-        </div>
-        {dica !== null && (
-          <div className="t-xs" style={{ position: "absolute", top: 8, left: `calc(${((dica + 0.5) / 30) * 100}% )`, transform: "translateX(-50%)", background: "var(--superficie)", border: "1px solid var(--borda)", borderRadius: 8, padding: "4px 8px", boxShadow: "var(--sombra-alta)", whiteSpace: "nowrap", pointerEvents: "none" }}>
-            {rotuloLongo(dias[dica])}: {contagem.get(dias[dica]) ?? 0}
-          </div>
-        )}
+    <div className="cartao" style={{ padding: "var(--e5)", position: "relative" }} onMouseLeave={() => setDica(null)}>
+      <div style={{ display: "flex", alignItems: "flex-end", gap: 3, height: 120 }}>
+        {dias.map((d, i) => {
+          const n = contagem.get(d) ?? 0;
+          return (
+            <div key={d} onMouseEnter={() => setDica(i)} style={{ flex: 1, height: "100%", display: "flex", alignItems: "flex-end" }}>
+              <div style={{ width: "100%", height: `${Math.max(3, (n / max) * 100)}%`, borderRadius: 4, background: n ? "var(--acento)" : "var(--superficie3)", opacity: dica === null || dica === i ? 1 : 0.5, transition: "opacity var(--rapido)" }} />
+            </div>
+          );
+        })}
       </div>
-      <Secao titulo="Recentes">{feitas.length ? lista(feitas.slice(0, 200)) : <Vazio texto="Nada concluído ainda." />}</Secao>
-    </>
+      {dica !== null && (
+        <div className="t-xs" style={{ position: "absolute", top: 8, left: `${((dica + 0.5) / 30) * 100}%`, transform: "translateX(-50%)", background: "var(--superficie)", border: "1px solid var(--borda)", borderRadius: 8, padding: "4px 8px", boxShadow: "var(--sombra-alta)", whiteSpace: "nowrap", pointerEvents: "none" }}>
+          {rotuloLongo(dias[dica])}: {contagem.get(dias[dica]) ?? 0}
+        </div>
+      )}
+    </div>
   );
 }
 
 export function TelaLista({ id }: { id: string }) {
-  const l = usar((e) => e.listas.find((x) => x.id === id) ?? null);
-  const ts = usar((e) => raiz(indice(e).porLista.get(id) ?? []), mesmaLista);
+  const existe = usar((e) => e.listas.some((x) => x.id === id));
+  const nome = usar((e) => nomeDaLista(e, id));
+  const cor = usar((e) => corDaLista(e, id));
   const fixa = usar((e) => e.listaFixa === id);
-  if (!l) return <Vazio texto="Lista não encontrada." />;
+  const ts = usar((e) => raiz(indice(e).porLista.get(id) ?? []).sort((a, b) => (a.posicao < b.posicao ? -1 : 1)), mesmaLista);
+  const feitas = usar((e) => indice(e).concluidasPorLista.get(id) ?? [], mesmaLista);
+  if (!existe) return <EstadoVazio Icone={ListChecks} titulo="Lista não encontrada" />;
+  const editar = () => {
+    const n = prompt("Nome da lista", nome);
+    if (n?.trim() && n.trim() !== nome) renomearLista(id, n.trim());
+    else if (n === "" && !fixa && confirm(`“${nome}” e as tarefas dela serão excluídas, também no Google Tasks. Dá para desfazer logo depois.`)) { excluirLista(id); irPara({ tela: "hoje" }); }
+  };
   return (
     <>
-      <Cabecalho
-        titulo={l.titulo}
-        sub={`${ts.length} aberta${ts.length === 1 ? "" : "s"}`}
-        direita={
-          <span style={{ display: "flex", gap: 6 }}>
-            <button className="botao b-superficie" onClick={() => { const n = prompt("Nome da lista", l.titulo); if (n?.trim()) renomearLista(id, n.trim()); }}>Renomear</button>
-            {!fixa && <button className="botao b-perigo" onClick={() => { if (confirm(`Excluir "${l.titulo}" e suas tarefas?`)) { excluirLista(id); irPara({ tela: "hoje" }); } }}><Trash2 size={14} /></button>}
-          </span>
-        }
-      />
-      <Secao titulo="Tarefas">{ts.length ? lista(ts, { lista: false }) : <Vazio texto="Lista vazia." />}</Secao>
+      <Cabecalho titulo={nome} sub={textoContagem(ts.length)} esquerda={
+        <button className="afunda" title="Personalizar ícone e cor" onClick={editar} style={{ position: "relative", padding: 4, borderRadius: 52 * 0.3 + 4, border: `2.5px solid ${cor}`, display: "inline-flex" }}>
+          <LadrilhoLista listaId={id} tamanho={52} />
+          <span style={{ position: "absolute", right: -4, bottom: -4, width: 20, height: 20, borderRadius: 99, background: cor, color: "#fff", border: "2px solid var(--fundo)", display: "inline-flex", alignItems: "center", justifyContent: "center" }}><Pencil size={9} strokeWidth={3} /></span>
+        </button>
+      } />
+      <div className="entrar-2" style={{ display: "flex", flexDirection: "column", gap: "var(--e6)" }}>
+        <Secao titulo="Tarefas" contagem={ts.length} tom={cor}>
+          {ts.length ? linhas(ts, { lista: false }) : <EstadoVazio Icone={ListChecks} titulo="Lista vazia" descricao="Use a barra abaixo para criar a primeira tarefa." />}
+        </Secao>
+        {feitas.length > 0 && <Secao titulo="Concluídas" contagem={feitas.length} recolhida>{linhas(feitas.slice(0, 30), { lista: false })}</Secao>}
+      </div>
     </>
   );
 }
@@ -205,11 +315,16 @@ export function TelaLista({ id }: { id: string }) {
 export function TelaEtiqueta({ id }: { id: string }) {
   const g = usar((e) => e.etiquetas.find((x) => x.id === id) ?? null);
   const ts = usar((e) => indice(e).abertas.filter((t) => e.etiquetasDaTarefa[t.id]?.includes(id)), mesmaLista);
-  if (!g) return <Vazio texto="Etiqueta não encontrada." />;
+  if (!g) return <EstadoVazio Icone={Hash} titulo="Etiqueta não encontrada" />;
   return (
     <>
-      <Cabecalho titulo={"#" + g.nome} />
-      <Secao titulo="Tarefas">{ts.length ? lista(ts) : <Vazio texto="Nenhuma tarefa com essa etiqueta." />}</Secao>
+      <Cabecalho titulo={"#" + g.nome} sub="Etiqueta · só no Tasker" />
+      <div className="entrar-2" style={{ display: "flex", flexDirection: "column", gap: "var(--e6)" }}>
+        <div><button className="botao b-superficie" onClick={() => { const n = prompt("Nome da etiqueta", g.nome); if (n?.trim()) editarEtiqueta(id, { nome: n.trim() }); }}><Pencil size={13} /> Editar etiqueta</button></div>
+        <Secao titulo="Tarefas" contagem={ts.length}>
+          {ts.length ? linhas(ts) : <EstadoVazio Icone={Hash} titulo="Nenhuma tarefa aqui" descricao="Clique com o botão direito numa tarefa → Etiquetas." />}
+        </Secao>
+      </div>
     </>
   );
 }

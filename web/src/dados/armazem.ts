@@ -70,6 +70,8 @@ export function usarEspelho(chave: string | null) {
   chaveEspelho = chave;
 }
 
+export const espelhoAtual = () => chaveEspelho;
+
 function agendarEspelho() {
   if (!chaveEspelho) return;
   if (gravacao) clearTimeout(gravacao);

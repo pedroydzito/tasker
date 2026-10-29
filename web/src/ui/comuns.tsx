@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
-  Briefcase, Book, Calendar, CalendarDays, Check, ChevronLeft, ChevronRight, Circle, Clock, Dumbbell, Folder, Heart, Home,
-  Inbox, List, Music, Paperclip, Pause, Play, Plane, ShoppingCart, Star, Sun, Tag, X, type LucideIcon,
+  AlertCircle, AlignLeft, ChevronDown, Briefcase, Book, Calendar, CalendarDays, Check, ChevronLeft, ChevronRight, Circle, Clock, Dumbbell, Folder, Heart, Home,
+  Inbox, List, Music, Pause, Play, Plane, ShoppingCart, Star, Sun, Tag, X, type LucideIcon,
 } from "lucide-react";
 import { usar } from "../dados/armazem";
 import { alternarCronometro, concluir } from "../dados/acoes";
-import { corDaLista, etiquetasDe, horarioDe, indice, nomeDaLista, tituloDe } from "../dados/consultas";
+import { corDaLista, etiquetasDe, horarioDe, iconeDaLista, indice, nomeDaLista, notasVisiveis, tituloDe } from "../dados/consultas";
 import type { Tarefa } from "../dados/tipos";
-import { deISO, diaISO, hojeISO, primeiraMaiuscula, rotuloComAtraso, somarDias } from "../dados/util";
+import { deISO, diaISO, hojeISO, primeiraMaiuscula, rotuloCurto, somarDias } from "../dados/util";
 import { selecionar, useSelecionada } from "./rota";
 
 /** Ícones das listas: os nomes SF guardados nas preferências viram ícones lucide. */
@@ -21,59 +21,156 @@ export function IconeLista({ nome, tamanho = 15 }: { nome: string | null; tamanh
   return <I size={tamanho} strokeWidth={2} />;
 }
 
-export function Circulo({ feito, cor, aoClicar }: { feito: boolean; cor: string; aoClicar: () => void }) {
+/** Círculo de concluir (CheckCircle): borda na cor da lista; no hover, véu 14% e o check aparece. */
+export function Circulo({ feito, cor, aoClicar, tamanho = 18 }: { feito: boolean; cor: string; aoClicar: () => void; tamanho?: number }) {
   return (
     <button
       className={"circulo" + (feito ? " feito" : "")}
-      style={{ ["--cor" as string]: cor }}
-      aria-label={feito ? "Desmarcar" : "Concluir"}
+      style={{ ["--cor" as string]: cor, width: tamanho, height: tamanho }}
+      aria-label={feito ? "Reabrir" : "Concluir"}
+      title={feito ? "Reabrir" : "Concluir"}
       onClick={(ev) => {
         ev.stopPropagation();
         aoClicar();
       }}
     >
-      <Check size={11} strokeWidth={3} />
+      <Check size={tamanho * 0.5} strokeWidth={3.5} />
     </button>
   );
 }
 
-/** Linha de tarefa no desenho original: círculo, título, e uma linha discreta de data/lista. */
-export function LinhaTarefa({ t, mostrarData = true, mostrarLista = true, compacta = false }: { t: Tarefa; mostrarData?: boolean; mostrarLista?: boolean; compacta?: boolean }) {
+/** Ladrilho da lista: ícone ou inicial sobre a cor da lista (16% de tinta), raio 30% do tamanho. */
+export function LadrilhoLista({ listaId, tamanho = 20, redondo = false }: { listaId: string; tamanho?: number; redondo?: boolean }) {
+  const cor = usar((e) => corDaLista(e, listaId));
+  const icone = usar((e) => iconeDaLista(e, listaId));
+  const nome = usar((e) => nomeDaLista(e, listaId));
+  return (
+    <span
+      style={{
+        width: tamanho, height: tamanho, flex: "none", display: "inline-flex", alignItems: "center", justifyContent: "center",
+        borderRadius: redondo ? tamanho / 2 : tamanho * 0.3, background: `color-mix(in srgb, ${cor} 16%, transparent)`, color: cor,
+        fontFamily: "ui-rounded, 'SF Pro Rounded', system-ui", fontWeight: 700, fontSize: tamanho * 0.46, lineHeight: 1,
+      }}
+    >
+      {icone ? <IconeLista nome={icone} tamanho={tamanho * 0.5} /> : (nome[0] ?? "").toUpperCase()}
+    </span>
+  );
+}
+
+/** Chip da lista: pílula tingida (13%) com o ladrilho redondo antes do nome. */
+export function ChipLista({ listaId, comSeta = false, aberta = false }: { listaId: string; comSeta?: boolean; aberta?: boolean }) {
+  const cor = usar((e) => corDaLista(e, listaId));
+  const nome = usar((e) => nomeDaLista(e, listaId));
+  return (
+    <span className="chip-lista" style={{ color: cor, background: `color-mix(in srgb, ${cor} 13%, transparent)` }}>
+      <LadrilhoLista listaId={listaId} tamanho={16} redondo />
+      <span className="uma-linha">{nome}</span>
+      {comSeta && <ChevronDown size={9} strokeWidth={3} style={{ transform: aberta ? "rotate(180deg)" : undefined, marginLeft: 1 }} />}
+    </span>
+  );
+}
+
+// Subtarefas abertas embaixo da mãe (estado de módulo, como o nav.subtarefasAbertas do Mac).
+const abertas = new Set<string>();
+const ouvintesAbertas = new Set<() => void>();
+function useAberta(id: string): [boolean, () => void] {
+  const [, f] = useState(0);
+  useEffect(() => {
+    const o = () => f((n) => n + 1);
+    ouvintesAbertas.add(o);
+    return () => void ouvintesAbertas.delete(o);
+  }, []);
+  return [abertas.has(id), () => {
+    if (abertas.has(id)) abertas.delete(id);
+    else abertas.add(id);
+    ouvintesAbertas.forEach((o) => o());
+  }];
+}
+
+/** Linha de tarefa: [círculo] título [▸ 1/3] nota/#etiquetas …… data · [chip da lista]. */
+export function LinhaTarefa({ t, mostrarData = true, mostrarLista = true, compacta = false, nivel = 0 }: { t: Tarefa; mostrarData?: boolean; mostrarLista?: boolean; compacta?: boolean; nivel?: number }) {
   const sel = useSelecionada();
   const cor = usar((e) => corDaLista(e, t.listaId));
-  const lista = usar((e) => (mostrarLista ? nomeDaLista(e, t.listaId) : ""));
   const etiquetas = usar((e) => etiquetasDe(e, t.id), (a, b) => a.length === b.length && a.every((x, i) => x === b[i]));
-  const filhas = usar((e) => indice(e).filhas.get(t.id)?.length ?? 0);
-  const anexos = usar((e) => e.anexos.filter((a) => a.tarefaId === t.id).length);
+  const filhas = usar((e) => (nivel === 0 ? indice(e).filhas.get(t.id) ?? [] : []), (a, b) => a.length === b.length && a.every((x, i) => x === b[i]));
+  const [aberta, alternar] = useAberta(t.id);
+  const [marcando, setMarcando] = useState(false);
   const hoje = hojeISO();
   const horario = horarioDe(t);
-  const meta: string[] = [];
-  if (mostrarData && t.prazo) meta.push(rotuloComAtraso(t.prazo, hoje));
-  if (horario) meta.push(horario);
-  if (lista) meta.push(lista);
-  const atrasada = !t.concluida && t.prazo && t.prazo < hoje;
+  const feito = t.concluida || marcando;
+  const atrasada = !!t.prazo && t.prazo < hoje && !t.concluida;
+  const nota = notasVisiveis(t).split("\n")[0]?.trim() ?? "";
+
+  let data: string | null = null;
+  if (t.prazo) {
+    const r = rotuloCurto(t.prazo, hoje);
+    if (horario) data = !mostrarData || (compacta && t.prazo === hoje) ? horario : `${r} · ${horario}`;
+    else data = mostrarData ? r : null;
+  }
+  const IconeData = atrasada ? AlertCircle : horario ? Clock : Calendar;
+
+  const concluirComPausa = () => {
+    if (t.concluida) return concluir(t.id, false);
+    setMarcando(true);
+    setTimeout(() => {
+      concluir(t.id, true);
+      setMarcando(false);
+    }, 420);
+  };
+
+  const seta = filhas.length > 0 && (
+    <button className="seta-sub" aria-expanded={aberta} title={(aberta ? "Esconder" : "Mostrar") + " subtarefas"} onClick={(e) => { e.stopPropagation(); alternar(); }}>
+      <ChevronRight size={9} strokeWidth={3.2} style={{ transform: aberta ? "rotate(90deg)" : undefined }} />
+      <span className="numeros">{filhas.filter((f) => f.concluida).length}/{filhas.length}</span>
+    </button>
+  );
+  const meta = (nota || etiquetas.length > 0) && (
+    <span className="meta-linha">
+      {nota && (<><AlignLeft size={10} /><span className="uma-linha" style={{ maxWidth: 220 }}>{nota}</span></>)}
+      {etiquetas.map((g) => <span key={g.id} style={{ color: g.cor }}>#{g.nome}</span>)}
+    </span>
+  );
+  const dataEl = data && (
+    <span className="data-linha numeros" style={atrasada ? { color: "var(--perigo-texto)" } : undefined}>
+      {!compacta && <IconeData size={10} strokeWidth={2.6} />}
+      {data}
+    </span>
+  );
+
   return (
-    <div className={"linha-tarefa" + (sel === t.id ? " selecionada" : "") + (compacta ? " compacta" : "")} onClick={() => selecionar(t.id)} data-tarefa={t.id}>
-      <Circulo feito={t.concluida} cor={cor} aoClicar={() => concluir(t.id, !t.concluida)} />
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div className={"t-md uma-linha" + (t.concluida ? " riscado" : "")}>{tituloDe(t)}</div>
-        {(meta.length > 0 || etiquetas.length > 0 || filhas > 0 || anexos > 0) && (
-          <div className="t-xs c3" style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 2 }}>
-            {meta.length > 0 && <span style={atrasada ? { color: "var(--perigo)" } : undefined}>{meta.join(" · ")}</span>}
-            {etiquetas.map((g) => (
-              <span key={g.id} style={{ color: g.cor }}>#{g.nome}</span>
-            ))}
-            {filhas > 0 && <span>{filhas} sub</span>}
-            {anexos > 0 && (
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 2 }}>
-                <Paperclip size={11} />
-                {anexos}
-              </span>
-            )}
+    <>
+      <div
+        className={"linha-tarefa" + (sel === t.id && !compacta ? " selecionada" : "") + (compacta ? " compacta" : "")}
+        style={{ paddingLeft: 12 + nivel * 26, opacity: t.provisoria ? 0.55 : undefined }}
+        onClick={() => selecionar(t.id)}
+        data-tarefa={t.id}
+      >
+        <Circulo feito={feito} cor={cor} aoClicar={concluirComPausa} />
+        {compacta ? (
+          <>
+            <span className={"titulo-tarefa t-sm uma-linha" + (feito ? " feito" : "")}>{tituloDe(t)}</span>
+            {seta}
+            <span style={{ flex: 1 }} />
+            {nota && <AlignLeft size={10.5} className="c3" />}
+            {dataEl}
+          </>
+        ) : (
+          <div className="linha-corpo">
+            <span className="linha-titulo">
+              <span className={"titulo-tarefa t-md uma-linha" + (feito ? " feito" : "")}>{tituloDe(t)}</span>
+              {seta}
+            </span>
+            <span className="linha-detalhes">
+              {meta}
+              <span className="linha-respiro" />
+              {dataEl}
+            </span>
+            {mostrarLista && <ChipLista listaId={t.listaId} />}
           </div>
         )}
       </div>
-    </div>
+      {aberta && filhas.map((f) => <LinhaTarefa key={f.id} t={f} mostrarData={mostrarData} mostrarLista={false} compacta={compacta} nivel={nivel + 1} />)}
+    </>
   );
 }
 
@@ -86,29 +183,53 @@ export function BotaoTempo({ id }: { id: string }) {
   );
 }
 
-export function Secao({ titulo, children, acao }: { titulo: string; children: ReactNode; acao?: ReactNode }) {
+/** Seção: "TÍTULO · n ˅" (recolhível), ação fantasma à direita, cartão com as linhas. */
+export function Secao({ titulo, contagem, tom, acao, recolhida = false, children }: { titulo: string; contagem?: number; tom?: string; acao?: ReactNode; recolhida?: boolean; children: ReactNode }) {
+  const [fechada, setFechada] = useState(recolhida);
   return (
-    <section style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 12px" }}>
-        <span className="rotulo">{titulo}</span>
+    <section style={{ display: "flex", flexDirection: "column", gap: "var(--e2)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "var(--e2)", padding: "0 var(--e1)" }}>
+        <button className="cabecalho-secao afunda" onClick={() => setFechada(!fechada)} aria-expanded={!fechada}>
+          <span style={{ color: tom }}>{titulo}{contagem !== undefined ? ` · ${contagem}` : ""}</span>
+          <ChevronDown size={9} strokeWidth={3.2} className="c3" style={{ transform: fechada ? "rotate(-90deg)" : undefined, transition: "transform var(--normal) var(--curva)" }} />
+        </button>
+        <span style={{ flex: 1 }} />
         {acao}
       </div>
-      <div className="cartao-linhas">{children}</div>
+      {!fechada && <div className="cartao-linhas entrar">{children}</div>}
     </section>
   );
+}
+
+export function CartaoLinhas({ children }: { children: ReactNode }) {
+  return <div className="cartao-linhas">{children}</div>;
 }
 
 export function Vazio({ texto }: { texto: string }) {
   return <div className="vazio t-sm c3">{texto}</div>;
 }
 
-export function Cabecalho({ titulo, sub, direita }: { titulo: string; sub?: string; direita?: ReactNode }) {
+/** Estado vazio: ícone grande que flutua, título display e descrição. */
+export function EstadoVazio({ Icone, titulo, descricao }: { Icone: LucideIcon; titulo: string; descricao?: string }) {
   return (
-    <header style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 12 }}>
-      <div>
+    <div className="estado-vazio">
+      <Icone size={30} strokeWidth={1.5} className="flutua c3" />
+      <div className="display d-lg">{titulo}</div>
+      {descricao && <div className="t-sm c3" style={{ maxWidth: 280, textAlign: "center" }}>{descricao}</div>}
+    </div>
+  );
+}
+
+/** Cabeçalho da tela: [leading] título display + rótulo embaixo …… [ações]. */
+export function Cabecalho({ titulo, sub, direita, esquerda }: { titulo: string; sub?: string; direita?: ReactNode; esquerda?: ReactNode }) {
+  return (
+    <header className="entrar" style={{ display: "flex", alignItems: "center", gap: "var(--e4)" }}>
+      {esquerda}
+      <div style={{ display: "flex", flexDirection: "column", gap: 3, minWidth: 0 }}>
         <h1 className="display d-display">{titulo}</h1>
-        {sub && <div className="t-sm c3" style={{ marginTop: 4 }}>{sub}</div>}
+        {sub && <div className="t-sm c3">{sub}</div>}
       </div>
+      <span style={{ flex: 1, minWidth: 16 }} />
       {direita}
     </header>
   );

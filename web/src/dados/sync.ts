@@ -1,5 +1,5 @@
 import type { Session } from "@supabase/supabase-js";
-import { definir, ESTADO_INICIAL, gravarAgora, ler, substituir, usarEspelho } from "./armazem";
+import { definir, espelhoAtual, ESTADO_INICIAL, gravarAgora, ler, substituir, usarEspelho } from "./armazem";
 import { confirmarPendente } from "./avisos";
 import { lerEstado, limparTudo } from "./espelho";
 import { carregarFila, descartarFila, esperandoFila, idsComPendencia, processarFila } from "./fila";
@@ -429,3 +429,13 @@ async function puxarTabelas() {
 }
 
 export const hojeDoAparelho = () => diaISO(new Date());
+
+/** Outra janela (o menu do Mac, outra aba) gravou no espelho: traz os dados de lá sem tocar na sessão. */
+export async function recarregarDoEspelho() {
+  const chave = espelhoAtual();
+  if (!chave) return;
+  const salvo = await lerEstado<Partial<Estado>>(chave);
+  if (!salvo) return;
+  const { modo: _m, sincronizando: _s, erro: _e, online: _o, pendencias: _p, ...dados } = salvo;
+  definir(dados);
+}
