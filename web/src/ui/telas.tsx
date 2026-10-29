@@ -5,12 +5,12 @@ import {
   adiarAtrasadas, apagarDespejo, despejar, despejoParaNota, despejoParaTarefa, esvaziarNao, excluirNota, fazerAgora, guardarFoto,
   moverDespejo, editarDespejo, resolverEtiquetas, descartarSeVazia, mudarPrefs, editarEtiqueta, criarDoTexto, novaNota, atualizarNota, escreverNoDia, revisaoDaSemana, tarefaDaLinha, criarLista, excluirLista, renomearLista,
 } from "../dados/acoes";
-import { listaPadrao, tituloDe, corDaLista, etiquetasOrdenadas, eventosDoDia, indice, nomeDaLista, pendentesDaNota } from "../dados/consultas";
+import { tempoDe, listaPadrao, tituloDe, corDaLista, etiquetasOrdenadas, eventosDoDia, indice, nomeDaLista, pendentesDaNota } from "../dados/consultas";
 import { entrarComGoogle, reconectarGoogle, sair, usarSemConta } from "../dados/sync";
 import type { EstadoDespejo, ItemDespejo, Tarefa, Tema } from "../dados/tipos";
 import { lerArquivo } from "../dados/espelho";
 import { supabase } from "../dados/nuvem";
-import { lerCriacaoRapida, deISO, diaISO, hojeISO, primeiraMaiuscula, rotuloCurto, rotuloLongo, somarDias } from "../dados/util";
+import { duracaoCurta, lerCriacaoRapida, deISO, diaISO, hojeISO, primeiraMaiuscula, rotuloCurto, rotuloLongo, somarDias } from "../dados/util";
 import { Cabecalho, CartaoLinhas, ChipLista, EstadoVazio, LadrilhoLista, LinhaTarefa, Secao, SeletorData, Vazio } from "./comuns";
 import { abrirNota, abrirNotaDoDia, irPara, useNotaAberta, type AlvoNota } from "./rota";
 
@@ -316,37 +316,120 @@ export function TelaConcluidas() {
   );
 }
 
-/** Resumo do gráfico de concluídas (ResumoConcluidas.swift). */
+type Periodo = "semana" | "mes" | "ano";
+const TITULO_PERIODO: Record<Periodo, string> = { semana: "7 dias", mes: "30 dias", ano: "12 meses" };
+
+/** Resumo do período (ResumoConcluidas.swift): concluídas por dia na cor de cada lista, tempo por lista e onde foi o tempo. */
 function ResumoConcluidas() {
-  const feitas = usar((e) => indice(e).concluidas);
+  const e = usar((x) => x);
+  const [periodo, setPeriodoEstado] = useState<Periodo>(() => { try { return (localStorage.getItem("concluidas.periodo") as Periodo) || "semana"; } catch { return "semana"; } });
+  const setPeriodo = (p: Periodo) => { setPeriodoEstado(p); try { localStorage.setItem("concluidas.periodo", p); } catch { /* nada */ } };
+  const [foco, setFoco] = useState<{ i: number; x: number; y: number } | null>(null);
   const hoje = hojeISO();
-  const [dica, setDica] = useState<number | null>(null);
-  const dias = Array.from({ length: 30 }, (_, i) => somarDias(hoje, i - 29));
-  const contagem = useMemo(() => {
+  const ano = periodo === "ano";
+  const chaves = ano
+    ? Array.from({ length: 12 }, (_, i) => { const d = deISO(hoje); return diaISO(new Date(d.getFullYear(), d.getMonth() - 11 + i, 1)).slice(0, 7); })
+    : Array.from({ length: periodo === "semana" ? 7 : 30 }, (_, i) => somarDias(hoje, i - (periodo === "semana" ? 6 : 29)));
+  const chaveDe = (iso: string) => { const d = diaISO(new Date(iso)); return ano ? d.slice(0, 7) : d; };
+  const feitas = indice(e).concluidas.filter((t) => t.concluidaEm && chaveDe(t.concluidaEm) >= chaves[0]);
+  // Contagem por período e por lista (na ordem das listas).
+  const barras = chaves.map((k) => {
     const m = new Map<string, number>();
-    for (const t of feitas) if (t.concluidaEm) {
-      const d = diaISO(new Date(t.concluidaEm));
-      m.set(d, (m.get(d) ?? 0) + 1);
-    }
-    return m;
-  }, [feitas]);
-  const max = Math.max(1, ...dias.map((d) => contagem.get(d) ?? 0));
+    for (const t of feitas) if (chaveDe(t.concluidaEm!) === k) m.set(t.listaId, (m.get(t.listaId) ?? 0) + 1);
+    return e.listas.filter((l) => m.has(l.id)).map((l) => ({ lista: l.id, n: m.get(l.id)! }));
+  });
+  const maximo = Math.max(1, ...barras.map((b) => b.reduce((s, x) => s + x.n, 0)));
+  const passo = maximo <= 6 ? 2 : maximo <= 12 ? 4 : Math.ceil(maximo / 4 / 5) * 5;
+  const topoEixo = Math.ceil(maximo / passo) * passo;
+  const marcas = Array.from({ length: topoEixo / passo + 1 }, (_, i) => i * passo);
+
+  const abertas = Object.values(e.tarefas).filter((t) => !t.concluida);
+  const comTempo = [...feitas, ...abertas].map((t) => [t, tempoDe(e, t.id)] as const).filter(([, s]) => s > 0);
+  const porLista = [...comTempo.reduce((m, [t, s]) => m.set(t.listaId, (m.get(t.listaId) ?? 0) + s), new Map<string, number>())].sort((a, b) => b[1] - a[1]);
+  const total = porLista.reduce((s, [, x]) => s + x, 0);
+  const topo = [...comTempo].sort((a, b) => b[1] - a[1]).slice(0, 6);
+  const maiorLista = Math.max(1, ...porLista.map(([, x]) => x));
+
+  const rotuloX = (k: string) => (ano ? deISO(k + "-01").toLocaleDateString("pt-BR", { month: "short" }) : deISO(k).toLocaleDateString("pt-BR", { day: "numeric", month: "short" }));
+  const mostrarRotulo = (i: number) => periodo !== "mes" || i % 5 === 0;
+  const numero = (valor: string, rotulo: string) => (
+    <div style={{ display: "flex", flexDirection: "column", gap: 2, paddingRight: 24 }}>
+      <span className="display d-display2 numeros">{valor}</span>
+      <span className="t-xs c3">{rotulo}</span>
+    </div>
+  );
   return (
-    <div className="cartao" style={{ padding: "var(--e5)", position: "relative" }} onMouseLeave={() => setDica(null)}>
-      <div style={{ display: "flex", alignItems: "flex-end", gap: 3, height: 120 }}>
-        {dias.map((d, i) => {
-          const n = contagem.get(d) ?? 0;
-          return (
-            <div key={d} onMouseEnter={() => setDica(i)} style={{ flex: 1, height: "100%", display: "flex", alignItems: "flex-end" }}>
-              <div style={{ width: "100%", height: `${Math.max(3, (n / max) * 100)}%`, borderRadius: 4, background: n ? "var(--acento)" : "var(--superficie3)", opacity: dica === null || dica === i ? 1 : 0.5, transition: "opacity var(--rapido)" }} />
-            </div>
-          );
-        })}
-      </div>
-      {dica !== null && (
-        <div className="t-xs" style={{ position: "absolute", top: 8, left: `${((dica + 0.5) / 30) * 100}%`, transform: "translateX(-50%)", background: "var(--superficie)", border: "1px solid var(--borda)", borderRadius: 8, padding: "4px 8px", boxShadow: "var(--sombra-alta)", whiteSpace: "nowrap", pointerEvents: "none" }}>
-          {rotuloLongo(dias[dica])}: {contagem.get(dias[dica]) ?? 0}
+    <div className="cartao" style={{ padding: "var(--e5)", display: "flex", flexDirection: "column", gap: "var(--e5)" }}>
+      <div style={{ display: "flex", alignItems: "flex-start" }}>
+        {numero(String(feitas.length), feitas.length === 1 ? "concluída" : "concluídas")}
+        {numero(total > 0 ? duracaoCurta(total) : "—", "de tempo registrado")}
+        <span style={{ flex: 1 }} />
+        <div className="segmentado">
+          {(["semana", "mes", "ano"] as const).map((p) => <button key={p} aria-pressed={periodo === p} onClick={() => setPeriodo(p)}>{TITULO_PERIODO[p]}</button>)}
         </div>
+      </div>
+      {!feitas.length ? (
+        <div className="t-sm c3" style={{ minHeight: 120, display: "grid", placeItems: "center" }}>Nenhuma tarefa concluída nos últimos {TITULO_PERIODO[periodo]}.</div>
+      ) : (
+        <div className="grafico" onMouseLeave={() => setFoco(null)}>
+          <div className="grafico-y">{[...marcas].reverse().map((m) => <span key={m}>{m}</span>)}</div>
+          <div className="grafico-area">
+            <div className="grafico-barras">
+              {marcas.map((m) => <span key={m} className="grafico-linha" style={{ bottom: `${(m / topoEixo) * 100}%` }} />)}
+              {barras.map((b, i) => (
+                <div key={chaves[i]} className="grafico-coluna" onMouseMove={(ev) => { const r = (ev.currentTarget.parentElement as HTMLElement).getBoundingClientRect(); setFoco({ i, x: ev.clientX - r.left, y: ev.clientY - r.top }); }}>
+                  <div style={{ height: `${(b.reduce((s, x) => s + x.n, 0) / topoEixo) * 100}%`, width: "100%", display: "flex", flexDirection: "column-reverse", opacity: foco === null || foco.i === i ? 1 : 0.35, transition: "opacity var(--rapido)", borderRadius: 3, overflow: "hidden" }}>
+                    {b.map((x) => <div key={x.lista} style={{ flex: x.n, background: corDaLista(e, x.lista) }} />)}
+                  </div>
+                </div>
+              ))}
+            </div>
+            {foco && (
+              <div className="dica-grafico" style={{ left: foco.x + 200 > 600 ? foco.x - 196 : foco.x + 16, top: Math.max(0, foco.y - 30) }}>
+                <span className="t-xs p-semi c3">{primeiraMaiuscula(ano ? deISO(chaves[foco.i] + "-01").toLocaleDateString("pt-BR", { month: "long", year: "numeric" }) : rotuloLongo(chaves[foco.i]))}</span>
+                {(() => { const t = barras[foco.i].reduce((s, x) => s + x.n, 0); return <span className="t-sm p-semi">{t === 0 ? "Nenhuma concluída" : t === 1 ? "1 concluída" : `${t} concluídas`}</span>; })()}
+                {[...barras[foco.i]].sort((a, b) => b.n - a.n).map((x) => (
+                  <span key={x.lista} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <span style={{ width: 7, height: 7, borderRadius: 9, background: corDaLista(e, x.lista) }} />
+                    <span className="t-xs c2 uma-linha" style={{ flex: 1 }}>{nomeDaLista(e, x.lista)}</span>
+                    <span className="t-xs p-semi numeros">{x.n}</span>
+                  </span>
+                ))}
+              </div>
+            )}
+            <div className="grafico-x">{chaves.map((k, i) => <span key={k}>{mostrarRotulo(i) ? rotuloX(k) : ""}</span>)}</div>
+          </div>
+        </div>
+      )}
+      {porLista.length > 0 && (
+        <>
+          <div style={{ height: 1, background: "var(--borda)" }} />
+          <div style={{ display: "flex", gap: "var(--e6)", alignItems: "flex-start" }}>
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "var(--e3)" }}>
+              <span className="rotulo">Tempo por lista</span>
+              {porLista.map(([id, seg]) => (
+                <div key={id} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                  <span style={{ fontSize: 10, color: "var(--texto2)" }}>{nomeDaLista(e, id)}</span>
+                  <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    <span style={{ height: 6, width: `calc(${(seg / maiorLista) * 100}% - 48px)`, borderRadius: 3, background: corDaLista(e, id) }} />
+                    <span className="t-xs p-semi c2">{duracaoCurta(seg)}</span>
+                  </span>
+                </div>
+              ))}
+            </div>
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "var(--e2)" }}>
+              <span className="rotulo">Onde foi o tempo</span>
+              {topo.map(([t, seg]) => (
+                <span key={t.id} title={t.concluida ? "Concluída" : "Em aberto"} style={{ display: "flex", alignItems: "center", gap: "var(--e2)" }}>
+                  <span style={{ width: 7, height: 7, borderRadius: 9, background: corDaLista(e, t.listaId), flex: "none" }} />
+                  <span className={"t-sm uma-linha" + (t.concluida ? " riscado" : "")} style={{ flex: 1 }}>{tituloDe(t)}</span>
+                  <span className="t-sm p-semi numeros c2">{duracaoCurta(seg)}</span>
+                </span>
+              ))}
+            </div>
+          </div>
+          <span className="t-xs c3">Tempo das tarefas concluídas nos últimos {TITULO_PERIODO[periodo]} e das que ainda estão abertas.</span>
+        </>
       )}
     </div>
   );

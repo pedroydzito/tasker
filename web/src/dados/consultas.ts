@@ -1,5 +1,5 @@
 import type { Estado, Tarefa } from "./tipos";
-import { corDaChave, hojeISO, normalizarBusca, separarHorario } from "./util";
+import { rotuloLongo, corDaChave, hojeISO, normalizarBusca, separarHorario } from "./util";
 
 // Derivações de tela calculadas uma vez por versão dos dados e guardadas no módulo
 // (desempenho §6.3: um useMemo morreria a cada navegação).
@@ -190,7 +190,7 @@ export function buscar(e: Estado, consulta: string, limite = 40): Resultado[] {
     if (p !== null) r.push({ tipo: "tarefa", alvo: t.id, titulo: tituloDe(t), trecho: trecho(corpo), data: t.prazo, concluida: t.concluida, pontos: p + (t.concluida ? 0 : 5) });
   }
   for (const n of e.notas) {
-    const titulo = n.titulo || (n.dia ? n.dia : n.texto.split("\n")[0] || "Sem título");
+    const titulo = n.titulo || (n.dia ? rotuloLongo(n.dia) : n.texto.split("\n")[0] || "Sem título");
     const p = pontuar(titulo, n.texto);
     if (p !== null) r.push({ tipo: "nota", alvo: n.id, titulo, trecho: trecho(n.texto), data: n.dia ?? n.editadaEm, concluida: false, pontos: p + 3 });
   }

@@ -27,7 +27,7 @@ try {
   await p.getByRole("heading", { name: "Hoje" }).waitFor();
   ok(true, "entra sem conta");
 
-  const campo = p.getByPlaceholder(/Nova tarefa/);
+  const campo = p.getByPlaceholder("Adicionar tarefa");
   await campo.fill("Comprar pão");
   await campo.press("Enter");
   await campo.fill("Ligar pro dentista amanhã");
@@ -40,8 +40,8 @@ try {
 
   await p.getByText("Comprar pão").click();
   await p.getByLabel("Detalhes da tarefa").waitFor();
-  await p.getByPlaceholder("+ Subtarefa").fill("integral");
-  await p.getByPlaceholder("+ Subtarefa").press("Enter");
+  await p.getByPlaceholder("Adicionar subtarefa").fill("integral");
+  await p.getByPlaceholder("Adicionar subtarefa").press("Enter");
   ok(await ve(p.getByLabel("Detalhes da tarefa").getByText("integral")), "subtarefa");
   await p.getByLabel("Detalhes da tarefa").locator('input[type=file]').setInputFiles({ name: "lista.txt", mimeType: "text/plain", buffer: Buffer.from("leite") });
   await p.getByLabel("Detalhes da tarefa").getByText("lista.txt").waitFor();
@@ -50,26 +50,26 @@ try {
   await p.keyboard.press("Escape");
 
   await p.locator('[data-tarefa]').filter({ hasText: "Comprar pão" }).getByLabel("Concluir").click();
-  await p.getByRole("button", { name: "Concluídas" }).click();
+  await p.getByRole("button", { name: "Concluídas" }).first().click();
   ok(await ve(p.getByText("Comprar pão")), "concluída aparece em Concluídas");
 
-  await p.getByRole("button", { name: "Despejo" }).click();
-  await p.getByPlaceholder(/O que está na sua cabeça/).fill("ideia solta");
-  await p.getByPlaceholder(/O que está na sua cabeça/).press("Enter");
+  await p.getByRole("button", { name: "Despejo" }).first().click();
+  await p.getByPlaceholder(/Escreva o que vier/).fill("ideia solta");
+  await p.getByPlaceholder(/Escreva o que vier/).press("Enter");
   ok(await ve(p.getByText("ideia solta")), "despejo");
 
-  await p.getByRole("button", { name: "Notas" }).click();
-  await p.getByPlaceholder("Como foi hoje?").fill("Dia bom");
+  await p.getByRole("button", { name: "Notas" }).first().click();
+  await p.getByPlaceholder(/Como está o dia/).fill("Dia bom");
   await p.waitForTimeout(700);
 
   await p.keyboard.press("Control+k");
-  await p.getByPlaceholder(/Buscar tarefas/).fill("dentista");
+  await p.getByPlaceholder(/Buscar em tarefas/).fill("dentista");
   ok(await ve(p.getByRole("dialog").getByText("Ligar pro dentista")), "busca ⌘K");
   await p.keyboard.press("Escape");
 
   // Recarrega: tudo vem do IndexedDB.
   await p.reload();
-  await p.getByRole("button", { name: "Despejo" }).click();
+  await p.getByRole("button", { name: "Despejo" }).first().click();
   ok(await ve(p.getByText("ideia solta")), "dados sobrevivem ao recarregar");
 
   // Escuro + celular.

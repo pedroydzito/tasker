@@ -7,7 +7,7 @@ import { usar } from "../dados/armazem";
 import { alternarCronometro, concluir } from "../dados/acoes";
 import { corDaLista, etiquetasDe, horarioDe, iconeDaLista, indice, nomeDaLista, notasVisiveis, tituloDe } from "../dados/consultas";
 import type { Tarefa } from "../dados/tipos";
-import { deISO, diaISO, hojeISO, primeiraMaiuscula, rotuloCurto, somarDias } from "../dados/util";
+import { deISO, diaISO, hojeISO, primeiraMaiuscula, rotuloComAtraso, rotuloCurto, rotuloLongo, somarDias } from "../dados/util";
 import { selecionar, useSelecionada } from "./rota";
 
 /** Ícones das listas: os nomes SF guardados nas preferências viram ícones lucide. */
@@ -258,49 +258,116 @@ export function Folha({ titulo, aoFechar, children, largura }: { titulo: string;
   );
 }
 
-/** Seletor de data: atalhos + mês. Ocupa a largura disponível. */
-export function SeletorData({ valor, aoEscolher }: { valor: string | null; aoEscolher: (d: string | null) => void }) {
-  const hoje = hojeISO();
-  const [mes, setMes] = useState(() => (valor ?? hoje).slice(0, 7));
-  const primeiro = deISO(mes + "-01");
-  const inicio = somarDias(mes + "-01", -((primeiro.getDay() + 6) % 7));
-  const dias = Array.from({ length: 42 }, (_, i) => somarDias(inicio, i));
-  const mudarMes = (d: number) => {
-    const m = new Date(primeiro.getFullYear(), primeiro.getMonth() + d, 1);
-    setMes(diaISO(m).slice(0, 7));
-  };
-  const atalhos: [string, string | null][] = [["Hoje", hoje], ["Amanhã", somarDias(hoje, 1)], ["Próx. semana", somarDias(hoje, 7 - ((deISO(hoje).getDay() + 6) % 7))], ["Sem data", null]];
+/** Chip neutro ou tingido (Chip do design system). */
+export function Chip({ texto, cor, children }: { texto: string; cor?: string; children?: ReactNode }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 10, width: "100%" }}>
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-        {atalhos.map(([r, d]) => (
-          <button key={r} className="chip" aria-pressed={valor === d} onClick={() => aoEscolher(d)}>{r}</button>
-        ))}
+    <span className="chip-ds" style={{ color: cor ?? "var(--texto3)", background: cor ? `color-mix(in srgb, ${cor} 12%, transparent)` : "var(--superficie2)", paddingLeft: children ? 4 : 10 }}>
+      {children}
+      <span className="uma-linha">{texto}</span>
+    </span>
+  );
+}
+
+/** Calendário do mês (CalendarioMes): ponto embaixo dos dias com tarefa. */
+export function CalendarioMes({ selecionado, aoEscolher, ocupado }: { selecionado: string | null; aoEscolher: (d: string) => void; ocupado?: (d: string) => boolean }) {
+  const hoje = hojeISO();
+  const [mes, setMes] = useState(() => (selecionado ?? hoje).slice(0, 7));
+  const primeiro = deISO(mes + "-01");
+  const inicio = somarDias(mes + "-01", -primeiro.getDay());
+  const dias = Array.from({ length: 42 }, (_, i) => somarDias(inicio, i));
+  const mudar = (n: number) => setMes(diaISO(new Date(primeiro.getFullYear(), primeiro.getMonth() + n, 1)).slice(0, 7));
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "var(--e3)" }}>
+      <div style={{ display: "flex", alignItems: "center" }}>
+        <span className="display d-lg" style={{ flex: 1 }}>{primeiraMaiuscula(primeiro.toLocaleDateString("pt-BR", { month: "long", year: "numeric" }))}</span>
+        <button className="icone-botao" style={{ width: 28, height: 28 }} aria-label="Voltar um mês" onClick={() => mudar(-1)}><ChevronLeft size={13} /></button>
+        <button className="icone-botao" style={{ width: 28, height: 28 }} aria-label="Avançar um mês" onClick={() => mudar(1)}><ChevronRight size={13} /></button>
       </div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <span className="t-sm p-semi">{primeiraMaiuscula(primeiro.toLocaleDateString("pt-BR", { month: "long", year: "numeric" }))}</span>
-        <span>
-          <button className="icone-botao" aria-label="Mês anterior" onClick={() => mudarMes(-1)}><ChevronLeft size={15} /></button>
-          <button className="icone-botao" aria-label="Próximo mês" onClick={() => mudarMes(1)}><ChevronRight size={15} /></button>
-        </span>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", textAlign: "center" }}>
+        {["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"].map((d) => <span key={d} className="rotulo">{d}</span>)}
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2, textAlign: "center" }}>
-        {["S", "T", "Q", "Q", "S", "S", "D"].map((d, i) => <span key={i} className="t-xs c3">{d}</span>)}
-        {dias.map((d) => (
-          <button
-            key={d}
-            className="veu t-sm"
-            onClick={() => aoEscolher(d)}
-            style={{
-              aspectRatio: "1", borderRadius: 999, opacity: d.slice(0, 7) === mes ? 1 : 0.35,
-              background: d === valor ? "var(--acento)" : undefined, color: d === valor ? "#fff" : d === hoje ? "var(--acento)" : undefined,
-              fontWeight: d === hoje || d === valor ? 700 : 500,
-            }}
-          >
-            {Number(d.slice(8))}
-          </button>
-        ))}
+      <div className="entrar" key={mes} style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2 }}>
+        {dias.map((d) => {
+          const noMes = d.slice(0, 7) === mes, esc = d === selecionado, ehHoje = d === hoje;
+          return (
+            <button key={d} className="dia-mes" onClick={() => aoEscolher(d)} title={rotuloLongo(d)}
+              style={{ background: esc ? "var(--acento)" : undefined, color: esc ? "#fff" : ehHoje ? "var(--acento)" : noMes ? "var(--texto)" : "color-mix(in srgb, var(--texto3) 60%, transparent)", fontWeight: esc || ehHoje ? 600 : 400 }}>
+              <span className="t-sm">{Number(d.slice(8))}</span>
+              <span style={{ width: 4, height: 4, borderRadius: 9, background: esc ? "#fff" : "var(--acento)", opacity: ocupado?.(d) ? 1 : 0 }} />
+            </button>
+          );
+        })}
       </div>
+    </div>
+  );
+}
+
+/** "9", "930", "9:30", "09h30" → "09:30". */
+export function lerHorario(texto: string): string | null | undefined {
+  const d = texto.replace(/\D/g, "");
+  if (!d) return null;
+  let h = 0, m = 0;
+  if (d.length <= 2) h = Number(d);
+  else if (d.length === 3) { h = Number(d[0]); m = Number(d.slice(1)); }
+  else { h = Number(d.slice(0, 2)); m = Number(d.slice(2, 4)); }
+  if (h > 23 || m > 59) return undefined;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+/** Seletor de data no lugar (SeletorDeDataEmbutido): atalhos, mês, horário opcional e "Pronto". */
+export function SeletorData({ valor, horario = null, aoEscolher, aoMudarHorario, fechar }: { valor: string | null; horario?: string | null; aoEscolher: (d: string | null) => void; aoMudarHorario?: (h: string | null) => void; fechar?: () => void }) {
+  const hoje = hojeISO();
+  const porDia = usar((e) => indice(e).porDia);
+  const [textoHora, setTextoHora] = useState(horario ?? "");
+  const atalho = (r: string, dias: number) => {
+    const d = somarDias(hoje, dias);
+    return <button key={r} className={"botao " + (valor === d ? "b-primario" : "b-superficie")} title={rotuloLongo(d)} onClick={() => { aoEscolher(d); fechar?.(); }}>{r}</button>;
+  };
+  const mudarHora = (t: string) => {
+    setTextoHora(t);
+    const h = lerHorario(t);
+    if (h !== undefined) aoMudarHorario?.(h);
+  };
+  return (
+    <div className="seletor-data">
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--e1)" }}>
+        {atalho("Hoje", 0)}
+        {atalho("Amanhã", 1)}
+        {atalho("Próx. semana", 7)}
+        <button className={"botao " + (valor === null ? "b-primario" : "b-fantasma")} title="Tirar a data" onClick={() => { aoEscolher(null); aoMudarHorario?.(null); fechar?.(); }}>Sem data</button>
+      </div>
+      <CalendarioMes selecionado={valor} aoEscolher={aoEscolher} ocupado={(d) => (porDia.get(d)?.length ?? 0) > 0} />
+      {aoMudarHorario && (
+        <div className="linha-horario" style={{ opacity: valor ? 1 : 0.5, pointerEvents: valor ? undefined : "none" }}>
+          <Clock size={12} className="c3" />
+          <input className="campo-hora numeros" placeholder="Sem horário" value={textoHora} title="Digite: 9, 930, 9:30 ou 09h30" onChange={(e) => mudarHora(e.target.value)} />
+          {["09:00", "12:00", "15:00"].map((h) => <button key={h} className={"botao sugestao-hora " + (horario === h ? "b-primario" : "b-superficie")} title={`Às ${h}`} onClick={() => mudarHora(h)}>{h}</button>)}
+          {horario && <button className="icone-botao" style={{ width: 24, height: 24 }} aria-label="Tirar o horário" onClick={() => mudarHora("")}><X size={10} /></button>}
+        </div>
+      )}
+      {fechar && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span className={"t-xs uma-linha " + (valor ? "p-medio c2" : "c3")} style={{ flex: 1 }}>{valor ? rotuloComAtraso(valor, hoje) + (horario ? ` · ${horario}` : "") : "Sem data"}</span>
+          <button className="botao b-superficie" title="Fechar o calendário" onClick={fechar}>Pronto</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Dropdown de listas no lugar (DropdownDeListas). */
+export function DropdownListas({ atual, aoEscolher }: { atual: string | null; aoEscolher: (id: string) => void }) {
+  const listas = usar((e) => e.listas);
+  const nomes = usar((e) => e.listas.map((l) => nomeDaLista(e, l.id)), (a, b) => a.join() === b.join());
+  return (
+    <div className="dropdown-listas entrar">
+      {listas.map((l, i) => (
+        <button key={l.id} className="opcao-lista" onClick={() => aoEscolher(l.id)}>
+          <LadrilhoLista listaId={l.id} tamanho={22} />
+          <span className={"t-sm " + (l.id === atual ? "p-semi" : "p-medio")} style={{ flex: 1 }}>{nomes[i]}</span>
+          {l.id === atual && <Check size={11} strokeWidth={3.2} color="var(--acento)" />}
+        </button>
+      ))}
     </div>
   );
 }

@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowUp, Brain, CalendarDays, ChartGantt, Check, ChevronDown, CircleCheck, CircleUserRound, CloudOff, Download, Hash, Inbox, NotepadText, Plus, RefreshCw, Search, Settings, Sun, Sunrise, X } from "lucide-react";
+import { ArrowUp, Circle, Brain, CalendarDays, ChartGantt, Check, ChevronDown, CircleCheck, CircleUserRound, CloudOff, Download, Hash, Inbox, NotepadText, Plus, RefreshCw, Search, Settings, Sun, Sunrise, X } from "lucide-react";
 import { usar } from "../dados/armazem";
 import { criarDoTexto, criarEtiqueta, criarLista } from "../dados/acoes";
 import { desfazerAgora, textoDoAviso, useAviso } from "../dados/avisos";
 import { buscar, contagemHoje, corDaLista, etiquetasOrdenadas, indice, nomeDaLista } from "../dados/consultas";
 import { puxar } from "../dados/sync";
-import { hojeISO, somarDias } from "../dados/util";
-import { LadrilhoLista, LinhaTarefa } from "./comuns";
+import { diaISO, hojeISO, rotuloCurto, somarDias } from "../dados/util";
+import { Folha, LadrilhoLista, LinhaTarefa } from "./comuns";
 import { Inspetor } from "./Inspetor";
-import { irPara, selecionar, useRota, useSelecionada, type Rota } from "./rota";
+import { abrirNota, irPara, selecionar, useRota, useSelecionada, type Rota } from "./rota";
 import {
   TelaAjustes, TelaAmanha, TelaCalendario, TelaConcluidas, TelaDespejo, TelaEntrar, TelaEtiqueta, TelaHoje, TelaLista, TelaNotas, TelaProximas, TelaTodas,
 } from "./telas";
@@ -215,38 +215,71 @@ function CriacaoRapida({ rota }: { rota: Rota }) {
   );
 }
 
+/** Busca única (⌘K, BuscaView.swift): setas escolhem, Enter abre. */
 function Busca({ aoFechar }: { aoFechar: () => void }) {
   const [q, setQ] = useState("");
+  const [escolhido, setEscolhido] = useState(0);
   const e = usar((x) => x);
-  const r = buscar(e, q);
+  const r = q.trim() ? buscar(e, q) : [];
+  const hoje = hojeISO();
   const abrir = (i: number) => {
     const x = r[i];
     if (!x) return;
-    if (x.tipo === "tarefa") selecionar(x.alvo);
-    else if (x.tipo === "nota") irPara({ tela: "nota", id: x.alvo });
-    else if (x.tipo === "despejo") irPara({ tela: "despejo" });
     aoFechar();
+    if (x.tipo === "tarefa") {
+      const t = e.tarefas[x.alvo];
+      if (t) { irPara(t.concluida ? { tela: "concluidas" } : { tela: "lista", id: t.listaId }); setTimeout(() => selecionar(t.id), 0); }
+    } else if (x.tipo === "nota") {
+      const n = e.notas.find((m) => m.id === x.alvo);
+      irPara({ tela: "notas" });
+      if (n) abrirNota(n.dia ? { dia: n.dia } : { nota: n.id });
+    } else if (x.tipo === "despejo") irPara({ tela: "despejo" });
+    else {
+      const ev = e.eventos.find((v) => v.id === x.alvo);
+      if (ev?.link) window.open(ev.link, "_blank", "noopener");
+      else irPara({ tela: "calendario" });
+    }
   };
+  const Icone = (x: (typeof r)[number]) => (x.tipo === "tarefa" ? (x.concluida ? CircleCheck : Circle) : x.tipo === "nota" ? NotepadText : x.tipo === "despejo" ? Brain : CalendarDays);
   return (
-    <>
-      <div className="veu-modal" onClick={aoFechar} />
-      <div className="folha" role="dialog" aria-label="Buscar" style={{ top: "18%", transform: "translateX(-50%)", ["--largura" as string]: "560px" }}>
-        <input autoFocus className="campo-limpo t-lg" style={{ padding: 16, borderBottom: "1px solid var(--borda)" }} placeholder="Buscar tarefas, notas, despejo, eventos" value={q}
-          onChange={(x) => setQ(x.target.value)} onKeyDown={(x) => { if (x.key === "Escape") aoFechar(); if (x.key === "Enter") abrir(0); }} />
-        <div style={{ maxHeight: 420, overflow: "auto", padding: 6 }}>
-          {r.map((x, i) => (
-            <button key={x.tipo + x.alvo} className="linha-tarefa" style={{ width: "100%", textAlign: "left" }} onClick={() => abrir(i)}>
-              <span style={{ flex: 1, minWidth: 0 }}>
-                <span className={"t-md uma-linha" + (x.concluida ? " riscado" : "")} style={{ display: "block" }}>{x.titulo}</span>
-                {x.trecho && <span className="t-xs c3 uma-linha" style={{ display: "block" }}>{x.trecho}</span>}
-              </span>
-              <span className="t-xs c3">{{ tarefa: "Tarefa", nota: "Nota", despejo: "Despejo", evento: "Evento" }[x.tipo]}</span>
-            </button>
-          ))}
-          {q && !r.length && <div className="vazio t-sm c3">Nada encontrado.</div>}
+    <Folha titulo="Buscar" aoFechar={aoFechar} largura={560}>
+      <div style={{ display: "flex", flexDirection: "column", gap: "var(--e3)" }}>
+        <div className="campo-busca">
+          <Search size={15} strokeWidth={2.6} className="c3" />
+          <input autoFocus placeholder="Buscar em tarefas, notas, despejo e agenda" value={q} aria-label="Buscar"
+            onChange={(x) => { setQ(x.target.value); setEscolhido(0); }}
+            onKeyDown={(x) => {
+              if (x.key === "Enter") abrir(escolhido);
+              if (x.key === "ArrowDown" && r.length) { x.preventDefault(); setEscolhido((escolhido + 1) % r.length); }
+              if (x.key === "ArrowUp" && r.length) { x.preventDefault(); setEscolhido((escolhido - 1 + r.length) % r.length); }
+            }} />
         </div>
+        {!q.trim() ? (
+          <span className="t-xs c3" style={{ padding: "0 8px" }}>Dica: várias palavras procuram todas ao mesmo tempo; acentos e maiúsculas não importam.</span>
+        ) : !r.length ? (
+          <span className="t-sm c3" style={{ padding: 12 }}>Nada encontrado para “{q}”.</span>
+        ) : (
+          <div style={{ maxHeight: 360, overflow: "auto", display: "flex", flexDirection: "column", gap: 1 }}>
+            {r.map((x, i) => {
+              const I = Icone(x);
+              return (
+                <button key={x.tipo + x.alvo} className="resultado afunda" aria-selected={i === escolhido} onMouseEnter={() => setEscolhido(i)} onClick={() => abrir(i)}>
+                  <I size={14} className="c3" style={{ width: 18, marginTop: 2, flex: "none" }} />
+                  <span style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, minWidth: 0 }}>
+                    <span className={"t-sm p-semi uma-linha" + (x.concluida ? " riscado" : "")}>{x.titulo}</span>
+                    {x.trecho && <span className="t-xs c3 uma-linha">{x.trecho}</span>}
+                  </span>
+                  <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
+                    <span className="t-xs p-semi c3">{{ tarefa: "Tarefa", nota: "Nota", despejo: "Despejo", evento: "Evento" }[x.tipo]}</span>
+                    {x.data && x.tipo !== "despejo" && <span className="t-xs c3">{rotuloCurto(x.data.length > 10 ? diaISO(new Date(x.data)) : x.data, hoje)}</span>}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
-    </>
+    </Folha>
   );
 }
 
