@@ -1,14 +1,15 @@
+import { CampoSugestoes, MenuSuspenso } from "./suspenso";
 import { Rolagem } from "./comuns";
-import { CriadorDeEtiqueta, folhas } from "./folhas";
+import { folhas } from "./folhas";
 import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ArrowUpRight, CornerLeftUp, Download, Hash, Paperclip, Pause, Play, Plus, Trash2, X } from "lucide-react";
 import { mesmaLista, usar } from "../dados/armazem";
-import { anexar, concluir, criarTarefa, definirEtiquetas, definirTempo, excluirTarefa, alternarCronometro, moverTarefa, removerAnexo, salvarTarefa } from "../dados/acoes";
+import { anexar, concluir, criarTarefa, definirEtiquetas, definirTempo, excluirTarefa, alternarCronometro, moverTarefa, removerAnexo, salvarTarefa, criarEtiqueta } from "../dados/acoes";
 import { corDaLista, etiquetasOrdenadas, horarioDe, indice, notasVisiveis, tempoDe, tituloDe } from "../dados/consultas";
 import { lerArquivo } from "../dados/espelho";
 import { supabase } from "../dados/nuvem";
 import { hojeISO, lerDuracao, relogio, rotuloComAtraso } from "../dados/util";
-import { Chip, ChipLista, Circulo, DropdownListas, SeletorData } from "./comuns";
+import { DigitosRolando, Chip, ChipLista, Circulo, DropdownListas, SeletorData } from "./comuns";
 import { selecionar } from "./rota";
 
 async function abrirAnexo(caminho: string, nome: string) {
@@ -68,7 +69,7 @@ export function CampoTempo({ id }: { id: string }) {
       ) : (
         <button className="veu numeros" style={{ height: 26, padding: "0 8px", borderRadius: "var(--raio-p)", fontSize: "var(--t-sm)", fontWeight: segundos > 0 || rodando ? 600 : 400, color: rodando ? "var(--acento)" : segundos > 0 ? "var(--texto)" : "var(--texto3)" }}
           title="Clique para digitar o tempo (ex.: 20m)" onClick={() => setEditando(true)}>
-          {segundos > 0 || rodando ? relogio(segundos) : "Sem tempo registrado"}
+          {segundos > 0 || rodando ? <DigitosRolando texto={relogio(segundos)} /> : "Sem tempo registrado"}
         </button>
       )}
       {erro && <span className="t-xs" style={{ color: "var(--perigo-texto)" }}>Não entendi</span>}
@@ -149,6 +150,7 @@ export function Inspetor({ id }: { id: string }) {
   const [listasAbertas, setListasAbertas] = useState(false);
   const [dataAberta, setDataAberta] = useState(false);
   const [etiquetasAbertas, setEtiquetasAbertas] = useState(false);
+  const botaoEtiquetas = useRef<HTMLButtonElement>(null);
   const [arrastando, setArrastando] = useState(false);
   const alterado = !!r && !!original && !igual(r, original);
 
@@ -205,20 +207,15 @@ export function Inspetor({ id }: { id: string }) {
               {todas.filter((g) => r.etiquetas.includes(g.id)).map((g) => (
                 <button key={g.id} className="afunda" title="Tirar a etiqueta" onClick={() => mudar({ etiquetas: r.etiquetas.filter((x) => x !== g.id) })}><Chip texto={"#" + g.nome} cor={g.cor} /></button>
               ))}
-              <span style={{ position: "relative" }}>
-                <button className="icone-botao" style={{ width: 26, height: 26 }} title="Etiquetas (só no Tasker)" aria-label="Etiquetas" onClick={() => setEtiquetasAbertas(!etiquetasAbertas)}><Hash size={11} strokeWidth={2.8} /></button>
-                {etiquetasAbertas && (
-                  <div className="dropdown-listas" style={{ position: "absolute", top: 30, left: 0, zIndex: 5, minWidth: 180 }}>
-                    {todas.map((g) => (
-                      <button key={g.id} className="opcao-lista" onClick={() => mudar({ etiquetas: r.etiquetas.includes(g.id) ? r.etiquetas.filter((x) => x !== g.id) : [...r.etiquetas, g.id] })}>
-                        <span className="t-sm" style={{ flex: 1, color: g.cor }}>#{g.nome}</span>{r.etiquetas.includes(g.id) && <span className="t-xs">✓</span>}
-                      </button>
-                    ))}
-                    {todas.length > 0 && <div style={{ height: 1, background: "var(--borda)", margin: "3px 0" }} />}
-                    <button className="opcao-lista t-sm" onClick={() => { setEtiquetasAbertas(false); folhas.abrir("Nova etiqueta", <CriadorDeEtiqueta aoCriar={(g) => setR((x) => x && { ...x, etiquetas: [...x.etiquetas, g] })} />); }}>Nova etiqueta…</button>
-                  </div>
-                )}
-              </span>
+              <button ref={botaoEtiquetas} className="icone-botao" style={{ width: 26, height: 26 }} title="Etiquetas (só no Tasker)" aria-label="Etiquetas" aria-expanded={etiquetasAbertas} onClick={() => setEtiquetasAbertas(!etiquetasAbertas)}><Hash size={11} strokeWidth={2.8} /></button>
+              <MenuSuspenso aberto={etiquetasAbertas} ancora={botaoEtiquetas} aoFechar={() => setEtiquetasAbertas(false)} className="cartao-suspenso">
+                <div style={{ width: 260, display: "flex", flexDirection: "column", gap: "var(--e2)" }}>
+                  <span className="rotulo">Etiquetas · só no Tasker</span>
+                  <CampoSugestoes placeholder="Buscar ou criar etiqueta" opcoes={todas.map((g) => ({ id: g.id, rotulo: g.nome, cor: g.cor }))} escolhidas={r.etiquetas}
+                    aoEscolher={(id) => mudar({ etiquetas: [...r.etiquetas, id] })} aoRemover={(id) => mudar({ etiquetas: r.etiquetas.filter((x) => x !== id) })}
+                    aoCriar={(nome) => { const g = criarEtiqueta(nome); setR((x) => x && { ...x, etiquetas: [...x.etiquetas, g.id] }); }} />
+                </div>
+              </MenuSuspenso>
             </div>
             {listasAbertas && <DropdownListas atual={r.listaId} aoEscolher={(l) => { mudar({ listaId: l }); setListasAbertas(false); }} />}
             {dataAberta && (

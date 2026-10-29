@@ -1,5 +1,4 @@
 import { CampoTarefa } from "./campo";
-import { useState } from "react";
 import { ArrowUpRight, BatteryFull, BatteryLow, ChevronDown, ChevronUp, Sun, Sunrise } from "lucide-react";
 import { mesmaLista, usar } from "../dados/armazem";
 import {
@@ -18,12 +17,11 @@ export const linhas = (ts: Tarefa[], opc: { data?: boolean; lista?: boolean } = 
 export const textoContagem = (n: number) => (n === 0 ? "Nada pendente" : `${n} tarefa${n === 1 ? "" : "s"} para concluir`);
 const hora = (iso: string) => new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 
-let eventosRecolhidos = (() => { try { return localStorage.getItem("eventsCollapsed") === "1"; } catch { return false; } })();
 
 /** Eventos do Google Calendar (EventsCard): sem fundo, barra de cor, horário e título; seta recolhe. */
 export function Eventos({ dia, compacto = false, recolhivel = true }: { dia: string; compacto?: boolean; recolhivel?: boolean }) {
   const evs = usar((e) => eventosDoDia(e, dia), mesmaLista);
-  const [fechado, setFechado] = useState(eventosRecolhidos);
+  const fechado = usar((e) => e.prefs.eventosRecolhidos);
   if (!evs.length) return null;
   const mostrar = recolhivel && fechado ? evs.slice(0, 1) : evs;
   const agora = Date.now();
@@ -42,7 +40,7 @@ export function Eventos({ dia, compacto = false, recolhivel = true }: { dia: str
       </div>
       {recolhivel && evs.length > 1 && (
         <button className="icone-botao" style={{ width: 26, height: 26, marginTop: compacto ? 1 : 3 }} aria-label={fechado ? "Mostrar todos os eventos" : "Mostrar menos"}
-          onClick={() => { eventosRecolhidos = !fechado; setFechado(!fechado); try { localStorage.setItem("eventsCollapsed", fechado ? "0" : "1"); } catch { /* nada */ } }}>
+          onClick={() => mudarPrefs((p) => ({ eventosRecolhidos: !p.eventosRecolhidos }))}>
           {fechado ? <ChevronDown size={11} /> : <ChevronUp size={11} />}
         </button>
       )}

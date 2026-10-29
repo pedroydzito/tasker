@@ -1,3 +1,4 @@
+import { MenuSuspenso } from "./suspenso";
 import { AvisoAtualizacao, procurarAtualizacao, useAtualizacao } from "./atualizacao";
 import { Rolagem } from "./comuns";
 import { CampoTarefa } from "./campo";
@@ -16,7 +17,7 @@ import type { EstadoDespejo, ItemDespejo, Tarefa, Tema } from "../dados/tipos";
 import { lerArquivo } from "../dados/espelho";
 import { supabase } from "../dados/nuvem";
 import { duracaoCurta, lerCriacaoRapida, deISO, diaISO, hojeISO, primeiraMaiuscula, rotuloCurto, rotuloLongo, somarDias } from "../dados/util";
-import { useCelular, Segmentado, DropdownListas, Cabecalho, CartaoLinhas, ChipLista, EstadoVazio, LadrilhoLista, LinhaTarefa, Secao, SeletorData } from "./comuns";
+import { Chave, useCelular, Segmentado, DropdownListas, Cabecalho, CartaoLinhas, ChipLista, EstadoVazio, LadrilhoLista, LinhaTarefa, Secao, SeletorData } from "./comuns";
 import { abrirNota, abrirNotaDoDia, irPara, useNotaAberta, type AlvoNota } from "./rota";
 
 import { CampoCelular, Eventos, aplicarTema, linhas, raiz, textoContagem } from "./hoje";
@@ -175,10 +176,10 @@ export function CampoRapidoInline({ prazo, aoCriar }: { prazo: string | null; ao
 }
 
 export function TelaTodas() {
-  const [porLista, setPorLista] = useState(() => { try { return localStorage.getItem("allGroupByList") === "1"; } catch { return false; } });
+  const porLista = usar((x) => x.prefs.todasPorLista);
   const e = usar((x) => x);
   const i = indice(e);
-  const mudar = (v: boolean) => { setPorLista(v); try { localStorage.setItem("allGroupByList", v ? "1" : "0"); } catch { /* nada */ } };
+  const mudar = (v: boolean) => mudarPrefs(() => ({ todasPorLista: v }));
   const grupo = (titulo: string, ts: Tarefa[], tom?: string) => (ts.length ? <Secao key={titulo} titulo={titulo} contagem={raiz(ts).length} tom={tom}>{linhas(raiz(ts))}</Secao> : null);
   return (
     <>
@@ -226,9 +227,20 @@ const TITULO_PERIODO: Record<Periodo, string> = { semana: "7 dias", mes: "30 dia
 /** Resumo do período (ResumoConcluidas.swift): concluídas por dia na cor de cada lista, tempo por lista e onde foi o tempo. */
 function ResumoConcluidas() {
   const e = usar((x) => x);
-  const [periodo, setPeriodoEstado] = useState<Periodo>(() => { try { return (localStorage.getItem("concluidas.periodo") as Periodo) || "semana"; } catch { return "semana"; } });
-  const setPeriodo = (p: Periodo) => { setPeriodoEstado(p); try { localStorage.setItem("concluidas.periodo", p); } catch { /* nada */ } };
-  const [foco, setFoco] = useState<{ i: number; x: number; y: number } | null>(null);
+  const periodo = usar((x) => x.prefs.periodoConcluidas);
+  const setPeriodo = (p: Periodo) => mudarPrefs(() => ({ periodoConcluidas: p }));
+  // Dica do gráfico (§8.39): um ouvinte só, preso ao centro da barra; no toque some em 2,6 s.
+  const [foco, setFoco] = useState<{ i: number; x: number; y: number; fio: number } | null>(null);
+  const someEm = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const apontar = (ev: React.PointerEvent<HTMLDivElement>) => {
+    const r = ev.currentTarget.getBoundingClientRect();
+    const n = chaves.length;
+    const i = Math.min(n - 1, Math.max(0, Math.floor(((ev.clientX - r.left) / r.width) * n)));
+    const centro = r.left + ((i + 0.5) / n) * r.width;
+    setFoco({ i, x: centro, y: ev.clientY, fio: ((i + 0.5) / n) * 100 });
+    if (someEm.current) clearTimeout(someEm.current);
+    if (ev.pointerType === "touch") someEm.current = setTimeout(() => setFoco(null), 2600);
+  };
   const hoje = hojeISO();
   const ano = periodo === "ano";
   const chaves = ano
@@ -273,13 +285,14 @@ function ResumoConcluidas() {
       {!feitas.length ? (
         <div className="t-sm c3" style={{ minHeight: 120, display: "grid", placeItems: "center" }}>Nenhuma tarefa concluída nos últimos {TITULO_PERIODO[periodo]}.</div>
       ) : (
-        <div className="grafico" onMouseLeave={() => setFoco(null)}>
+        <div className="grafico" onPointerLeave={(ev) => ev.pointerType !== "touch" && setFoco(null)}>
           <div className="grafico-y">{[...marcas].reverse().map((m) => <span key={m}>{m}</span>)}</div>
           <div className="grafico-area">
-            <div className="grafico-barras">
+            <div className="grafico-barras" onPointerMove={apontar} onPointerDown={apontar}>
+              {foco && <span className="fio-grafico" style={{ left: `${foco.fio}%` }} />}
               {marcas.map((m) => <span key={m} className="grafico-linha" style={{ bottom: `${(m / topoEixo) * 100}%` }} />)}
               {barras.map((b, i) => (
-                <div key={chaves[i]} className="grafico-coluna" onMouseMove={(ev) => { const r = (ev.currentTarget.parentElement as HTMLElement).getBoundingClientRect(); setFoco({ i, x: ev.clientX - r.left, y: ev.clientY - r.top }); }}>
+                <div key={chaves[i]} className="grafico-coluna">
                   <div style={{ height: `${(b.reduce((s, x) => s + x.n, 0) / topoEixo) * 100}%`, width: "72%", ["--i" as string]: i, display: "flex", flexDirection: "column-reverse", opacity: foco === null || foco.i === i ? 1 : 0.35, transition: "opacity var(--rapido)", borderRadius: 3, overflow: "hidden" }}>
                     {b.map((x) => <div key={x.lista} style={{ flex: x.n, background: corDaLista(e, x.lista) }} />)}
                   </div>
@@ -287,7 +300,8 @@ function ResumoConcluidas() {
               ))}
             </div>
             {foco && (
-              <div className="dica-grafico" style={{ left: foco.x + 200 > 600 ? foco.x - 196 : foco.x + 16, top: Math.max(0, foco.y - 30) }}>
+              <div className="dica-grafico" role="status" aria-live="polite"
+                style={{ left: Math.min(Math.max(foco.x, 96), innerWidth - 96), top: foco.y < 76 ? foco.y + 14 : foco.y - 12, transform: foco.y < 76 ? "translate(-50%, 0)" : "translate(-50%, -100%)" }}>
                 <span className="t-xs p-semi c3">{primeiraMaiuscula(ano ? deISO(chaves[foco.i] + "-01").toLocaleDateString("pt-BR", { month: "long", year: "numeric" }) : rotuloLongo(chaves[foco.i]))}</span>
                 {(() => { const t = barras[foco.i].reduce((s, x) => s + x.n, 0); return <span className="t-sm p-semi">{t === 0 ? "Nenhuma concluída" : t === 1 ? "1 concluída" : `${t} concluídas`}</span>; })()}
                 {[...barras[foco.i]].sort((a, b) => b.n - a.n).map((x) => (
@@ -840,9 +854,6 @@ function LinhaAjuste({ titulo, descricao, children }: { titulo: string; descrica
   );
 }
 
-const Chave = ({ ligada, rotulo, aoMudar }: { ligada: boolean; rotulo: string; aoMudar: () => void }) => (
-  <button className="chave" role="switch" aria-checked={ligada} aria-label={rotulo} onClick={aoMudar} />
-);
 
 function exportarDados() {
   const e = lerEstado();
@@ -865,10 +876,11 @@ async function importarDados(arquivo: File): Promise<number> {
 
 export function TelaAjustes() {
   const e = usar((x) => x);
-  const [tema, setTema] = useState<Tema>(() => (localStorage.getItem("tasker.tema") as Tema) || "sistema");
+  const tema = usar((x) => x.prefs.tema);
   const [msgDados, setMsgDados] = useState<[string, "info" | "erro"] | null>(null);
   const [listasAbertas, setListasAbertas] = useState(false);
-  const mudarTema = (t: Tema) => { setTema(t); localStorage.setItem("tasker.tema", t); aplicarTema(); };
+  const botaoLista = useRef<HTMLButtonElement>(null);
+  const mudarTema = (t: Tema) => { mudarPrefs(() => ({ tema: t })); try { localStorage.setItem("tasker.tema", t); } catch { /* nada */ } aplicarTema(); };
   const p = e.prefs;
   const alternar = (k: "contarAtrasadas" | "mostrarEventosNoMenu" | "mostrarAtrasadasNoMenu" | "somAoConcluir" | "energiaBaixa") => mudarPrefs((x) => ({ [k]: !x[k] }));
   const n = contagemHoje(e);
@@ -921,10 +933,10 @@ export function TelaAjustes() {
 
         <Pasta Icone={ListChecks} titulo="Tarefas" subtitulo="Lista padrão, som e energia">
           <LinhaAjuste titulo="Lista padrão" descricao="Para onde vão as tarefas novas">
-            <span style={{ position: "relative" }}>
-              {padrao && <button className="afunda" onClick={() => setListasAbertas(!listasAbertas)}><ChipLista listaId={padrao} /></button>}
-              {listasAbertas && <div style={{ position: "absolute", right: 0, top: 30, zIndex: 5, width: 240 }}><DropdownListas atual={padrao} aoEscolher={(id) => { mudarPrefs(() => ({ listaPadrao: id })); setListasAbertas(false); }} /></div>}
-            </span>
+            {padrao && <button ref={botaoLista} className="so-afunda sem-veu" aria-expanded={listasAbertas} title="Trocar a lista padrão" onClick={() => setListasAbertas(!listasAbertas)}><ChipLista listaId={padrao} comSeta aberta={listasAbertas} /></button>}
+            <MenuSuspenso aberto={listasAbertas} ancora={botaoLista} aoFechar={() => setListasAbertas(false)} alinhar="direita" className="sem-moldura">
+              <div style={{ width: 240 }}><DropdownListas atual={padrao} aoEscolher={(id) => { mudarPrefs(() => ({ listaPadrao: id })); setListasAbertas(false); }} /></div>
+            </MenuSuspenso>
           </LinhaAjuste>
           <LinhaAjuste titulo="Som ao concluir"><Chave ligada={p.somAoConcluir} rotulo="Som ao concluir" aoMudar={() => alternar("somAoConcluir")} /></LinhaAjuste>
           <LinhaAjuste titulo="Estou sem energia" descricao="O Hoje mostra uma coisa por vez, sem atrasadas e sem número na barra"><Chave ligada={p.energiaBaixa} rotulo="Estou sem energia" aoMudar={() => alternar("energiaBaixa")} /></LinhaAjuste>

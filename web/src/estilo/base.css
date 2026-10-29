@@ -223,9 +223,10 @@ h1, h2, h3, p { margin: 0; }
 
 /* Chave */
 .chave { width: 40px; height: 24px; border-radius: 999px; background: var(--superficie3); position: relative; flex: none; transition: background-color var(--normal) var(--curva); }
-.chave::after { content: ""; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 999px; background: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15); transition: transform var(--normal) var(--curva); }
+.chave { --curso-chave: 16px; touch-action: pan-y; }
+.chave .polegar { position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 999px; background: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15); transition: transform var(--rapido) var(--curva-mola, var(--curva)); pointer-events: none; }
+.chave.arrastando .polegar { transition: none; }
 .chave[aria-checked="true"] { background: var(--acento); }
-.chave[aria-checked="true"]::after { transform: translateX(16px); }
 
 /* Folha (modal) e toast */
 .veu-modal { position: fixed; inset: 0; background: var(--veu-modal); z-index: 50; animation: aparecer var(--normal) var(--curva); }
@@ -439,7 +440,7 @@ h1, h2, h3, p { margin: 0; }
 .grafico-coluna > div { transform-origin: bottom; animation: crescer-da-base 520ms var(--curva) backwards; animation-delay: calc(min(var(--i, 0), 12) * 55ms); }
 .grafico-x { display: flex; height: 22px; align-items: flex-end; }
 .grafico-x span { flex: 1; font-size: 10px; color: var(--texto3); padding-left: 2px; white-space: nowrap; }
-.dica-grafico { position: absolute; z-index: 3; min-width: 150px; display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; background: var(--superficie); border: 1px solid var(--borda); border-radius: var(--raio-m); box-shadow: var(--sombra-alta); pointer-events: none; }
+.dica-grafico { position: fixed; z-index: 30; max-width: min(20rem, 80vw); white-space: nowrap; min-width: 150px; display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; background: var(--superficie); border: 1px solid var(--borda); border-radius: var(--raio-m); box-shadow: var(--sombra-alta); pointer-events: none; }
 .campo-busca { display: flex; align-items: center; gap: var(--e3); height: 48px; padding: 0 var(--e4); border-radius: var(--raio-m); background: var(--superficie2); }
 .campo-busca input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; font-size: var(--t-lg); color: var(--texto); }
 .resultado { display: flex; align-items: flex-start; gap: var(--e3); padding: 8px var(--e3); border-radius: var(--raio-m); text-align: left; width: 100%; }

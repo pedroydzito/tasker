@@ -324,15 +324,21 @@ export function lerHorario(texto: string): string | null | undefined {
 export function SeletorData({ valor, horario = null, aoEscolher, aoMudarHorario, fechar }: { valor: string | null; horario?: string | null; aoEscolher: (d: string | null) => void; aoMudarHorario?: (h: string | null) => void; fechar?: () => void }) {
   const hoje = hojeISO();
   const porDia = usar((e) => indice(e).porDia);
-  const [textoHora, setTextoHora] = useState(horario ?? "");
+  const [hora, setHora] = useState<Record<string, string>>(() => ({ h: horario?.slice(0, 2) ?? "", m: horario?.slice(3, 5) ?? "" }));
   const atalho = (r: string, dias: number) => {
     const d = somarDias(hoje, dias);
     return <button key={r} className={"botao " + (valor === d ? "b-primario" : "b-superficie")} title={rotuloLongo(d)} onClick={() => { aoEscolher(d); fechar?.(); }}>{r}</button>;
   };
   const mudarHora = (t: string) => {
-    setTextoHora(t);
     const h = lerHorario(t);
-    if (h !== undefined) aoMudarHorario?.(h);
+    if (h === undefined) return;
+    setHora({ h: h?.slice(0, 2) ?? "", m: h?.slice(3, 5) ?? "" });
+    aoMudarHorario?.(h);
+  };
+  const mudarPedacos = (v: Record<string, string>) => {
+    setHora(v);
+    if (!v.h && !v.m) return aoMudarHorario?.(null);
+    if (v.h.length === 2 && v.m.length === 2) aoMudarHorario?.(`${v.h}:${v.m}`);
   };
   return (
     <div className="seletor-data">
@@ -346,7 +352,9 @@ export function SeletorData({ valor, horario = null, aoEscolher, aoMudarHorario,
       {aoMudarHorario && (
         <div className="linha-horario" style={{ opacity: valor ? 1 : 0.5, pointerEvents: valor ? undefined : "none" }}>
           <Clock size={12} className="c3" />
-          <input className="campo-hora numeros" placeholder="Sem horário" value={textoHora} title="Digite: 9, 930, 9:30 ou 09h30" onChange={(e) => mudarHora(e.target.value)} />
+          <CampoSegmentado rotulo="Horário" separador=":" valores={hora} aoMudar={mudarPedacos}
+            aoSair={(v) => { if (v.h && !v.m) mudarPedacos({ h: v.h.padStart(2, "0"), m: "00" }); }}
+            segmentos={[{ chave: "h", tamanho: 2, min: 0, max: 23, rotulo: "Hora", placeholder: "hh" }, { chave: "m", tamanho: 2, min: 0, max: 59, rotulo: "Minutos", placeholder: "mm" }]} />
           {["09:00", "12:00", "15:00"].map((h) => <button key={h} className={"botao sugestao-hora " + (horario === h ? "b-primario" : "b-superficie")} title={`Às ${h}`} onClick={() => mudarHora(h)}>{h}</button>)}
           {horario && <button className="icone-botao" style={{ width: 24, height: 24 }} aria-label="Tirar o horário" onClick={() => mudarHora("")}><X size={10} /></button>}
         </div>
@@ -398,7 +406,7 @@ export { CalendarDays, Clock, Tag, Inbox, Sun };
  * muda de tamanho acompanha sem animar. Com `arrastavel`, o fundo se pega com o dedo e se leva até
  * outra opção (largura interpolada entre os centros, encaixe ao soltar, clique seguinte engolido).
  */
-export function useTrilho<T extends HTMLElement>(dep: unknown, o: { arrastavel?: (alvo: HTMLElement) => void; soDoAtivo?: boolean } = {}) {
+export function useTrilho<T extends HTMLElement>(dep: unknown, o: { arrastavel?: (alvo: HTMLElement) => void; soDoAtivo?: boolean; aoPassar?: (alvo: HTMLElement | null) => void; mola?: boolean } = {}) {
   const ref = useRef<T>(null);
   const opcoes = useRef(o);
   opcoes.current = o;
@@ -475,7 +483,7 @@ export function useTrilho<T extends HTMLElement>(dep: unknown, o: { arrastavel?:
       const perto = lista.reduce((m, i, n) => (Math.abs(centros[n] - x) < Math.abs(centros[lista.indexOf(m)] - x) ? i : m), lista[0]);
       const esq = Math.min(Math.max(x - w / 2, lista[0].x), lista[lista.length - 1].x + lista[lista.length - 1].w - w);
       pintar({ x: esq, y: perto.y, w, h: perto.h }, false);
-      if (perto.el !== sobre) { sobre = perto.el; navigator.vibrate?.(8); }
+      if (perto.el !== sobre) { sobre = perto.el; navigator.vibrate?.(8); opcoes.current.aoPassar?.(perto.el); }
     };
     const up = (e: PointerEvent) => {
       if (!inicio || e.pointerId !== inicio.id) return;
@@ -490,11 +498,13 @@ export function useTrilho<T extends HTMLElement>(dep: unknown, o: { arrastavel?:
       const alvo = sobre;
       sobre = null;
       assinatura = "";
-      t.style.transition = "transform var(--tempo-rapido, 150ms) var(--curva), width var(--tempo-rapido, 150ms) var(--curva)";
+      // Encaixe: rápido, ou com mola (passa um triz e volta) onde a escolha tem peso.
+      t.style.transition = opcoes.current.mola ? "transform var(--normal) var(--curva-mola), width var(--normal) var(--curva-mola)" : "transform var(--rapido) var(--curva), width var(--rapido) var(--curva)";
+      opcoes.current.aoPassar?.(null);
       if (alvo) opcoes.current.arrastavel?.(alvo);
       requestAnimationFrame(() => { const a = ativo(); if (a) { const b = caixa(a); t.style.width = b.w + "px"; t.style.transform = `translate(${b.x}px, ${b.y}px)`; } setTimeout(() => { t.style.transition = ""; medir(false); }, 320); });
     };
-    const cancel = () => { if (arrastando) { arrastando = false; c.removeAttribute("data-trilho-arrastando"); assinatura = ""; medir(true); } inicio = null; sobre = null; };
+    const cancel = () => { opcoes.current.aoPassar?.(null); if (arrastando) { arrastando = false; c.removeAttribute("data-trilho-arrastando"); assinatura = ""; medir(true); } inicio = null; sobre = null; };
     c.addEventListener("pointerdown", down);
     c.addEventListener("pointermove", move);
     c.addEventListener("pointerup", up);
@@ -512,7 +522,7 @@ export function useTrilho<T extends HTMLElement>(dep: unknown, o: { arrastavel?:
 
 /** Segmentado: escolhas lado a lado, com o trilho deslizando sob a escolhida. */
 export function Segmentado<V extends string | number | boolean>({ opcoes, valor, aoMudar, rotulo }: { opcoes: [V, ReactNode][]; valor: V; aoMudar: (v: V) => void; rotulo?: string }) {
-  const ref = useTrilho<HTMLDivElement>(String(valor) + opcoes.length, { arrastavel: (el) => { const i = Number(el.dataset.indice); if (opcoes[i]) aoMudar(opcoes[i][0]); }, soDoAtivo: true });
+  const ref = useTrilho<HTMLDivElement>(String(valor) + opcoes.length, { arrastavel: (el) => { const i = Number(el.dataset.indice); if (opcoes[i]) aoMudar(opcoes[i][0]); }, soDoAtivo: true, mola: true });
   return (
     <div ref={ref} className="segmentado com-trilho" role="group" aria-label={rotulo} style={{ ["--trilho-cor" as string]: "var(--superficie)" }}>
       <span className="trilho" />
@@ -570,6 +580,111 @@ export function Rolagem({ className, style, casca, fundo = "var(--fundo)", child
       </div>
       <span className={"ind-rolagem cima" + (acima ? " visivel" : "")} aria-hidden><ChevronUp size={14} strokeWidth={2.6} /></span>
       <span className={"ind-rolagem baixo" + (abaixo ? " visivel" : "")} aria-hidden><ChevronDown size={14} strokeWidth={2.6} /></span>
+    </div>
+  );
+}
+
+/**
+ * Chave liga/desliga (§8.7): toque alterna; o polegar também se arrasta como no iOS — segue o dedo
+ * depois de 4px, cresce para 1.08, o trilho acende ao passar da metade e, ao soltar, fica do lado
+ * em que estava. O clique que vem depois do arrasto é ignorado.
+ */
+export function Chave({ ligada, rotulo, aoMudar }: { ligada: boolean; rotulo: string; aoMudar: () => void }) {
+  const [dx, setDx] = useState<number | null>(null);
+  const inicio = useRef<{ x: number; id: number; arrastou: boolean } | null>(null);
+  const engolir = useRef(false);
+  const botao = useRef<HTMLButtonElement>(null);
+  // O curso é a largura menos a altura (16px no Mac, 20px no celular, onde a chave é maior).
+  const curso = botao.current ? botao.current.clientWidth - botao.current.clientHeight : 16;
+  const pos = dx ?? (ligada ? curso : 0);
+  const acesa = dx === null ? ligada : dx > curso / 2;
+  return (
+    <button ref={botao} className={"chave" + (dx !== null ? " arrastando" : "")} role="switch" aria-checked={acesa} aria-label={rotulo} title={rotulo}
+      onPointerDown={(e) => { inicio.current = { x: e.clientX, id: e.pointerId, arrastou: false }; }}
+      onPointerMove={(e) => {
+        const i = inicio.current;
+        if (!i || e.pointerId !== i.id) return;
+        const d = e.clientX - i.x;
+        if (!i.arrastou && Math.abs(d) < 4) return;
+        if (!i.arrastou) { i.arrastou = true; e.currentTarget.setPointerCapture(e.pointerId); }
+        const novo = Math.min(curso, Math.max(0, (ligada ? curso : 0) + d));
+        if ((novo > curso / 2) !== ((dx ?? (ligada ? curso : 0)) > curso / 2)) navigator.vibrate?.(8);
+        setDx(novo);
+      }}
+      onPointerUp={() => {
+        const i = inicio.current;
+        inicio.current = null;
+        if (!i?.arrastou || dx === null) return;
+        engolir.current = true;
+        setTimeout(() => (engolir.current = false), 400);
+        if ((dx > curso / 2) !== ligada) aoMudar();
+        setDx(null);
+      }}
+      onPointerCancel={() => { inicio.current = null; setDx(null); }}
+      onClick={() => { if (engolir.current) { engolir.current = false; return; } aoMudar(); }}>
+      <span className="polegar" style={{ transform: `translateX(${dx !== null ? pos + "px" : ligada ? "var(--curso-chave)" : "0px"})${dx !== null ? " scale(1.08)" : ""}` }} />
+    </button>
+  );
+}
+
+/** Dígitos que rolam (§8.42): só o caractere que mudou é nó novo e sobe; os outros ficam parados. */
+export function DigitosRolando({ texto }: { texto: string }) {
+  return (
+    <span className="numeros" aria-label={texto}>
+      {texto.split("").map((c, i) => <span key={i + c} className="digito-rolando" aria-hidden>{c}</span>)}
+    </span>
+  );
+}
+
+/**
+ * Campo segmentado (§8.35): cada número é um campo. Tocar seleciona o pedaço inteiro; completo,
+ * segue para o próximo ("4" na hora vira 04); Backspace vazio volta; ↑/↓ somam com volta;
+ * aoSair só quando o foco sai do grupo.
+ */
+export function CampoSegmentado({ rotulo, separador, segmentos, valores, aoMudar, aoSair }: {
+  rotulo: string; separador: string;
+  segmentos: { chave: string; tamanho: number; min: number; max: number; rotulo: string; placeholder: string }[];
+  valores: Record<string, string>; aoMudar: (v: Record<string, string>) => void; aoSair?: (v: Record<string, string>) => void;
+}) {
+  const refs = useRef<(HTMLInputElement | null)[]>([]);
+  const grupo = useRef<HTMLDivElement>(null);
+  const pad = (v: string, n: number) => (v && v.length < n ? v.padStart(n, "0") : v);
+  const definir = (chave: string, v: string) => aoMudar({ ...valores, [chave]: v });
+  return (
+    <div ref={grupo} role="group" aria-label={rotulo} className="campo-segmentado numeros"
+      onBlur={(e) => { if (!grupo.current?.contains(e.relatedTarget as Node)) aoSair?.(valores); }}>
+      {segmentos.map((sg, i) => (
+        <span key={sg.chave} style={{ display: "contents" }}>
+          {i > 0 && <span className="c3" aria-hidden style={{ padding: "0 2px" }}>{separador}</span>}
+          <input ref={(el) => { refs.current[i] = el; }} inputMode="numeric" autoComplete="off" aria-label={sg.rotulo} placeholder={sg.placeholder}
+            value={valores[sg.chave] ?? ""} style={{ width: `${sg.tamanho + 0.5}ch` }}
+            onFocus={(e) => e.currentTarget.select()} onMouseUp={(e) => e.preventDefault()}
+            onBlur={(e) => { const v = e.currentTarget.value; if (v.length === 1) definir(sg.chave, pad(v, sg.tamanho)); }}
+            onChange={(e) => {
+              const d = e.target.value.replace(/\D/g, "").slice(0, sg.tamanho);
+              let v = d;
+              // Um dígito que não pode começar um número de dois já é o número.
+              if (d.length === 1 && Number(d) * 10 > sg.max) v = pad(d, sg.tamanho);
+              if (v.length === sg.tamanho && Number(v) > sg.max) v = String(sg.max);
+              definir(sg.chave, v);
+              if (v.length === sg.tamanho) refs.current[i + 1]?.focus();
+            }}
+            onKeyDown={(e) => {
+              const el = e.currentTarget;
+              if (e.key === "Backspace" && !el.value) { e.preventDefault(); refs.current[i - 1]?.focus(); }
+              if (e.key === "ArrowLeft" && el.selectionStart === 0) refs.current[i - 1]?.focus();
+              if (e.key === "ArrowRight" && el.selectionEnd === el.value.length) refs.current[i + 1]?.focus();
+              if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+                e.preventDefault();
+                const atual = Number(el.value || (e.key === "ArrowUp" ? sg.min - 1 : sg.max + 1));
+                let n = atual + (e.key === "ArrowUp" ? 1 : -1);
+                if (n > sg.max) n = sg.min;
+                if (n < sg.min) n = sg.max;
+                definir(sg.chave, pad(String(n), sg.tamanho));
+              }
+            }} />
+        </span>
+      ))}
     </div>
   );
 }

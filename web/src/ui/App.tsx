@@ -1,3 +1,5 @@
+import { PuxarParaAtualizar } from "./puxar";
+import { DicaDePrimeiraVez } from "./dicas";
 import { moverTarefa } from "../dados/acoes";
 import { HospedeDoContexto } from "./contexto";
 import { CampoTarefa } from "./campo";
@@ -9,7 +11,7 @@ import { desfazerAgora, textoDoAviso, useAviso } from "../dados/avisos";
 import { buscar, contagemHoje, corDaLista, etiquetasOrdenadas, indice, nomeDaLista } from "../dados/consultas";
 import { puxar } from "../dados/sync";
 import { diaISO, hojeISO, rotuloCurto, somarDias } from "../dados/util";
-import { LadrilhoLista, Rolagem, querMenosMovimento, useTrilho } from "./comuns";
+import { useCelular, LadrilhoLista, Rolagem, querMenosMovimento, useTrilho } from "./comuns";
 import { Inspetor } from "./Inspetor";
 import { abrirNota, irPara, selecionar, useRota, useSelecionada, type Rota } from "./rota";
 import { TelaAmanha, TelaHoje } from "./hoje";
@@ -223,18 +225,37 @@ function NavCelular({ rota }: { rota: Rota }) {
   const e = usar((x) => x);
   const fixos: [Rota["tela"], typeof Sun, string][] = [["hoje", Sun, "Hoje"], ["calendario", CalendarDays, "Calendário"], ["despejo", Brain, "Despejo"]];
   const noFixo = fixos.some(([t]) => t === rota.tela);
-  const ref = useTrilho<HTMLElement>(rota.tela + String(aberto), { arrastavel: (el) => { const tela = el.dataset.tela as Rota["tela"] | undefined; if (tela) irPara({ tela } as Rota); } });
+  // O que a pílula mostra segue o toque, não a rota: o destino acende na hora (§9.6).
+  const [tocado, setTocado] = useState<{ de: string; para: string } | null>(null);
+  const [passando, setPassando] = useState<string | null>(null);
+  const chaveRota = rota.tela + ("id" in rota ? rota.id : "");
+  const destinoBase = tocado && tocado.de === chaveRota ? tocado.para : rota.tela;
+  const destino = passando ?? destinoBase;
+  const ir = (tela: string) => {
+    if (tela === "mais") { setAberto(true); return; }
+    if (tela === rota.tela) {
+      // Tocar de novo na aba em que se está rola até o topo.
+      document.querySelector(".casca-pagina > .pagina")?.scrollTo({ top: 0, behavior: querMenosMovimento() ? "auto" : "smooth" });
+      return;
+    }
+    setTocado({ de: chaveRota, para: tela });
+    queueMicrotask(() => irPara({ tela } as Rota));
+  };
+  const ref = useTrilho<HTMLElement>(destinoBase + String(aberto), {
+    arrastavel: (el) => { const tela = el.dataset.tela; if (tela) ir(tela); },
+    aoPassar: (el) => setPassando(el?.dataset.tela ?? null),
+  });
+  const rotuloMais = !noFixo && !aberto ? { amanha: "Amanhã", proximas: "Próximas", todas: "Todas", concluidas: "Concluídas", notas: "Notas", nota: "Notas", ajustes: "Ajustes", lista: e.listas.find((l) => "id" in rota && l.id === rota.id)?.titulo, etiqueta: e.etiquetas.find((g) => "id" in rota && g.id === rota.id)?.nome }[rota.tela as string] : undefined;
   const fechar = () => {
     // Volta para o botão (150ms, o mesmo número do CSS) e só então desmonta.
     setSaindo(true);
     setTimeout(() => { setAberto(false); setSaindo(false); }, querMenosMovimento() ? 0 : 150);
   };
-  useEffect(() => { setAberto(false); setSaindo(false); }, [rota]);
-  const ir = (r: Rota) => { irPara(r); };
+  useEffect(() => { setAberto(false); setSaindo(false); setTocado(null); }, [rota]);
   const item = (r: Rota, I: typeof Sun, rotulo: string, extra?: React.ReactNode) => {
     const atual = rota.tela === r.tela && (!("id" in r) || ("id" in rota && rota.id === r.id));
     return (
-      <button key={rotulo + ("id" in r ? r.id : "")} className="item-menu sem-afundar pressionavel" aria-current={atual} onClick={() => ir(r)}>
+      <button key={rotulo + ("id" in r ? r.id : "")} className="item-menu sem-afundar pressionavel" aria-current={atual} onClick={() => irPara(r)}>
         {extra ?? <I size={18} strokeWidth={2.1} />}
         <span className="uma-linha" style={{ flex: 1 }}>{rotulo}</span>
       </button>
@@ -247,17 +268,19 @@ function NavCelular({ rota }: { rota: Rota }) {
         <nav ref={ref} className="com-trilho" aria-label="Navegação" style={{ ["--trilho-cor" as string]: "var(--superficie2)" }}>
           <span className="trilho" />
           {fixos.map(([tela, I, rotulo]) => {
-            const ativa = rota.tela === tela && !aberto;
+            const ativa = destino === tela && !aberto;
             return (
-              <button key={tela} data-trilho="" data-tela={tela} className="item-nav sem-veu sem-afundar pressionavel" aria-label={rotulo} aria-current={ativa} onClick={() => irPara({ tela } as Rota)}>
+              <button key={tela} data-trilho="" data-tela={tela} className="item-nav sem-veu sem-afundar pressionavel" aria-label={rotulo} aria-current={ativa} onClick={() => ir(tela)}>
                 <I size={19} strokeWidth={2.1} />
                 {ativa && <span>{rotulo}</span>}
               </button>
             );
           })}
-          <button className="item-nav so-icone mais sem-veu sem-afundar pressionavel" aria-label="Mais telas" aria-expanded={aberto} aria-current={aberto || !noFixo}
+          <button data-trilho="" data-tela="mais" className={"item-nav mais sem-veu sem-afundar pressionavel" + (rotuloMais ? "" : " so-icone")} aria-label="Mais telas" aria-expanded={aberto}
+            aria-current={aberto || (passando ? passando === "mais" : !fixos.some(([t]) => t === destino))}
             onClick={() => (aberto ? fechar() : setAberto(true))}>
             <ChevronUp size={20} strokeWidth={2.1} />
+            {rotuloMais && <span className="uma-linha" style={{ maxWidth: 110 }}>{rotuloMais}</span>}
           </button>
           {aberto && (
             <div className={"menu-mais " + (saindo ? "volta-para-o-botao" : "brota-do-botao")} role="menu">
@@ -468,6 +491,7 @@ export function App() {
   const modo = usar((e) => e.modo);
   const rota = useRota();
   const sel = useSelecionada();
+  const celular = useCelular();
   useEffect(() => {
     const k = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
@@ -514,6 +538,8 @@ export function App() {
       <Toast />
       <HospedeDeFolhas />
       <HospedeDoContexto />
+      <DicaDePrimeiraVez rota={rota} celular={celular} />
+      <PuxarParaAtualizar />
     </div>
   );
 }

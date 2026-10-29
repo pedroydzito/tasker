@@ -103,6 +103,14 @@ export interface Preferencias {
   mostrarAtrasadasNoMenu: boolean;
   contarAtrasadas: boolean;
   somAoConcluir: boolean;
+  /** Dicas de primeira vez já vistas (valem na conta, em todo aparelho). */
+  dicasVistas: string[];
+  /** Tema escolhido (viaja com a conta; o aparelho guarda a cópia para pintar antes do JS). */
+  tema: "sistema" | "claro" | "escuro";
+  /** Escolhas de tela que a pessoa considera dela. */
+  eventosRecolhidos: boolean;
+  todasPorLista: boolean;
+  periodoConcluidas: "semana" | "mes" | "ano";
 }
 
 export const PREFERENCIAS_PADRAO: Preferencias = {
@@ -117,6 +125,11 @@ export const PREFERENCIAS_PADRAO: Preferencias = {
   mostrarAtrasadasNoMenu: true,
   contarAtrasadas: true,
   somAoConcluir: false,
+  dicasVistas: [],
+  tema: "sistema",
+  eventosRecolhidos: false,
+  todasPorLista: false,
+  periodoConcluidas: "semana",
 };
 
 /** Tudo o que o app mostra. Vive em memória (módulo) e espelhado no IndexedDB. */

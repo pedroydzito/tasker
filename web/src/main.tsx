@@ -1,3 +1,4 @@
+import { mudarPrefs } from "./dados/acoes";
 import { createRoot } from "react-dom/client";
 import { ligarEfeitos } from "./ui/efeitos";
 import { ligarFavicon } from "./ui/favicon";
@@ -57,6 +58,25 @@ if (ponte) {
 
 ligarFavicon();
 ligarEfeitos();
+// O tema viaja com a conta: quando as preferências chegam de outro aparelho, a cópia local acompanha.
+// (Uma vez: o tema escolhido antes disso existir sobe para a conta, em vez de ser trocado pelo padrão.)
+let temaConferido = false;
+assinar(() => {
+  if (ler().modo === "carregando" || ler().modo === "entrar") return;
+  if (!temaConferido) {
+    temaConferido = true;
+    try {
+      const local = localStorage.getItem("tasker.tema");
+      if (local && local !== "sistema" && ler().prefs.tema === "sistema" && !localStorage.getItem("tasker.temaNaConta")) mudarPrefs(() => ({ tema: local as "claro" | "escuro" }));
+      localStorage.setItem("tasker.temaNaConta", "1");
+    } catch { /* nada */ }
+    return;
+  }
+  const t = ler().prefs.tema;
+  try {
+    if (t && localStorage.getItem("tasker.tema") !== t) { localStorage.setItem("tasker.tema", t); aplicarTema(); }
+  } catch { /* nada */ }
+});
 void iniciar();
 createRoot(document.getElementById("raiz")!).render(<App />);
 

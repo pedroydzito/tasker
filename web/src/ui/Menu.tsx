@@ -1,7 +1,8 @@
+import { MenuSuspenso } from "./suspenso";
 import { AvisoAtualizacao } from "./atualizacao";
 import { Rolagem } from "./comuns";
 import { CampoTarefa } from "./campo";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Brain, CalendarDays, ChevronLeft, ChevronRight, CircleCheck, CircleUserRound, Eye, Maximize2, Settings, Sun, Trash2 } from "lucide-react";
 import { mesmaLista, usar } from "../dados/armazem";
 import { adiarAtrasadas, excluirTarefa, moverTarefa, salvarTarefa } from "../dados/acoes";
@@ -158,6 +159,7 @@ export function Menu() {
   const [aba, setAba] = useState<Aba>("hoje");
   const [dia, setDia] = useState(somarDias(hoje, 1));
   const [conta, setConta] = useState(false);
+  const botaoConta = useRef<HTMLButtonElement>(null);
   const email = usar((e) => e.email);
   const avatar = usar((e) => e.avatar);
   useEffect(() => {
@@ -182,17 +184,17 @@ export function Menu() {
           <h1 className="display d-titulo" style={{ flex: 1 }}>{titulo}</h1>
           <button className="icone-botao" title="Abrir em tela grande" aria-label="Abrir em tela grande" onClick={() => abrirNaJanela({ tela: aba })}><Maximize2 size={14} /></button>
           <span style={{ position: "relative" }}>
-            <button className="icone-botao" style={{ width: 30, height: 30, color: "var(--acento)" }} aria-label="Conta" onClick={() => setConta(!conta)}>
+            <button ref={botaoConta} className="icone-botao" style={{ width: 30, height: 30, color: "var(--acento)" }} aria-label="Conta" aria-expanded={conta} onClick={() => setConta(!conta)}>
               {avatar ? <img src={avatar} alt="" width={28} height={28} style={{ borderRadius: 99 }} /> : <CircleUserRound size={26} strokeWidth={1.8} fill="currentColor" stroke="var(--fundo)" />}
             </button>
-            {conta && (
-              <div className="dropdown-listas" style={{ position: "absolute", right: 0, top: 34, zIndex: 10, width: 220 }} onMouseLeave={() => setConta(false)}>
+            <MenuSuspenso aberto={conta} ancora={botaoConta} aoFechar={() => setConta(false)} alinhar="direita">
+              <div style={{ width: 220, display: "flex", flexDirection: "column" }}>
                 {email && <span className="t-xs c3" style={{ padding: "5px 8px" }}>{email}</span>}
-                <button className="opcao-lista t-sm" onClick={() => { setConta(false); void puxar(true); }}>Sincronizar agora</button>
-                <button className="opcao-lista t-sm" onClick={() => { setConta(false); abrirNaJanela({ tela: "ajustes" }); }}>Ajustes</button>
-                {ponte && <><div style={{ height: 1, background: "var(--borda)", margin: "3px 0" }} /><button className="opcao-lista t-sm" onClick={() => ponte.postMessage({ acao: "encerrar" })}>Encerrar o Tasker</button></>}
+                <button className="opcao-suspensa sem-veu" onClick={() => { setConta(false); void puxar(true); }}>Sincronizar agora</button>
+                <button className="opcao-suspensa sem-veu" onClick={() => { setConta(false); abrirNaJanela({ tela: "ajustes" }); }}>Ajustes</button>
+                {ponte && <><div style={{ height: 1, background: "var(--borda)", margin: "3px 0" }} /><button className="opcao-suspensa sem-veu" onClick={() => ponte.postMessage({ acao: "encerrar" })}>Encerrar o Tasker</button></>}
               </div>
-            )}
+            </MenuSuspenso>
           </span>
         </div>
         <div style={{ padding: "0 var(--e4)" }}><AvisoAtualizacao /></div>
