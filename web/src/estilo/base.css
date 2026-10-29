@@ -281,9 +281,8 @@ h1, h2, h3, p { margin: 0; }
   .barra-flutuante { bottom: calc(84px + env(safe-area-inset-bottom)); width: calc(100% - 24px); }
   .nav-pilula {
     display: flex; position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(12px + env(safe-area-inset-bottom)); z-index: 30;
-    gap: 2px; padding: 6px; border-radius: 999px; border: 1px solid var(--borda);
-    background: color-mix(in srgb, var(--superficie) 82%, transparent); backdrop-filter: blur(18px) saturate(1.4);
-    -webkit-backdrop-filter: blur(18px) saturate(1.4); box-shadow: var(--sombra-alta);
+    gap: var(--e1); padding: 6px; border-radius: 999px; border: 1px solid var(--borda);
+    background: var(--superficie); box-shadow: var(--sombra-alta);
   }
   .toast { bottom: calc(150px + env(safe-area-inset-bottom)); }
 }
@@ -450,3 +449,12 @@ h1, h2, h3, p { margin: 0; }
 .pasta-cabecalho:hover { background: var(--veu-hover); }
 .pasta-corpo { border-top: 1px solid var(--borda); padding: var(--e5); display: flex; flex-direction: column; gap: var(--e4); }
 .tecla { font-size: var(--t-xs); font-weight: 600; color: var(--texto2); padding: var(--e1) var(--e2); border-radius: var(--raio-p); background: var(--superficie2); border: 1px solid var(--borda); }
+
+.aba-pilula { display: inline-flex; align-items: center; gap: var(--e2); height: 40px; padding: 0 var(--e3); border-radius: 999px; color: var(--texto3); transition: background-color var(--normal) var(--curva), padding var(--normal) var(--curva), transform 80ms; }
+.aba-pilula.ativa { background: var(--superficie2); color: var(--acento); padding: 0 var(--e4); }
+.aba-pilula.ativa span { color: var(--texto); }
+.aba-pilula:active { transform: scale(0.94); }
+.gaveta { position: fixed; z-index: 52; left: 0; top: 0; bottom: 0; width: min(300px, 86vw); display: flex; animation: gaveta var(--normal) var(--curva); box-shadow: var(--sombra-alta); }
+.gaveta .lateral { display: flex !important; width: 100%; padding-top: env(safe-area-inset-top); }
+.gaveta .marca { padding-top: 20px; }
+@keyframes gaveta { from { transform: translateX(-100%); } }

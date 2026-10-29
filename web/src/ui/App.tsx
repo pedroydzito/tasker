@@ -1,6 +1,6 @@
 import { CriadorDeEtiqueta, HospedeDeFolhas, NovaLista, folhas } from "./folhas";
 import { useEffect, useRef, useState } from "react";
-import { ArrowUp, CircleAlert, Trash2, Circle, Brain, CalendarDays, ChartGantt, Check, ChevronDown, CircleCheck, CircleUserRound, CloudOff, Download, Hash, Inbox, NotepadText, Plus, RefreshCw, Search, Settings, Sun, Sunrise, X } from "lucide-react";
+import { Menu as IconeMenu, ArrowUp, CircleAlert, Trash2, Circle, Brain, CalendarDays, ChartGantt, Check, ChevronDown, CircleCheck, CircleUserRound, CloudOff, Download, Hash, Inbox, NotepadText, Plus, RefreshCw, Search, Settings, Sun, Sunrise, X } from "lucide-react";
 import { usar } from "../dados/armazem";
 import { criarDoTexto } from "../dados/acoes";
 import { desfazerAgora, textoDoAviso, useAviso } from "../dados/avisos";
@@ -156,16 +156,22 @@ function Lateral({ rota, aoBuscar }: { rota: Rota; aoBuscar: () => void }) {
   );
 }
 
-function NavPilula({ rota }: { rota: Rota }) {
-  const itens = [ITENS[0], ITENS[1], ITENS[3], ITENS[6], ITENS[7]];
+/** Navegação do celular: a pílula do menu do Mac (rótulo só no ativo) + o restante numa gaveta. */
+function NavPilula({ rota, aoAbrirMais }: { rota: Rota; aoAbrirMais: () => void }) {
+  const abas: [Rota["tela"], typeof Sun, string][] = [["hoje", Sun, "Hoje"], ["calendario", CalendarDays, "Calendário"], ["despejo", Brain, "Despejo"], ["notas", NotepadText, "Notas"]];
   return (
     <nav className="nav-pilula" aria-label="Navegação">
-      {itens.map(({ tela, rotulo, I }) => (
-        <button key={tela} className="icone-botao" aria-label={rotulo} aria-current={rota.tela === tela} style={{ width: 48, height: 40, color: rota.tela === tela ? "var(--acento)" : undefined }} onClick={() => irPara({ tela } as Rota)}>
-          <I size={18} />
-        </button>
-      ))}
-      <button className="icone-botao" aria-label="Ajustes" style={{ width: 48, height: 40 }} onClick={() => irPara({ tela: "ajustes" })}><Settings size={18} /></button>
+      {abas.map(([tela, I, rotulo]) => {
+        const ativa = rota.tela === tela || (tela === "notas" && rota.tela === "nota");
+        return (
+          <button key={tela} className={"aba-pilula" + (ativa ? " ativa" : "")} aria-label={rotulo} aria-current={ativa} onClick={() => irPara({ tela } as Rota)}>
+            <I size={16} strokeWidth={2.2} />
+            {ativa && <span className="t-sm p-semi">{rotulo}</span>}
+          </button>
+        );
+      })}
+      <span style={{ width: 1, height: 22, background: "var(--borda)", margin: "0 2px", alignSelf: "center" }} />
+      <button className="icone-botao" style={{ width: 40, height: 40 }} aria-label="Listas, etiquetas e ajustes" onClick={aoAbrirMais}><IconeMenu size={16} /></button>
     </nav>
   );
 }
@@ -409,6 +415,7 @@ export function App() {
   const rota = useRota();
   const sel = useSelecionada();
   const [busca, setBusca] = useState(false);
+  const [gaveta, setGaveta] = useState(false);
   useEffect(() => {
     const k = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
@@ -421,6 +428,7 @@ export function App() {
   }, []);
   // Troca de tela fecha o inspetor da tela anterior.
   useEffect(() => () => selecionar(null), [rota]);
+  useEffect(() => setGaveta(false), [rota]);
 
   if (modo === "carregando") return null;
   if (modo === "entrar") return <TelaEntrar />;
@@ -440,7 +448,8 @@ export function App() {
         <CriacaoRapida rota={rota} />
         {sel && <Inspetor key={sel} id={sel} />}
       </main>
-      <NavPilula rota={rota} />
+      <NavPilula rota={rota} aoAbrirMais={() => setGaveta(true)} />
+      {gaveta && <><div className="veu-modal" onClick={() => setGaveta(false)} /><div className="gaveta" onClick={(e) => (e.target as HTMLElement).closest("button.item-lateral, .rodape-lateral button") && setGaveta(false)}><Lateral rota={rota} aoBuscar={() => { setGaveta(false); setBusca(true); }} /></div></>}
       {busca && <Busca aoFechar={() => setBusca(false)} />}
       <Toast />
       <HospedeDeFolhas />
