@@ -85,6 +85,13 @@ try {
   await p.goto(BASE + "#/menu");
   await p.setViewportSize({ width: 360, height: 520 });
   await p.screenshot({ path: "e2e/capturas/menu.png" });
+  // Popover: um clique na data já abre o calendário, e ele rola dentro do popover.
+  await p.setViewportSize({ width: 340, height: 460 });
+  await p.locator("textarea").first().fill("Cancelar adobe");
+  await p.locator('button[title="Trocar a data"]').first().click();
+  await p.locator(".campo-menu .seletor-data").waitFor({ timeout: 2000 });
+  const rola = await p.evaluate(() => { const c = document.querySelector(".campo-menu"); return !!c && c.scrollHeight > c.clientHeight && c.getBoundingClientRect().bottom <= innerHeight + 1; });
+  ok(rola, "calendário do campo do popover abre num clique e rola");
   ok(erros.length === 0, "sem erros de página " + erros.join(" | "));
   await navegador.close();
 } catch (e) {

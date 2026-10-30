@@ -75,11 +75,13 @@ export function CampoTarefa({ prazo = null, listaId = null, etiqueta = null, est
       {!!texto && (
         <div className="chips-campo entrar">
           {lista && (
-            <button className="so-afunda sem-veu" title="Trocar a lista" onMouseDown={(x) => x.preventDefault()} onClick={() => { setDropdown(!dropdown); setData(false); }}>
+            <button className="so-afunda sem-veu" title="Trocar a lista" onMouseDown={(x) => x.preventDefault()} onPointerDown={(x) => { if (x.button) return; x.preventDefault(); setDropdown(!dropdown); setData(false); }}
+              onClick={(x) => { if (x.detail === 0) { setDropdown(!dropdown); setData(false); } }}>
               <ChipLista listaId={lista} comSeta aberta={dropdown} />
             </button>
           )}
-          <button className="so-afunda sem-veu" title="Trocar a data" onMouseDown={(x) => x.preventDefault()} onClick={() => { setData(!data); setDropdown(false); }}>
+          <button className="so-afunda sem-veu" title="Trocar a data" onMouseDown={(x) => x.preventDefault()} onPointerDown={(x) => { if (x.button) return; x.preventDefault(); setData(!data); setDropdown(false); }}
+            onClick={(x) => { if (x.detail === 0) { setData(!data); setDropdown(false); } }}>
             <Chip texto={(due ? rotuloCurto(due, hoje) : "Sem data") + (horario && due ? ` · ${horario}` : "")}><Calendar size={10} strokeWidth={2.6} /></Chip>
           </button>
           {varias.length > 1 && <span title="Uma tarefa por linha. Data e lista escritas na linha valem só para ela."><Chip texto={`${varias.length} tarefas`} cor="var(--acento)"><List size={10} strokeWidth={2.6} /></Chip></span>}

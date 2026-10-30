@@ -531,3 +531,8 @@ html:has(.menu-barra), html:has(.menu-barra) body { scrollbar-gutter: auto; over
 @keyframes rotulo-nav-entra { from { opacity: 0; transform: translateX(-4px); } }
 .rotulo-nav { animation: rotulo-nav-entra var(--normal) var(--curva) both; }
 @media (prefers-reduced-motion: reduce) { .rotulo-nav { animation: none; } }
+
+/* Campo do popover: o calendário/lista que abre nele rola junto, sem passar do fim do popover. */
+.campo-menu { padding: 0 var(--e4); flex: 0 1 auto; min-height: 0; overflow-y: auto; scrollbar-width: none; overscroll-behavior: contain; }
+.campo-menu::-webkit-scrollbar { display: none; }
+.menu-barra .casca-flex { min-height: 0; }

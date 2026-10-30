@@ -74,7 +74,7 @@ function AbaHoje() {
   const vazio = !tarefas.length && !atrasadas.length;
   return (
     <>
-      <div style={{ padding: "0 var(--e4)" }}><CampoTarefa prazo={hoje} /></div>
+      <div className="campo-menu"><CampoTarefa prazo={hoje} /></div>
       <Rolagem casca="casca-flex" className="rolagem-menu">
         {p.mostrarEventosNoMenu && <Eventos dia={hoje} compacto />}
         {atrasadas.length > 0 && (
@@ -114,7 +114,7 @@ function AbaCalendario({ dia, setDia }: { dia: string; setDia: (d: string) => vo
         })}
         <button className="icone-botao" style={{ width: 26, height: 26 }} aria-label="Avançar uma semana" onClick={() => setDia(somarDias(dia, 7))}><ChevronRight size={11} /></button>
       </div>
-      <div style={{ padding: "0 var(--e4)" }}><CampoTarefa prazo={dia} key={dia} /></div>
+      <div className="campo-menu"><CampoTarefa prazo={dia} key={dia} /></div>
       <Rolagem casca="casca-flex" className="rolagem-menu">
         <Eventos dia={dia} compacto />
         {!ts.length && !nEventos ? <EstadoVazio Icone={CalendarDays} titulo="Dia livre" /> : ts.length > 0 && <CartaoLinhas>{ts.map((t) => <LinhaTarefa key={t.id} t={t} compacta mostrarData={false} />)}</CartaoLinhas>}
