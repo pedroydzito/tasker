@@ -39,7 +39,7 @@ if (ponte) {
     const msg = {
       acao: "estado",
       modo: e.modo,
-      hoje: e.modo === "carregando" || e.modo === "entrar" || e.prefs.energiaBaixa ? 0 : contagemHoje(e),
+      hoje: e.modo === "carregando" || e.modo === "entrar" ? 0 : contagemHoje(e),
       cronometro: e.cronometro.inicio && t ? { inicio: e.cronometro.inicio, segundosAntes: e.tempos[t.id] ?? 0, titulo: t.titulo } : null,
     };
     const s = JSON.stringify(msg);

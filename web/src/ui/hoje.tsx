@@ -1,5 +1,5 @@
 import { CampoTarefa } from "./campo";
-import { ArrowUpRight, BatteryFull, BatteryLow, ChevronDown, ChevronUp, Sun, Sunrise } from "lucide-react";
+import { ArrowUpRight, ChevronDown, ChevronUp, Sun, Sunrise } from "lucide-react";
 import { mesmaLista, usar } from "../dados/armazem";
 import {
   adiarAtrasadas, 
@@ -48,21 +48,9 @@ export function Eventos({ dia, compacto = false, recolhivel = true }: { dia: str
   );
 }
 
-function BotaoEnergia() {
-  const baixa = usar((e) => e.prefs.energiaBaixa);
-  return (
-    <button className={"icone-botao" + (baixa ? " ativo" : "")} aria-label="Energia"
-      title={baixa ? "Tô sem energia — clique para ver tudo" : "Tenho energia — clique se estiver sem energia"}
-      onClick={() => mudarPrefs((p) => ({ energiaBaixa: !p.energiaBaixa }))}>
-      {baixa ? <BatteryLow size={16} /> : <BatteryFull size={16} />}
-    </button>
-  );
-}
-
 export function TelaHoje() {
   const hoje = hojeISO();
-  const baixa = usar((e) => e.prefs.energiaBaixa);
-  const atrasadas = usar((e) => (e.prefs.energiaBaixa ? [] : raiz(indice(e).atrasadas)), mesmaLista);
+  const atrasadas = usar((e) => raiz(indice(e).atrasadas), mesmaLista);
   const tarefas = usar((e) => raiz(indice(e).hoje), mesmaLista);
   const feitas = usar((e) => indice(e).concluidasHoje, mesmaLista);
   const vazio = !tarefas.length && !atrasadas.length;
@@ -71,7 +59,7 @@ export function TelaHoje() {
   );
   return (
     <>
-      <Cabecalho titulo="Hoje" sub={baixa ? rotuloLongo(hoje) : `${rotuloLongo(hoje)} · ${textoContagem(atrasadas.length + tarefas.length)}`} direita={<BotaoEnergia />} />
+      <Cabecalho titulo="Hoje" sub={`${rotuloLongo(hoje)} · ${textoContagem(atrasadas.length + tarefas.length)}`} />
       <div data-encadeado className="bloco-tela" style={{ ["--i" as string]: 1, display: "flex", flexDirection: "column", gap: "var(--e5)" }}>
         <CampoCelular prazo={hoje} />
         <Eventos dia={hoje} />

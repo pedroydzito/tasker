@@ -160,7 +160,7 @@ function Lateral({ rota, aoBuscar }: { rota: Rota; aoBuscar: () => void }) {
   const trilho = useTrilho<HTMLDivElement>(JSON.stringify(rota) + cadernoFechado + listasFechadas + etiquetasFechadas + e.listas.length);
   const amanha = (ind.porDia.get(somarDias(hojeISO(), 1)) ?? []).filter((t) => !t.mae).length;
   const contagens: Partial<Record<Rota["tela"], number | null>> = {
-    hoje: e.prefs.energiaBaixa ? null : contagemHoje(e),
+    hoje: contagemHoje(e),
     amanha,
     todas: ind.abertas.length,
     despejo: e.despejo.filter((d) => d.estado === "caixa").length,
@@ -286,15 +286,15 @@ function NavCelular({ rota }: { rota: Rota }) {
             return (
               <button key={tela} data-trilho="" data-tela={tela} className="item-nav sem-veu sem-afundar pressionavel" aria-label={rotulo} aria-current={ativa} onClick={() => ir(tela)}>
                 <I size={19} strokeWidth={2.1} />
-                {ativa && <span>{rotulo}</span>}
+                {ativa && !passando && <span className="rotulo-nav">{rotulo}</span>}
               </button>
             );
           })}
-          <button data-trilho="" data-tela="mais" className={"item-nav mais sem-veu sem-afundar pressionavel" + (rotuloMais ? "" : " so-icone")} aria-label="Mais telas" aria-expanded={aberto}
+          <button data-trilho="" data-tela="mais" className={"item-nav mais sem-veu sem-afundar pressionavel" + (rotuloMais && !passando ? "" : " so-icone")} aria-label="Mais telas" aria-expanded={aberto}
             aria-current={aberto || (passando ? passando === "mais" : !fixos.some(([t]) => t === destino))}
             onClick={() => (aberto ? fechar() : setAberto(true))}>
             <ChevronUp size={20} strokeWidth={2.1} />
-            {rotuloMais && <span className="uma-linha" style={{ maxWidth: 110 }}>{rotuloMais}</span>}
+            {rotuloMais && !passando && <span className="uma-linha rotulo-nav" style={{ maxWidth: 110 }}>{rotuloMais}</span>}
           </button>
           {aberto && (
             <div className={"menu-mais " + (saindo ? "volta-para-o-botao" : "brota-do-botao")} role="menu">

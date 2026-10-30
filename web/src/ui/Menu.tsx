@@ -66,7 +66,7 @@ function DetalheNoMenu({ t, fechar }: { t: Tarefa; fechar: () => void }) {
 function AbaHoje() {
   const hoje = hojeISO();
   const p = usar((e) => e.prefs);
-  const atrasadas = usar((e) => (e.prefs.mostrarAtrasadasNoMenu && !e.prefs.energiaBaixa ? indice(e).atrasadas.filter((t) => !t.mae) : []), mesmaLista);
+  const atrasadas = usar((e) => (e.prefs.mostrarAtrasadasNoMenu ? indice(e).atrasadas.filter((t) => !t.mae) : []), mesmaLista);
   const tarefas = usar((e) => indice(e).hoje.filter((t) => !t.mae), mesmaLista);
   const feitas = usar((e) => indice(e).concluidasHoje, mesmaLista);
   const linhas = (ts: Tarefa[]) => ts.map((t) => <LinhaTarefa key={t.id} t={t} compacta />);

@@ -148,7 +148,7 @@ export function TelaCalendario() {
           <span className="display d-titulo">{rotuloCurto(sel, hoje)}</span>
         </div>
         <CampoTarefa key={sel} prazo={sel} />
-        <button className="nota-dia-cartao afunda" onClick={() => { abrirNotaDoDia(sel); irPara({ tela: "notas" }); }}>
+        <button className="nota-dia-cartao afunda so-desktop" onClick={() => { abrirNotaDoDia(sel); irPara({ tela: "notas" }); }}>
           <NotepadText size={14} className="c3" style={{ marginTop: 1, flex: "none" }} />
           {e.notas.find((n) => n.dia === sel)?.texto.trim() ? <span className="t-sm c2 tres-linhas">{e.notas.find((n) => n.dia === sel)!.texto.trim()}</span> : <span className="t-sm p-medio c3">Escrever a nota do dia</span>}
         </button>
@@ -874,7 +874,7 @@ export function TelaAjustes() {
   const botaoLista = useRef<HTMLButtonElement>(null);
   const mudarTema = (t: Tema) => { mudarPrefs(() => ({ tema: t })); try { localStorage.setItem("tasker.tema", t); } catch { /* nada */ } aplicarTema(); };
   const p = e.prefs;
-  const alternar = (k: "contarAtrasadas" | "mostrarEventosNoMenu" | "mostrarAtrasadasNoMenu" | "somAoConcluir" | "energiaBaixa") => mudarPrefs((x) => ({ [k]: !x[k] }));
+  const alternar = (k: "contarAtrasadas" | "mostrarEventosNoMenu" | "mostrarAtrasadasNoMenu" | "somAoConcluir") => mudarPrefs((x) => ({ [k]: !x[k] }));
   const n = contagemHoje(e);
   const padrao = listaPadrao(e);
   const atualizacao = useAtualizacao();
@@ -933,7 +933,6 @@ export function TelaAjustes() {
             </MenuSuspenso>
           </LinhaAjuste>
           <LinhaAjuste titulo="Som ao concluir"><Chave ligada={p.somAoConcluir} rotulo="Som ao concluir" aoMudar={() => alternar("somAoConcluir")} /></LinhaAjuste>
-          <LinhaAjuste titulo="Estou sem energia" descricao="O Hoje mostra uma coisa por vez, sem atrasadas e sem número na barra"><Chave ligada={p.energiaBaixa} rotulo="Estou sem energia" aoMudar={() => alternar("energiaBaixa")} /></LinhaAjuste>
         </Pasta>
 
         {e.modo === "conta" && (

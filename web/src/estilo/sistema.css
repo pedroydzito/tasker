@@ -314,7 +314,7 @@ input:focus-visible, textarea:focus-visible { outline: none; }
 @media (hover: hover) { .so-afunda:hover:not(:disabled) { transform: scale(1.02); filter: brightness(0.97); } }
 .so-afunda:active:not(:disabled) { transform: scale(0.95) !important; transition-duration: var(--toque); }
 .campo-celular { display: none; }
-@media (max-width: 760px) { .campo-celular { display: block; } }
+@media (max-width: 760px) { .campo-celular { display: block; margin-top: calc(-1 * var(--e4)); } }
 
 /* ===== Indicador de rolagem (IndicadorDeRolagem.swift) ===== */
 .rolagem-casca { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
@@ -387,6 +387,7 @@ input:focus-visible, textarea:focus-visible { outline: none; }
   .pontos-dia { display: flex; gap: 3px; height: 5px; }
   .pontos-dia > span { width: 5px; height: 5px; border-radius: 999px; }
   .agenda-dia { padding-top: var(--e4) !important; gap: var(--e4) !important; }
+  .agenda-dia > :first-child + * { margin-top: calc(-1 * var(--e2)); }
 }
 .secao-menu { display: flex; align-items: center; gap: 6px; padding: var(--e2) var(--e3) 2px; width: 100%; text-align: left; }
 .secao-menu svg { transition: transform var(--normal) var(--curva); }
@@ -525,3 +526,8 @@ html:has(.menu-barra), html:has(.menu-barra) body { scrollbar-gutter: auto; over
 .cartao-importando { display: grid; gap: 8px; width: min(320px, calc(100vw - 32px)); padding: 20px; border-radius: 16px; background: var(--superficie); box-shadow: var(--sombra); }
 .cartao-importando span { color: var(--texto2); font-size: 13px; }
 .cartao-importando .barra-espera { margin-top: 6px; }
+
+/* Nome da aba: só depois de soltar, e entra suave (sem pular no primeiro quadro). */
+@keyframes rotulo-nav-entra { from { opacity: 0; transform: translateX(-4px); } }
+.rotulo-nav { animation: rotulo-nav-entra var(--normal) var(--curva) both; }
+@media (prefers-reduced-motion: reduce) { .rotulo-nav { animation: none; } }
