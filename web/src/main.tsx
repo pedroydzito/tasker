@@ -1,4 +1,5 @@
 import { mudarPrefs } from "./dados/acoes";
+import { ligarGestos } from "./ui/gestos";
 import { createRoot } from "react-dom/client";
 import { ligarEfeitos } from "./ui/efeitos";
 import { ligarFavicon } from "./ui/favicon";
@@ -58,6 +59,7 @@ if (ponte) {
 
 ligarFavicon();
 ligarEfeitos();
+ligarGestos();
 // O tema viaja com a conta: quando as preferências chegam de outro aparelho, a cópia local acompanha.
 // (Uma vez: o tema escolhido antes disso existir sobe para a conta, em vez de ser trocado pelo padrão.)
 let temaConferido = false;

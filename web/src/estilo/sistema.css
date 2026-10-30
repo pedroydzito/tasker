@@ -506,3 +506,16 @@ input:focus-visible, textarea:focus-visible { outline: none; }
 .campo-segmentado input:focus { background: var(--superficie-hover); }
 .campo-segmentado input::placeholder { color: var(--texto3); }
 .lista-novidades { margin: 0; padding-left: 1.1em; display: flex; flex-direction: column; gap: 6px; line-height: 1.5; }
+/* Deslizar a tarefa para a direita: o check aparece atrás, e acende ao valer (§11). */
+.linha-tarefa { position: relative; }
+.linha-tarefa.deslizando::after {
+  content: "✓"; position: absolute; left: calc(-1 * var(--e4)); top: 50%; transform: translate(-100%, -50%) scale(calc(0.6 + var(--deslize, 0) * 0.4));
+  width: 26px; height: 26px; border-radius: 999px; display: grid; place-items: center; font-weight: 800; font-size: 13px;
+  background: var(--superficie3); color: var(--texto3); opacity: var(--deslize, 0); transition: background-color var(--rapido), color var(--rapido);
+}
+.linha-tarefa[data-deslize-vale]::after { background: var(--sucesso); color: #fff; }
+
+/* Popover da barra de menus (Mac): sem trilho de rolagem nem gutter, o card ocupa a largura exata */
+html:has(.menu-barra), html:has(.menu-barra) body { scrollbar-gutter: auto; overflow: hidden; }
+.menu-barra .rolagem-casca > :first-child { scrollbar-width: none; }
+.menu-barra .rolagem-casca > :first-child::-webkit-scrollbar { display: none; }
