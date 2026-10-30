@@ -20,6 +20,7 @@ export function quandoTrocarId(fn: typeof aoTrocarId) {
 
 export async function carregarFila() {
   filaEmMemoria = await lerFila();
+  for (const o of filaEmMemoria) gravadas.add(o.id);
   definir({ pendencias: filaEmMemoria.length });
 }
 
@@ -43,6 +44,8 @@ export async function enfileirar(op: Omit<Operacao, "id" | "criadaEm" | "tentati
   definir({ pendencias: filaEmMemoria.length });
   try {
     await gravarOperacao(completa);
+    gravadas.add(completa.id);
+    canal?.postMessage("nova");
   } catch {
     /* sem IndexedDB: a operação segue só em memória até subir */
   }
@@ -56,42 +59,63 @@ export function esperandoFila(): Promise<void> {
   });
 }
 
+/** Junta o que outra janela (janela e popover do Mac, outra aba) gravou ou já subiu. */
+async function recarregarFila() {
+  const doDisco = await lerFila();
+  const ids = new Set(doDisco.map((o) => o.id));
+  const soEmMemoria = filaEmMemoria.filter((o) => !ids.has(o.id) && !gravadas.has(o.id));
+  filaEmMemoria = [...doDisco, ...soEmMemoria].sort((a, b) => a.criadaEm - b.criadaEm);
+  definir({ pendencias: filaEmMemoria.length });
+}
+/** Ids que chegaram ao disco: se somem de lá, outra janela já os enviou. */
+const gravadas = new Set<string>();
+const canal = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel("tasker-fila") : null;
+canal?.addEventListener("message", () => void processarFila());
+
 export async function processarFila(): Promise<void> {
   if (processando || ler().modo !== "conta" || !navigator.onLine) return;
   processando = true;
+  // Uma janela por vez sobe a fila: duas ao mesmo tempo duplicariam criações.
+  const travas = (navigator as Navigator & { locks?: LockManager }).locks;
   try {
-    while (filaEmMemoria.length) {
-      const op = filaEmMemoria[0];
-      try {
-        await executar(op);
-        filaEmMemoria.shift();
-        await apagarOperacao(op.id).catch(() => {});
-        definir({ pendencias: filaEmMemoria.length });
-      } catch (e) {
-        if (e instanceof ErroReconectar) {
-          definir({ googlePendente: true });
-          break;
-        }
-        if (ehErroDeRede(e)) {
-          // Falha de rede nunca descarta: é o offline chegando atrasado. Espera crescente
-          // (20 s, 40 s, 80 s… até 5 min), mesmo com o aparelho dizendo "online" (operação §5.1).
-          op.tentativas += 1;
-          await gravarOperacao(op).catch(() => {});
-          const espera = Math.min(300_000, 20_000 * 2 ** Math.min(op.tentativas - 1, 4)) + Math.random() * 1500;
-          if (proximaVolta) clearTimeout(proximaVolta);
-          proximaVolta = setTimeout(() => { proximaVolta = null; void processarFila(); }, espera);
-          break;
-        }
-        // Erro do pedido: repetir não adianta. Sai da fila e avisa.
-        filaEmMemoria.shift();
-        await apagarOperacao(op.id).catch(() => {});
-        definir({ pendencias: filaEmMemoria.length });
-        const msg = e instanceof Error ? e.message : String(e);
-        avisar(`Não foi possível salvar uma alteração: ${msg}`, { erro: true });
-      }
-    }
+    if (travas) await travas.request("tasker-fila", () => subirFila());
+    else await subirFila();
   } finally {
     processando = false;
+  }
+}
+
+async function subirFila(): Promise<void> {
+  await recarregarFila();
+  while (filaEmMemoria.length) {
+    const op = filaEmMemoria[0];
+    try {
+      await executar(op);
+      filaEmMemoria.shift();
+      await apagarOperacao(op.id).catch(() => {});
+      definir({ pendencias: filaEmMemoria.length });
+    } catch (e) {
+      if (e instanceof ErroReconectar) {
+        definir({ googlePendente: true });
+        break;
+      }
+      if (ehErroDeRede(e)) {
+        // Falha de rede nunca descarta: é o offline chegando atrasado. Espera crescente
+        // (20 s, 40 s, 80 s… até 5 min), mesmo com o aparelho dizendo "online" (operação §5.1).
+        op.tentativas += 1;
+        await gravarOperacao(op).catch(() => {});
+        const espera = Math.min(300_000, 20_000 * 2 ** Math.min(op.tentativas - 1, 4)) + Math.random() * 1500;
+        if (proximaVolta) clearTimeout(proximaVolta);
+        proximaVolta = setTimeout(() => { proximaVolta = null; void processarFila(); }, espera);
+        break;
+      }
+      // Erro do pedido: repetir não adianta. Sai da fila e avisa.
+      filaEmMemoria.shift();
+      await apagarOperacao(op.id).catch(() => {});
+      definir({ pendencias: filaEmMemoria.length });
+      const msg = e instanceof Error ? e.message : String(e);
+      avisar(`Não foi possível salvar uma alteração: ${msg}`, { erro: true });
+    }
   }
 }
 

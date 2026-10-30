@@ -22,6 +22,7 @@ let ultimosEventos = 0;
 let puxando: Promise<void> | null = null;
 let repetir = false;
 let ultimaFalhou = false;
+let completaFeita = false;
 
 const marcas = (): Record<string, string> => {
   try {
@@ -69,6 +70,8 @@ export async function iniciar() {
     saiuEm = 0;
   });
   window.addEventListener("pagehide", gravarAgora);
+  // No Mac a janela volta ao foco sem "visibilitychange": confere ao focar (respeita o frescor).
+  window.addEventListener("focus", () => { void processarFila(); void puxar(false); });
   // Enquanto visível, confere de tempos em tempos (respeitando a janela de frescor).
   setInterval(() => {
     if (document.visibilityState === "visible") void puxar(false);
@@ -305,14 +308,17 @@ async function puxarGoogle() {
   ];
   const mudouListas = listas.length !== e.listas.length || listas.some((l, i) => l.id !== e.listas[i]?.id || l.titulo !== e.listas[i]?.titulo);
 
-  const m = marcas();
+  // A primeira conferida de cada abertura vem completa: corrige qualquer mudança que a
+  // conferida por diferença tenha perdido (relógio do aparelho adiantado, falha no meio).
+  const m = completaFeita ? marcas() : {};
+  const anteriores = marcas();
   const inicio = new Date().toISOString();
   const respostas = await Promise.all(
     remotas.map(async (l) => {
       const desde = m[l.id];
       const q = new URLSearchParams({ maxResults: "100", showCompleted: "true", showHidden: "true", showDeleted: desde ? "true" : "false" });
-      // 2 min de folga para diferença de relógio.
-      if (desde) q.set("updatedMin", new Date(new Date(desde).getTime() - 120_000).toISOString());
+      // 10 min de folga para diferença de relógio.
+      if (desde) q.set("updatedMin", new Date(new Date(desde).getTime() - 600_000).toISOString());
       const itens = await todasAsPaginas<GTask>(`${T}/lists/${encodeURIComponent(l.id)}/tasks?${q}`);
       return { lista: l.id, completa: !desde, itens };
     }),
@@ -347,7 +353,8 @@ async function puxarGoogle() {
     }
     m[r.lista] = inicio;
   }
-  gravarMarcas(m);
+  gravarMarcas({ ...anteriores, ...m });
+  completaFeita = true;
   definir({ ...(mudouListas ? { listas, listaFixa: fixa } : {}), ...(mudou ? { tarefas: novas } : {}) });
 }
 
