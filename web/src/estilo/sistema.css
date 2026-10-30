@@ -497,7 +497,7 @@ input:focus-visible, textarea:focus-visible { outline: none; }
 .puxar { position: fixed; inset-inline: 0; top: 0; z-index: 30; display: flex; justify-content: center; padding-top: var(--seguro-top); pointer-events: none; }
 .puxar-circulo { width: 36px; height: 36px; border-radius: 999px; background: var(--superficie); box-shadow: var(--sombra); display: inline-flex; align-items: center; justify-content: center; color: var(--acento-texto); transition: transform var(--normal) var(--curva); }
 @keyframes girar { to { transform: rotate(360deg); } }
-.girando { animation: girar 0.9s linear infinite; }
+svg.girando, .girando > svg { animation: girar 0.9s linear infinite; }
 @keyframes rolar-digito { from { transform: translateY(0.55em); opacity: 0; } }
 .digito-rolando { display: inline-block; animation: rolar-digito var(--rapido) var(--curva); }
 .campo-segmentado { display: inline-flex; align-items: center; min-width: 0; height: 30px; padding: 0 var(--e2); border-radius: var(--raio-p); background: var(--superficie2); }
@@ -519,3 +519,9 @@ input:focus-visible, textarea:focus-visible { outline: none; }
 html:has(.menu-barra), html:has(.menu-barra) body { scrollbar-gutter: auto; overflow: hidden; }
 .menu-barra .rolagem-casca > :first-child { scrollbar-width: none; }
 .menu-barra .rolagem-casca > :first-child::-webkit-scrollbar { display: none; }
+
+/* Importando do app antigo do Mac (§8.40) */
+.tela-importando { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; background: color-mix(in srgb, var(--fundo) 80%, transparent); backdrop-filter: blur(6px); animation: entra-barra var(--normal) var(--curva); }
+.cartao-importando { display: grid; gap: 8px; width: min(320px, calc(100vw - 32px)); padding: 20px; border-radius: 16px; background: var(--superficie); box-shadow: var(--sombra); }
+.cartao-importando span { color: var(--texto2); font-size: 13px; }
+.cartao-importando .barra-espera { margin-top: 6px; }

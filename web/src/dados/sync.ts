@@ -21,6 +21,7 @@ let ultimaPuxada = 0;
 let ultimosEventos = 0;
 let puxando: Promise<void> | null = null;
 let repetir = false;
+let ultimaFalhou = false;
 
 const marcas = (): Record<string, string> => {
   try {
@@ -61,7 +62,8 @@ export async function iniciar() {
       gravarAgora();
       return;
     }
-    if (saiuEm && Date.now() - saiuEm > 15_000 && navigator.onLine) void puxar(true);
+    // A última conferida falhou: volta ao app tenta de novo na hora (§7.10).
+    if (((saiuEm && Date.now() - saiuEm > 15_000) || ultimaFalhou) && navigator.onLine) void puxar(true);
     // A fila não depende só do evento "online": cada volta ao app tenta de novo (operação §5.1).
     void processarFila();
     saiuEm = 0;
@@ -243,6 +245,7 @@ export function puxar(forcar = false): Promise<void> {
       const partes = await Promise.allSettled([comPrazo(puxarGoogle(), 45_000), comPrazo(puxarTabelas(), 15_000), eventos ? comPrazo(puxarEventos(), 20_000) : Promise.resolve()]);
       const [g] = partes;
       ultimaPuxada = Date.now();
+      ultimaFalhou = partes.some((r) => r.status === "rejected");
       // Rede fraca: o que veio é do aparelho; tenta de novo sozinho em 4, 10, 25 e 60 s (§4.19).
       if (partes.some((r) => r.status === "rejected" && ehErroDeRede(r.reason))) agendarNovaTentativa();
       else tentativasDeRede = 0;

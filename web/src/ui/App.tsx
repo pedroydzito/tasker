@@ -4,7 +4,7 @@ import { moverTarefa } from "../dados/acoes";
 import { HospedeDoContexto } from "./contexto";
 import { CampoTarefa } from "./campo";
 import { CriadorDeEtiqueta, HospedeDeFolhas, NovaLista, folhas } from "./folhas";
-import { Suspense, lazy, useEffect, useState, type ComponentType } from "react";
+import { Suspense, lazy, useEffect, useRef, useState, type ComponentType } from "react";
 import { ChevronUp, CircleAlert, Trash2, Circle, Brain, CalendarDays, ChartGantt, Check, ChevronDown, CircleCheck, CircleUserRound, CloudOff, Download, Hash, Inbox, NotepadText, Plus, RefreshCw, Search, Settings, Sun, Sunrise, X } from "lucide-react";
 import { usar } from "../dados/armazem";
 import { desfazerAgora, textoDoAviso, useAviso } from "../dados/avisos";
@@ -36,7 +36,9 @@ const Menu = lazy(() => import("./Menu").then((m) => ({ default: m.Menu })));
 if (typeof window !== "undefined") ("requestIdleCallback" in window ? requestIdleCallback : setTimeout)(() => void telas());
 
 /** Enquanto o código da tela chega: o formato do cabeçalho e de um cartão (§10.6). */
+let esperou = false;
 function EsperaTela() {
+  esperou = true;
   return (
     <div className="esqueleto-casca" style={{ height: "auto" }} aria-hidden>
       <div className="esqueleto-conteudo" style={{ padding: 0, margin: 0 }}>
@@ -45,6 +47,18 @@ function EsperaTela() {
       </div>
     </div>
   );
+}
+
+/** Esqueleto → conteúdo sem pulo: quando a tela esperou o código, ela entra num fade curto (troca suave). */
+function TrocaSuave() {
+  const ref = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (!esperou) return;
+    esperou = false;
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    ref.current?.parentElement?.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 180, easing: "ease-out" });
+  }, []);
+  return <span ref={ref} hidden />;
 }
 
 const ITENS: { tela: Rota["tela"]; rotulo: string; I: typeof Sun }[] = [
@@ -527,7 +541,7 @@ export function App() {
             <div className="pagina-conteudo">
               <FaixaCelular />
               <AvisoInstalar />
-              <Suspense fallback={<EsperaTela />}><Tela rota={rota} /></Suspense>
+              <Suspense fallback={<EsperaTela />}><TrocaSuave /><Tela rota={rota} /></Suspense>
             </div>
           )}
         </Rolagem>
