@@ -96,11 +96,13 @@ function AbaCalendario({ dia, setDia }: { dia: string; setDia: (d: string) => vo
   const comEvento = usar((e) => (d: string) => eventosDoDia(e, d).length > 0, () => false);
   const ts = (porDia.get(dia) ?? []).filter((t) => !t.mae);
   const nEventos = usar((e) => eventosDoDia(e, dia).length);
-  const inicio = somarDias(dia, -deISO(dia).getDay());
+  // As setas trocam a semana mostrada; o dia escolhido continua o mesmo.
+  const [inicio, setInicio] = useState(() => somarDias(dia, -deISO(dia).getDay()));
+  useEffect(() => setInicio(somarDias(dia, -deISO(dia).getDay())), [dia]);
   return (
     <>
       <div style={{ display: "flex", alignItems: "center", gap: 2, padding: "0 var(--e4)" }}>
-        <button className="icone-botao" style={{ width: 26, height: 26 }} aria-label="Voltar uma semana" onClick={() => setDia(somarDias(dia, -7))}><ChevronLeft size={11} /></button>
+        <button className="icone-botao" style={{ width: 26, height: 26 }} aria-label="Voltar uma semana" onClick={() => setInicio(somarDias(inicio, -7))}><ChevronLeft size={11} /></button>
         {Array.from({ length: 7 }, (_, i) => somarDias(inicio, i)).map((d) => {
           const sel = d === dia, ehHoje = d === hoje;
           const ocupado = (porDia.get(d)?.length ?? 0) > 0 || comEvento(d);
@@ -112,7 +114,7 @@ function AbaCalendario({ dia, setDia }: { dia: string; setDia: (d: string) => vo
             </button>
           );
         })}
-        <button className="icone-botao" style={{ width: 26, height: 26 }} aria-label="Avançar uma semana" onClick={() => setDia(somarDias(dia, 7))}><ChevronRight size={11} /></button>
+        <button className="icone-botao" style={{ width: 26, height: 26 }} aria-label="Avançar uma semana" onClick={() => setInicio(somarDias(inicio, 7))}><ChevronRight size={11} /></button>
       </div>
       <div className="campo-menu"><CampoTarefa prazo={dia} key={dia} /></div>
       <Rolagem casca="casca-flex" className="rolagem-menu">

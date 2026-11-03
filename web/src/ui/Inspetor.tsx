@@ -232,7 +232,7 @@ export function Inspetor({ id }: { id: string }) {
         <Anexos id={id} />
       </Rolagem>
       {alterado && (
-        <div className="entrar" style={{ display: "flex", alignItems: "center", gap: "var(--e2)", padding: "12px 20px", borderTop: "1px solid var(--borda)" }}>
+        <div className="entrar rodape-salvar" style={{ display: "flex", alignItems: "center", gap: "var(--e2)", padding: "12px 20px", borderTop: "1px solid var(--borda)" }}>
           <span className="t-xs c3" style={{ flex: 1 }}>Alterações não salvas</span>
           <button className="botao b-superficie" onClick={() => setR(original)}>Descartar</button>
           <button className="botao b-primario" onClick={salvar}>Salvar</button>
