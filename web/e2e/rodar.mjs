@@ -89,8 +89,8 @@ try {
   await p.setViewportSize({ width: 340, height: 460 });
   await p.locator("textarea").first().fill("Cancelar adobe");
   await p.locator('button[title="Trocar a data"]').first().click();
-  await p.locator(".campo-menu .seletor-data").waitFor({ timeout: 2000 });
-  const rola = await p.evaluate(() => { const c = document.querySelector(".campo-menu"); return !!c && c.scrollHeight > c.clientHeight && c.getBoundingClientRect().bottom <= innerHeight + 1; });
+  await p.locator(".campo-popover .seletor-data").waitFor({ timeout: 2000 });
+  const rola = await p.evaluate(() => { const c = document.querySelector(".campo-popover"); return !!c && c.scrollHeight > c.clientHeight && c.getBoundingClientRect().bottom <= innerHeight + 1; });
   ok(rola, "calendário do campo do popover abre num clique e rola");
   ok(erros.length === 0, "sem erros de página " + erros.join(" | "));
   await navegador.close();

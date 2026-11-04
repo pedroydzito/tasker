@@ -419,7 +419,10 @@ struct MenuBarLabelWeb: View {
 
     var body: some View {
         Group {
-            if let s = ponte.segundosCronometro {
+            if case .available = AppModel.shared.updater.state {
+                // Versão nova esperando: o ícone vira "recarregar" no lugar do número.
+                Image(systemName: "arrow.triangle.2.circlepath.circle")
+            } else if let s = ponte.segundosCronometro {
                 Image(nsImage: MenuBarLabel.cronometro(Duracao.relogio(s)))
             } else {
                 Image(nsImage: MenuBarLabel.icon(count: ponte.contagemHoje > 0 ? ponte.contagemHoje : nil, style: AppModel.shared.store.prefs.menuBarStyle))

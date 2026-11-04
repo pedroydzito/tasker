@@ -533,9 +533,12 @@ html:has(.menu-barra), html:has(.menu-barra) body { scrollbar-gutter: auto; over
 @media (prefers-reduced-motion: reduce) { .rotulo-nav { animation: none; } }
 
 /* Campo do popover: o calendário/lista que abre nele rola junto, sem passar do fim do popover. */
-.campo-menu { padding: 0 var(--e4); flex: 0 1 auto; min-height: 0; overflow-y: auto; scrollbar-width: none; overscroll-behavior: contain; }
-.campo-menu::-webkit-scrollbar { display: none; }
+.campo-popover { padding: 0 var(--e4); flex: 0 1 auto; min-height: 0; overflow-y: auto; scrollbar-width: none; overscroll-behavior: contain; }
+.campo-popover::-webkit-scrollbar { display: none; }
 .menu-barra .casca-flex { min-height: 0; }
 
 /* Celular: Salvar/Descartar do detalhe ficam acima da pílula de navegação. */
 @media (max-width: 760px) { .rodape-salvar { padding-bottom: calc(var(--altura-nav) + var(--seguro-bottom)) !important; } }
+/* Aviso de versão nova no popover: separado do campo de adicionar. */
+.aviso-popover { padding: 0 var(--e4); }
+.aviso-popover:not(:empty) { margin-bottom: var(--e3); }
