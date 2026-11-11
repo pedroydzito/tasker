@@ -166,7 +166,7 @@ export function Menu() {
   const avatar = usar((e) => e.avatar);
   useEffect(() => {
     // O app do Mac avisa quando o menu abre: o calendário volta para amanhã e sincroniza.
-    const f = () => { setDia(somarDias(hojeISO(), 1)); void puxar(); };
+    const f = () => { setDia(somarDias(hojeISO(), 1)); void puxar(true); };
     window.addEventListener("tasker:menuAbriu", f);
     return () => window.removeEventListener("tasker:menuAbriu", f);
   }, []);

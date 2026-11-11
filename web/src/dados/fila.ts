@@ -24,15 +24,31 @@ export async function carregarFila() {
   definir({ pendencias: filaEmMemoria.length });
 }
 
-/** Ids que têm algo esperando para subir: a sincronização não os sobrescreve. */
-export function idsComPendencia(): Set<string> {
-  const ids = new Set<string>();
+function idsDaOperacao(op: Operacao, ids = new Set<string>()): Set<string> {
   const re = /(?:tasks\/|lists\/)([^/?"]+)/g;
-  for (const op of filaEmMemoria) {
-    if (op.provisorio) ids.add(op.provisorio);
-    for (const m of (op.url ?? "").matchAll(re)) ids.add(decodeURIComponent(m[1]));
-    const l = op.linha ?? op.chave;
-    if (l) for (const k of ["id", "tarefa_id"]) if (typeof l[k] === "string") ids.add(l[k] as string);
+  if (op.provisorio) ids.add(op.provisorio);
+  for (const m of (op.url ?? "").matchAll(re)) ids.add(decodeURIComponent(m[1]));
+  const l = op.linha ?? op.chave;
+  if (l) for (const k of ["id", "tarefa_id"]) if (typeof l[k] === "string") ids.add(l[k] as string);
+  return ids;
+}
+
+/** Quando cada id foi mexido aqui por último (alteração feita ou acabada de subir). */
+const tocados = new Map<string, number>();
+const tocar = (ids: Iterable<string>) => { const agora = Date.now(); for (const id of ids) tocados.set(id, agora); };
+
+/**
+ * Ids que a sincronização não pode sobrescrever: os que têm algo esperando para subir e os
+ * mexidos depois que a conferida começou. Sem o segundo grupo, uma resposta do Google pedida
+ * antes da alteração chegava depois dela e desfazia na tela por alguns segundos (a tarefa
+ * sumia e voltava, a data ia e voltava).
+ */
+export function idsComPendencia(desde = Infinity): Set<string> {
+  const ids = new Set<string>();
+  for (const op of filaEmMemoria) idsDaOperacao(op, ids);
+  for (const [id, quando] of tocados) {
+    if (quando >= desde - 1000) ids.add(id);
+    else if (Date.now() - quando > 120_000) tocados.delete(id);
   }
   return ids;
 }
@@ -41,6 +57,7 @@ export async function enfileirar(op: Omit<Operacao, "id" | "criadaEm" | "tentati
   if (ler().modo !== "conta") return;
   const completa: Operacao = { ...op, id: uuid(), criadaEm: Date.now() + filaEmMemoria.length / 1000, tentativas: 0 };
   filaEmMemoria.push(completa);
+  tocar(idsDaOperacao(completa));
   definir({ pendencias: filaEmMemoria.length });
   try {
     await gravarOperacao(completa);
@@ -91,6 +108,7 @@ async function subirFila(): Promise<void> {
     const op = filaEmMemoria[0];
     try {
       await executar(op);
+      tocar(idsDaOperacao(op));
       filaEmMemoria.shift();
       await apagarOperacao(op.id).catch(() => {});
       definir({ pendencias: filaEmMemoria.length });
@@ -180,6 +198,7 @@ async function trocarId(provisorio: string, definitivo: string) {
     Object.assign(op, nova);
     await gravarOperacao(op).catch(() => {});
   }
+  tocar([provisorio, definitivo]);
   aoTrocarId(provisorio, definitivo);
 }
 

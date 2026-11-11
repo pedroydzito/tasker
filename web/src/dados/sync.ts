@@ -73,8 +73,13 @@ export async function iniciar() {
   // No Mac a janela volta ao foco sem "visibilitychange": confere ao focar (respeita o frescor).
   window.addEventListener("focus", () => { void processarFila(); void puxar(false); });
   // Enquanto visível, confere de tempos em tempos (respeitando a janela de frescor).
+  // No app do Mac o app fica aberto o dia todo: confere também com o menu fechado, mais
+  // espaçado (1 min), para o menu já abrir com o que mudou no celular.
+  let voltas = 0;
   setInterval(() => {
+    voltas++;
     if (document.visibilityState === "visible") void puxar(false);
+    else if (ponteMac() && voltas % 2 === 0) void puxar(true);
   }, 30_000);
 
   const modo = localStorage.getItem("tasker.modo");
@@ -295,6 +300,7 @@ const mesmaTarefa = (a: Tarefa | undefined, b: Tarefa) =>
   a.prazo === b.prazo && a.listaId === b.listaId && a.mae === b.mae && a.posicao === b.posicao;
 
 async function puxarGoogle() {
+  const comecou = Date.now();
   const remotas = await todasAsPaginas<{ id: string; title?: string }>(`${T}/users/@me/lists?maxResults=100`);
   const e = ler();
   const fixa = remotas[0]?.id ?? null;
@@ -324,7 +330,7 @@ async function puxarGoogle() {
     }),
   );
 
-  const protegidos = idsComPendencia();
+  const protegidos = idsComPendencia(comecou);
   const atual = ler().tarefas;
   const novas: Record<string, Tarefa> = {};
   const idsListas = new Set(remotas.map((l) => l.id));
@@ -402,6 +408,7 @@ async function puxarEventos() {
 }
 
 async function puxarTabelas() {
+  const comecou = Date.now();
   const sb = await supabase();
   // Colunas explícitas: nunca select("*") (§12.1).
   const [et, etT, notas, desp, tempos, cron, prefs, anexos] = await Promise.all([
@@ -414,7 +421,7 @@ async function puxarTabelas() {
     sb.from("preferencias").select("dados").maybeSingle(),
     sb.from("anexos").select("id, tarefa_id, nome, caminho, tamanho, tipo, criado_em"),
   ]);
-  const protegidos = idsComPendencia();
+  const protegidos = idsComPendencia(comecou);
   const e = ler();
   const mudanca: Partial<Estado> = {};
   const set = <K extends keyof Estado>(k: K, v: Estado[K]) => {
