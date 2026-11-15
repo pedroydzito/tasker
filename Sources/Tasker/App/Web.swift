@@ -137,12 +137,9 @@ final class WebPonte: NSObject {
 
     /// O menu abriu: sem conta, quem aparece é a janela grande (é lá que se entra) e o menu fecha.
     func menuAbriu() {
+        // Sem conta, o próprio menu mostra a tela de entrar. Antes ele se fechava para abrir a
+        // janela, e quando a janela não abria o menu só piscava vazio e sumia.
         executar("window.taskerMenuAbriu && taskerMenuAbriu()")
-        guard modo == "entrar" else { return }
-        DispatchQueue.main.async {
-            for janela in NSApp.windows where String(describing: type(of: janela)).contains("MenuBarExtra") { janela.orderOut(nil) }
-            self.abrirJanela(rota: "#/hoje")
-        }
     }
 
     /// Abre a janela grande já numa tela (e numa tarefa, se pedida).
@@ -354,6 +351,11 @@ struct TelaWeb: NSViewRepresentable {
     final class Coordenador: NSObject, WKNavigationDelegate, WKUIDelegate {
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             MainActor.assumeIsolated { WebPonte.shared.carregou(webView) }
+        }
+
+        /// O processo da página caiu (memória, sono do Mac): recarrega em vez de ficar em branco.
+        func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+            webView.reload()
         }
 
         /// Links para fora (eventos da agenda, release do app) abrem no navegador.
