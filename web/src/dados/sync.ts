@@ -3,7 +3,7 @@ import type { Session } from "@supabase/supabase-js";
 import { definir, espelhoAtual, ESTADO_INICIAL, gravarAgora, ler, substituir, usarEspelho } from "./armazem";
 import { confirmarPendente } from "./avisos";
 import { lerEstado, limparTudo } from "./espelho";
-import { carregarFila, descartarFila, esperandoFila, idsComPendencia, processarFila } from "./fila";
+import { carregarFila, descartarFila, esperandoFila, idsComPendencia, idsNaFila, processarFila } from "./fila";
 import { conferirAmbiente, ehErroDeRede, ErroReconectar, funcaoGoogle, google, SUPABASE_URL, supabase } from "./nuvem";
 import { comPrazo } from "./nuvem";
 import { PREFERENCIAS_PADRAO, type Agenda, type Anexo, type Estado, type Evento, type ItemDespejo, type Lista, type Nota, type Tarefa } from "./tipos";
@@ -330,11 +330,16 @@ async function puxarGoogle() {
     }),
   );
 
+  const naFila = await idsNaFila();
   const protegidos = idsComPendencia(comecou);
   const atual = ler().tarefas;
   const novas: Record<string, Tarefa> = {};
   const idsListas = new Set(remotas.map((l) => l.id));
   for (const [id, t] of Object.entries(atual)) {
+    // Provisória sem nada na fila há mais de 1 min é órfã: já subiu por outra janela (e a de
+    // verdade chega nesta conferida) ou nunca vai subir. Ficar com ela duplicava a tarefa.
+    const orfa = t.provisoria && !naFila.has(id) && !protegidos.has(id) && Date.now() - Date.parse(t.atualizadaEm) > 60_000;
+    if (orfa) continue;
     if (idsListas.has(t.listaId) || t.provisoria || protegidos.has(id) || t.listaId.startsWith("tmp-")) novas[id] = t;
   }
   let mudou = Object.keys(novas).length !== Object.keys(atual).length;

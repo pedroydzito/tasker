@@ -87,7 +87,26 @@ async function recarregarFila() {
 /** Ids que chegaram ao disco: se somem de lá, outra janela já os enviou. */
 const gravadas = new Set<string>();
 const canal = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel("tasker-fila") : null;
-canal?.addEventListener("message", () => void processarFila());
+// Outra janela avisa: operação nova na fila, ou um id provisório que ela trocou pelo do Google.
+// Sem o segundo aviso, a tarefa criada no popover e subida pela janela (ou o contrário) ficava
+// duplicada: a de verdade e uma cópia apagada que nunca mais subia.
+canal?.addEventListener("message", (ev: MessageEvent) => {
+  const m = ev.data as string | { troca: [string, string] };
+  if (typeof m === "object" && m?.troca) {
+    tocar(m.troca);
+    aoTrocarId(m.troca[0], m.troca[1]);
+    return;
+  }
+  void processarFila();
+});
+
+/** Relê a fila do disco (o que outra janela fez) e diz quais ids ela ainda segura. */
+export async function idsNaFila(): Promise<Set<string>> {
+  // Só lê: trocar a fila em memória aqui, no meio de uma subida, faria uma operação já enviada voltar.
+  const ids = new Set<string>();
+  for (const op of [...filaEmMemoria, ...(await lerFila())]) idsDaOperacao(op, ids);
+  return ids;
+}
 
 export async function processarFila(): Promise<void> {
   if (processando || ler().modo !== "conta" || !navigator.onLine) return;
@@ -142,12 +161,19 @@ async function executar(op: Operacao) {
     case "google": {
       // Repetir não pode duplicar (operação §5.1): uma criação que já foi tentada pode ter chegado
       // ao Google sem a resposta voltar. Antes de criar de novo, procura a tarefa recém-criada.
-      if (op.metodo === "POST" && op.provisorio && op.tentativas > 0) {
+      const criaTarefa = op.metodo === "POST" && !!op.provisorio && /\/lists\/[^/]+\/tasks/.test(op.url ?? "");
+      if (criaTarefa && (op.tentativas > 0 || op.jaEnviada)) {
         const ja = await jaCriada(op);
         if (ja) {
-          if (ja !== op.provisorio) await trocarId(op.provisorio, ja);
+          if (op.provisorio && ja !== op.provisorio) await trocarId(op.provisorio, ja);
           return;
         }
+      }
+      // Marca antes de mandar: se a página cair no meio (Mac dormindo, recarga), a próxima
+      // tentativa procura antes de criar de novo.
+      if (criaTarefa && !op.jaEnviada) {
+        op.jaEnviada = true;
+        await gravarOperacao(op).catch(() => {});
       }
       const resposta = await google<{ id?: string }>(op.metodo ?? "GET", op.url ?? "", op.corpo);
       if (op.provisorio && resposta?.id && resposta.id !== op.provisorio) await trocarId(op.provisorio, resposta.id);
@@ -200,6 +226,7 @@ async function trocarId(provisorio: string, definitivo: string) {
   }
   tocar([provisorio, definitivo]);
   aoTrocarId(provisorio, definitivo);
+  canal?.postMessage({ troca: [provisorio, definitivo] });
 }
 
 export async function descartarFila() {
@@ -209,14 +236,11 @@ export async function descartarFila() {
 
 /** Uma tarefa com o mesmo título criada a partir de um pouco antes da primeira tentativa. */
 async function jaCriada(op: Operacao): Promise<string | null> {
+  // Sem try: se não der para conferir, o erro sobe e a fila tenta depois (criar de novo às cegas duplicaria).
   const corpo = (op.corpo ?? {}) as { title?: string; notes?: string };
   const base = (op.url ?? "").split("?")[0];
   const desde = new Date(op.criadaEm - 60_000).toISOString();
-  try {
-    const r = await google<{ items?: { id: string; title?: string; notes?: string }[] }>("GET", `${base}?showCompleted=true&showHidden=true&updatedMin=${encodeURIComponent(desde)}&maxResults=100`);
-    const achada = (r?.items ?? []).find((t) => t.title === corpo.title && (t.notes ?? "") === (corpo.notes ?? ""));
-    return achada?.id ?? null;
-  } catch {
-    return null;
-  }
+  const r = await google<{ items?: { id: string; title?: string; notes?: string }[] }>("GET", `${base}?showCompleted=true&showHidden=true&updatedMin=${encodeURIComponent(desde)}&maxResults=100`);
+  const achada = (r?.items ?? []).find((t) => t.title === corpo.title && (t.notes ?? "") === (corpo.notes ?? ""));
+  return achada?.id ?? null;
 }

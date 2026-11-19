@@ -15,6 +15,8 @@ export interface Operacao {
   corpo?: unknown;
   /** Id provisório que a resposta troca pelo definitivo (criar tarefa/lista). */
   provisorio?: string;
+  /** A criação já saiu uma vez (pode ter chegado ao Google sem a resposta voltar). */
+  jaEnviada?: boolean;
   // tabela
   tabela?: string;
   acao?: "upsert" | "delete";
