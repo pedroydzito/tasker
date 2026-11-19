@@ -554,3 +554,11 @@ html:has(.menu-barra), html:has(.menu-barra) body { scrollbar-gutter: auto; over
 .item-lateral:hover .olho-lista, .item-lateral.oculta .olho-lista, .item-lateral .olho-lista:focus-visible { display: inline-flex; }
 .item-lateral:hover .conta { display: none; }
 .item-lateral.oculta > .olho-lista { opacity: 1; }
+
+/* Computador: barra de adicionar e dica com a largura dos cartões das tarefas (880 − 2×40),
+   centradas na mesma coluna (fora da barra lateral), a dica logo acima da barra. */
+@media (min-width: 761px) {
+  .barra-flutuante { width: min(800px, calc(100% - 80px)); }
+  .vaga-dica { left: var(--largura-lateral, 256px); padding: 0 40px 84px; }
+  .vaga-dica .aviso-abrindo { max-width: 800px; }
+}
