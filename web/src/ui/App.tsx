@@ -5,7 +5,7 @@ import { HospedeDoContexto } from "./contexto";
 import { CampoTarefa } from "./campo";
 import { CriadorDeEtiqueta, HospedeDeFolhas, NovaLista, folhas } from "./folhas";
 import { Suspense, lazy, useEffect, useRef, useState, type ComponentType } from "react";
-import { ChevronUp, CircleAlert, Trash2, Circle, Brain, CalendarDays, ChartGantt, Check, ChevronDown, CircleCheck, CircleUserRound, CloudOff, Download, EyeOff, Hash, Inbox, NotepadText, Plus, RefreshCw, Search, Settings, Sun, Sunrise, X } from "lucide-react";
+import { ChevronUp, CircleAlert, Trash2, Circle, Brain, CalendarDays, ChartGantt, Check, ChevronDown, CircleCheck, CircleUserRound, CloudOff, Download, Eye, EyeOff, Hash, Inbox, NotepadText, Plus, RefreshCw, Search, Settings, Sun, Sunrise, X } from "lucide-react";
 import { usar } from "../dados/armazem";
 import { desfazerAgora, textoDoAviso, useAviso } from "../dados/avisos";
 import { buscar, contagemHoje, corDaLista, etiquetasOrdenadas, indice, nomeDaLista } from "../dados/consultas";
@@ -115,20 +115,10 @@ function alternarOculta(id: string) {
 
 function ItemLateral({ ativo, tinta, titulo, contagem, icone, aoClicar, aoSoltar, oculta, aoOcultar }: { ativo: boolean; tinta?: string; titulo: string; contagem?: number | null; icone: React.ReactNode; aoClicar: () => void; aoSoltar?: (tarefa: string) => void; oculta?: boolean; aoOcultar?: () => void }) {
   const [alvo, setAlvo] = useState(false);
-  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   return (
     <>
-    {menu && aoOcultar && (
-      <>
-        <div className="fundo-contexto" onClick={() => setMenu(null)} onContextMenu={(ev) => { ev.preventDefault(); setMenu(null); }} />
-        <div className="menu-contexto brota-do-botao" role="menu" style={{ left: Math.min(menu.x, innerWidth - 228), top: menu.y, transformOrigin: "top left" }}>
-          <button role="menuitem" onClick={() => { setMenu(null); aoOcultar(); }}>{oculta ? "Mostrar lista" : "Ocultar lista"}</button>
-        </div>
-      </>
-    )}
     <button
       className={"item-lateral sem-veu" + (ativo ? " ativo" : "") + (alvo ? " alvo-soltar" : "") + (oculta ? " oculta" : "")}
-      onContextMenu={aoOcultar ? (ev) => { ev.preventDefault(); setMenu({ x: ev.clientX, y: ev.clientY }); } : undefined}
       aria-current={ativo}
       style={{ ["--tinta" as string]: tinta ? `color-mix(in srgb, ${tinta} 16%, transparent)` : "var(--superficie2)", ["--cor-alvo" as string]: tinta ?? "var(--acento)" }}
       onClick={aoClicar}
@@ -139,7 +129,15 @@ function ItemLateral({ ativo, tinta, titulo, contagem, icone, aoClicar, aoSoltar
     >
       <span className="icone">{icone}</span>
       <span className="uma-linha" style={{ flex: 1 }}>{titulo}</span>
-      {oculta ? <EyeOff size={13} className="c3" aria-label="Lista oculta" /> : !!contagem && contagem > 0 && <span className="conta">{contagem}</span>}
+      {!oculta && !!contagem && contagem > 0 && <span className="conta">{contagem}</span>}
+      {aoOcultar && (
+        // Olho ao passar o mouse (fixo quando oculta): clica para ocultar ou mostrar.
+        <span role="button" tabIndex={0} className="olho-lista" title={oculta ? "Mostrar lista" : "Ocultar lista"} aria-label={oculta ? "Mostrar lista" : "Ocultar lista"}
+          onClick={(ev) => { ev.stopPropagation(); aoOcultar(); }}
+          onKeyDown={(ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); ev.stopPropagation(); aoOcultar(); } }}>
+          {oculta ? <EyeOff size={13} /> : <Eye size={13} />}
+        </span>
+      )}
     </button>
     </>
   );

@@ -544,6 +544,13 @@ html:has(.menu-barra), html:has(.menu-barra) body { scrollbar-gutter: auto; over
 .aviso-popover:not(:empty) { margin-bottom: var(--e3); }
 
 /* Lista oculta na barra lateral: apagada, com o olho riscado no lugar da contagem. */
-.item-lateral.oculta > :not(svg) { opacity: 0.45; }
+.item-lateral.oculta > :not(.olho-lista) { opacity: 0.45; }
 .item-menu.oculta > :not(svg:last-child) { opacity: 0.45; }
 .item-menu { -webkit-touch-callout: none; user-select: none; }
+
+/* Olho da lista na barra lateral: aparece ao passar o mouse (no lugar da contagem); fixo se oculta. */
+.item-lateral .olho-lista { display: none; color: var(--texto3); transition: color var(--rapido); }
+.item-lateral .olho-lista:hover { color: var(--texto); }
+.item-lateral:hover .olho-lista, .item-lateral.oculta .olho-lista, .item-lateral .olho-lista:focus-visible { display: inline-flex; }
+.item-lateral:hover .conta { display: none; }
+.item-lateral.oculta > .olho-lista { opacity: 1; }

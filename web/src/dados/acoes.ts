@@ -91,6 +91,14 @@ export function criarTarefa(n: NovaTarefa): string | null {
   return id;
 }
 
+/** Cópia da tarefa (botão direito > Duplicar): mesmo título, lista, data, descrição e etiquetas. */
+export function duplicarTarefa(id: string) {
+  const e = ler();
+  const t = e.tarefas[id];
+  if (!t) return null;
+  return criarTarefa({ titulo: t.titulo, listaId: t.listaId, prazo: t.prazo, notas: t.notas, mae: t.mae, etiquetas: e.etiquetasDaTarefa[id]?.length ? e.etiquetasDaTarefa[id] : undefined });
+}
+
 /** Texto do campo de criação rápida: entende data, ~lista e #etiqueta. Várias linhas = várias tarefas. */
 export function criarDoTexto(texto: string, padrao: { prazo?: string | null; listaId?: string | null; etiqueta?: string | null; horario?: string | null }) {
   const e = ler();
@@ -264,11 +272,29 @@ export function reordenarListas(ids: string[]) {
 // MARK: Preferências (viajam com a conta)
 
 let prefsTimer: ReturnType<typeof setTimeout> | null = null;
+// O que mudou aqui desde a última subida. Em chave que é um mapa (cores e ícones das listas,
+// agendas), só as entradas mexidas; null quer dizer "apagar".
+let prefsMudadas: Record<string, unknown> = {};
+const ehMapa = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
 export function mudarPrefs(fn: (p: Preferencias) => Partial<Preferencias>) {
-  definir((e) => ({ prefs: { ...e.prefs, ...fn(e.prefs) } }));
+  const antes = ler().prefs as unknown as Record<string, unknown>;
+  const mudanca = fn(ler().prefs) as Record<string, unknown>;
+  for (const [k, v] of Object.entries(mudanca)) {
+    const velho = antes[k];
+    if (ehMapa(v) && ehMapa(velho)) {
+      const ent: Record<string, unknown> = ehMapa(prefsMudadas[k]) ? { ...(prefsMudadas[k] as Record<string, unknown>) } : {};
+      for (const c of new Set([...Object.keys(v), ...Object.keys(velho)])) if (v[c] !== velho[c]) ent[c] = c in v ? v[c] : null;
+      prefsMudadas[k] = { __mapa: true, ...ent };
+    } else prefsMudadas[k] = v;
+  }
+  definir((e) => ({ prefs: { ...e.prefs, ...(mudanca as Partial<Preferencias>) } }));
   if (prefsTimer) clearTimeout(prefsTimer);
   prefsTimer = setTimeout(() => {
-    void enfileirar({ tipo: "tabela", tabela: "preferencias", acao: "upsert", linha: { dados: ler().prefs } });
+    // Sobe só o que mudou, mesclado com o que está na conta: subir o pacote inteiro deixava um
+    // aparelho com preferências velhas apagar as do outro (cores das listas diferentes por Mac).
+    const parcial = prefsMudadas;
+    prefsMudadas = {};
+    void enfileirar({ tipo: "tabela", tabela: "preferencias", acao: "mesclar", linha: { dados: parcial } });
   }, 300);
 }
 

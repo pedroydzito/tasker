@@ -1,7 +1,7 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { Check } from "lucide-react";
 import { ler } from "../dados/armazem";
-import { alternarEtiqueta, concluir, definirPrazo, excluirTarefa } from "../dados/acoes";
+import { alternarEtiqueta, concluir, definirPrazo, duplicarTarefa, excluirTarefa } from "../dados/acoes";
 import { etiquetasOrdenadas, tituloDe } from "../dados/consultas";
 import { hojeISO, somarDias } from "../dados/util";
 import { folhas } from "./folhas";
@@ -80,6 +80,7 @@ export function HospedeDoContexto() {
           </>
         )}
         <hr />
+        <button role="menuitem" onClick={fazer(() => duplicarTarefa(t.id))}>Duplicar</button>
         {t.link && <a role="menuitem" href={t.link} target="_blank" rel="noreferrer" onClick={fechar}>Abrir no Google</a>}
         <button role="menuitem" className="perigo" onClick={fazer(() => folhas.confirmar("Excluir tarefa", `“${tituloDe(t)}” será excluída. Dá para desfazer logo depois.`, () => excluirTarefa(t.id)))}>Excluir…</button>
       </div>

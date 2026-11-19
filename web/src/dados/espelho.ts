@@ -19,7 +19,7 @@ export interface Operacao {
   jaEnviada?: boolean;
   // tabela
   tabela?: string;
-  acao?: "upsert" | "delete";
+  acao?: "upsert" | "delete" | "mesclar";
   linha?: Record<string, unknown>;
   chave?: Record<string, unknown>;
   // arquivo

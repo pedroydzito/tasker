@@ -185,6 +185,22 @@ async function executar(op: Operacao) {
     case "tabela": {
       const sb = await supabase();
       const q = sb.from(op.tabela ?? "");
+      if (op.acao === "mesclar") {
+        // Lê o que está na conta e aplica só o que mudou aqui (preferências).
+        const atual = await comPrazo(sb.from(op.tabela ?? "").select("dados").maybeSingle(), 15_000);
+        if (atual.error) throw erroSupabase(atual.error);
+        const dados = { ...((atual.data?.dados as Record<string, unknown>) ?? {}) };
+        for (const [k, v] of Object.entries(((op.linha?.dados ?? {}) as Record<string, unknown>))) {
+          if (v && typeof v === "object" && (v as Record<string, unknown>).__mapa) {
+            const m = { ...((dados[k] as Record<string, unknown>) ?? {}) };
+            for (const [c, x] of Object.entries(v as Record<string, unknown>)) if (c !== "__mapa") { if (x === null) delete m[c]; else m[c] = x; }
+            dados[k] = m;
+          } else dados[k] = v;
+        }
+        const { error } = await comPrazo(q.upsert({ dados }), 15_000);
+        if (error) throw erroSupabase(error);
+        return;
+      }
       // Toda escrita tem prazo e confere o erro (operação §5.1).
       const { error } = await comPrazo(op.acao === "delete" ? q.delete().match(op.chave ?? {}) : q.upsert(op.linha ?? {}), 15_000);
       if (error) throw erroSupabase(error);
