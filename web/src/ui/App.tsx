@@ -104,6 +104,15 @@ function CabecalhoSecaoLateral({ titulo, recolhida, alternar, acao }: { titulo: 
   );
 }
 
+// Toque longo numa lista do menu do celular (fora do render: ocultar redesenha no meio do toque).
+let segura: ReturnType<typeof setTimeout> | null = null;
+let segurou = false;
+
+/** Ocultar/mostrar uma lista (viaja com a conta). */
+function alternarOculta(id: string) {
+  mudarPrefs((p) => ({ listasOcultas: p.listasOcultas?.includes(id) ? p.listasOcultas.filter((x) => x !== id) : [...(p.listasOcultas ?? []), id] }));
+}
+
 function ItemLateral({ ativo, tinta, titulo, contagem, icone, aoClicar, aoSoltar, oculta, aoOcultar }: { ativo: boolean; tinta?: string; titulo: string; contagem?: number | null; icone: React.ReactNode; aoClicar: () => void; aoSoltar?: (tarefa: string) => void; oculta?: boolean; aoOcultar?: () => void }) {
   const [alvo, setAlvo] = useState(false);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
@@ -206,7 +215,7 @@ function Lateral({ rota, aoBuscar }: { rota: Rota; aoBuscar: () => void }) {
             contagem={ind.porLista.get(l.id)?.length ?? 0} icone={<LadrilhoLista listaId={l.id} tamanho={22} />} aoClicar={() => irPara({ tela: "lista", id: l.id })}
             aoSoltar={(tarefa) => { if (e.tarefas[tarefa] && e.tarefas[tarefa].listaId !== l.id) moverTarefa(tarefa, l.id); }}
             oculta={e.prefs.listasOcultas?.includes(l.id)}
-            aoOcultar={() => mudarPrefs((p) => ({ listasOcultas: p.listasOcultas?.includes(l.id) ? p.listasOcultas.filter((x) => x !== l.id) : [...(p.listasOcultas ?? []), l.id] }))} />
+            aoOcultar={() => alternarOculta(l.id)} />
         ))}
         <CabecalhoSecaoLateral titulo="Etiquetas" recolhida={etiquetasFechadas} alternar={alternarEtiquetas} acao={() => folhas.abrir("Nova etiqueta", <CriadorDeEtiqueta aoCriar={(id) => irPara({ tela: "etiqueta", id })} />)} />
         {!etiquetasFechadas && etiquetasOrdenadas(e).map((g) => (
@@ -282,10 +291,20 @@ function NavCelular({ rota }: { rota: Rota }) {
   useEffect(() => { setAberto(false); setSaindo(false); setTocado(null); }, [rota]);
   const item = (r: Rota, I: typeof Sun, rotulo: string, extra?: React.ReactNode) => {
     const atual = rota.tela === r.tela && (!("id" in r) || ("id" in rota && rota.id === r.id));
+    // Lista: segurar o dedo (ou botão direito) oculta ou mostra.
+    const lista = r.tela === "lista" ? r.id : null;
+    const oculta = !!lista && !!e.prefs.listasOcultas?.includes(lista);
+    const soltar = () => { if (segura) clearTimeout(segura); segura = null; };
     return (
-      <button key={rotulo + ("id" in r ? r.id : "")} className="item-menu sem-afundar pressionavel" aria-current={atual} onClick={() => irPara(r)}>
+      <button key={rotulo + ("id" in r ? r.id : "")} className={"item-menu sem-afundar pressionavel" + (oculta ? " oculta" : "")} aria-current={atual}
+        onClick={() => { if (segurou) { segurou = false; return; } irPara(r); }}
+        onContextMenu={lista ? (ev) => { ev.preventDefault(); alternarOculta(lista); } : undefined}
+        onTouchStart={lista ? () => { segurou = false; segura = setTimeout(() => { segurou = true; navigator.vibrate?.(10); alternarOculta(lista); }, 500); } : undefined}
+        onTouchMove={lista ? soltar : undefined} onTouchEnd={lista ? soltar : undefined}
+        title={lista ? (oculta ? "Segure para mostrar a lista" : "Segure para ocultar a lista") : undefined}>
         {extra ?? <I size={18} strokeWidth={2.1} />}
         <span className="uma-linha" style={{ flex: 1 }}>{rotulo}</span>
+        {oculta && <EyeOff size={14} className="c3" aria-label="Lista oculta" />}
       </button>
     );
   };

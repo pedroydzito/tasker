@@ -545,3 +545,5 @@ html:has(.menu-barra), html:has(.menu-barra) body { scrollbar-gutter: auto; over
 
 /* Lista oculta na barra lateral: apagada, com o olho riscado no lugar da contagem. */
 .item-lateral.oculta > :not(svg) { opacity: 0.45; }
+.item-menu.oculta > :not(svg:last-child) { opacity: 0.45; }
+.item-menu { -webkit-touch-callout: none; user-select: none; }
