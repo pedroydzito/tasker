@@ -111,6 +111,8 @@ export interface Preferencias {
   eventosRecolhidos: boolean;
   todasPorLista: boolean;
   periodoConcluidas: "semana" | "mes" | "ano";
+  /** Listas ocultas: as tarefas delas somem de todas as telas (menos a da própria lista). */
+  listasOcultas: string[];
 }
 
 export const PREFERENCIAS_PADRAO: Preferencias = {
@@ -130,6 +132,7 @@ export const PREFERENCIAS_PADRAO: Preferencias = {
   eventosRecolhidos: false,
   todasPorLista: false,
   periodoConcluidas: "semana",
+  listasOcultas: [],
 };
 
 /** Tudo o que o app mostra. Vive em memória (módulo) e espelhado no IndexedDB. */

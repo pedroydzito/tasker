@@ -188,7 +188,7 @@ export function TelaTodas() {
         <CampoCelular />
         <div style={{ alignSelf: "flex-start", display: "flex", width: "100%" }}><Segmentado rotulo="Agrupar" valor={porLista} aoMudar={mudar} opcoes={[[false, "Por data"], [true, "Por lista"]]} /></div>
         {porLista
-          ? e.listas.map((l) => {
+          ? e.listas.filter((l) => !e.prefs.listasOcultas?.includes(l.id)).map((l) => {
               const ts = raiz(i.porLista.get(l.id) ?? []);
               return ts.length ? <Secao key={l.id} titulo={nomeDaLista(e, l.id)} contagem={ts.length} tom={corDaLista(e, l.id)}>{linhas(ts, { lista: false })}</Secao> : null;
             })

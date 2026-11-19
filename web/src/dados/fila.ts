@@ -159,6 +159,9 @@ async function subirFila(): Promise<void> {
 async function executar(op: Operacao) {
   switch (op.tipo) {
     case "google": {
+      // Ainda com id provisório na hora de sair: a criação dela já não está na fila (subiu por
+      // outra janela ou se perdeu). Mandar ao Google só daria erro; nada a fazer.
+      if (/tmp-/.test(op.url ?? "")) return;
       // Repetir não pode duplicar (operação §5.1): uma criação que já foi tentada pode ter chegado
       // ao Google sem a resposta voltar. Antes de criar de novo, procura a tarefa recém-criada.
       const criaTarefa = op.metodo === "POST" && !!op.provisorio && /\/lists\/[^/]+\/tasks/.test(op.url ?? "");

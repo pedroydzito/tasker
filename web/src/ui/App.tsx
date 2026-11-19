@@ -1,11 +1,11 @@
 import { PuxarParaAtualizar } from "./puxar";
 import { DicaDePrimeiraVez } from "./dicas";
-import { moverTarefa } from "../dados/acoes";
+import { moverTarefa, mudarPrefs } from "../dados/acoes";
 import { HospedeDoContexto } from "./contexto";
 import { CampoTarefa } from "./campo";
 import { CriadorDeEtiqueta, HospedeDeFolhas, NovaLista, folhas } from "./folhas";
 import { Suspense, lazy, useEffect, useRef, useState, type ComponentType } from "react";
-import { ChevronUp, CircleAlert, Trash2, Circle, Brain, CalendarDays, ChartGantt, Check, ChevronDown, CircleCheck, CircleUserRound, CloudOff, Download, Hash, Inbox, NotepadText, Plus, RefreshCw, Search, Settings, Sun, Sunrise, X } from "lucide-react";
+import { ChevronUp, CircleAlert, Trash2, Circle, Brain, CalendarDays, ChartGantt, Check, ChevronDown, CircleCheck, CircleUserRound, CloudOff, Download, EyeOff, Hash, Inbox, NotepadText, Plus, RefreshCw, Search, Settings, Sun, Sunrise, X } from "lucide-react";
 import { usar } from "../dados/armazem";
 import { desfazerAgora, textoDoAviso, useAviso } from "../dados/avisos";
 import { buscar, contagemHoje, corDaLista, etiquetasOrdenadas, indice, nomeDaLista } from "../dados/consultas";
@@ -104,11 +104,22 @@ function CabecalhoSecaoLateral({ titulo, recolhida, alternar, acao }: { titulo: 
   );
 }
 
-function ItemLateral({ ativo, tinta, titulo, contagem, icone, aoClicar, aoSoltar }: { ativo: boolean; tinta?: string; titulo: string; contagem?: number | null; icone: React.ReactNode; aoClicar: () => void; aoSoltar?: (tarefa: string) => void }) {
+function ItemLateral({ ativo, tinta, titulo, contagem, icone, aoClicar, aoSoltar, oculta, aoOcultar }: { ativo: boolean; tinta?: string; titulo: string; contagem?: number | null; icone: React.ReactNode; aoClicar: () => void; aoSoltar?: (tarefa: string) => void; oculta?: boolean; aoOcultar?: () => void }) {
   const [alvo, setAlvo] = useState(false);
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   return (
+    <>
+    {menu && aoOcultar && (
+      <>
+        <div className="fundo-contexto" onClick={() => setMenu(null)} onContextMenu={(ev) => { ev.preventDefault(); setMenu(null); }} />
+        <div className="menu-contexto brota-do-botao" role="menu" style={{ left: Math.min(menu.x, innerWidth - 228), top: menu.y, transformOrigin: "top left" }}>
+          <button role="menuitem" onClick={() => { setMenu(null); aoOcultar(); }}>{oculta ? "Mostrar lista" : "Ocultar lista"}</button>
+        </div>
+      </>
+    )}
     <button
-      className={"item-lateral sem-veu" + (ativo ? " ativo" : "") + (alvo ? " alvo-soltar" : "")}
+      className={"item-lateral sem-veu" + (ativo ? " ativo" : "") + (alvo ? " alvo-soltar" : "") + (oculta ? " oculta" : "")}
+      onContextMenu={aoOcultar ? (ev) => { ev.preventDefault(); setMenu({ x: ev.clientX, y: ev.clientY }); } : undefined}
       aria-current={ativo}
       style={{ ["--tinta" as string]: tinta ? `color-mix(in srgb, ${tinta} 16%, transparent)` : "var(--superficie2)", ["--cor-alvo" as string]: tinta ?? "var(--acento)" }}
       onClick={aoClicar}
@@ -119,8 +130,9 @@ function ItemLateral({ ativo, tinta, titulo, contagem, icone, aoClicar, aoSoltar
     >
       <span className="icone">{icone}</span>
       <span className="uma-linha" style={{ flex: 1 }}>{titulo}</span>
-      {!!contagem && contagem > 0 && <span className="conta">{contagem}</span>}
+      {oculta ? <EyeOff size={13} className="c3" aria-label="Lista oculta" /> : !!contagem && contagem > 0 && <span className="conta">{contagem}</span>}
     </button>
+    </>
   );
 }
 
@@ -192,7 +204,9 @@ function Lateral({ rota, aoBuscar }: { rota: Rota; aoBuscar: () => void }) {
         {!listasFechadas && e.listas.map((l) => (
           <ItemLateral key={l.id} ativo={rota.tela === "lista" && rota.id === l.id} tinta={corDaLista(e, l.id)} titulo={nomeDaLista(e, l.id)}
             contagem={ind.porLista.get(l.id)?.length ?? 0} icone={<LadrilhoLista listaId={l.id} tamanho={22} />} aoClicar={() => irPara({ tela: "lista", id: l.id })}
-            aoSoltar={(tarefa) => { if (e.tarefas[tarefa] && e.tarefas[tarefa].listaId !== l.id) moverTarefa(tarefa, l.id); }} />
+            aoSoltar={(tarefa) => { if (e.tarefas[tarefa] && e.tarefas[tarefa].listaId !== l.id) moverTarefa(tarefa, l.id); }}
+            oculta={e.prefs.listasOcultas?.includes(l.id)}
+            aoOcultar={() => mudarPrefs((p) => ({ listasOcultas: p.listasOcultas?.includes(l.id) ? p.listasOcultas.filter((x) => x !== l.id) : [...(p.listasOcultas ?? []), l.id] }))} />
         ))}
         <CabecalhoSecaoLateral titulo="Etiquetas" recolhida={etiquetasFechadas} alternar={alternarEtiquetas} acao={() => folhas.abrir("Nova etiqueta", <CriadorDeEtiqueta aoCriar={(id) => irPara({ tela: "etiqueta", id })} />)} />
         {!etiquetasFechadas && etiquetasOrdenadas(e).map((g) => (

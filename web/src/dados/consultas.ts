@@ -19,19 +19,25 @@ export interface Indice {
   filhas: Map<string, Tarefa[]>;
 }
 
-let memo: { tarefas: Estado["tarefas"]; listas: Estado["listas"]; hoje: string; indice: Indice } | null = null;
+let memo: { tarefas: Estado["tarefas"]; listas: Estado["listas"]; ocultas: string[]; hoje: string; indice: Indice } | null = null;
 
 const porPosicao = (a: Tarefa, b: Tarefa) => (a.posicao < b.posicao ? -1 : a.posicao > b.posicao ? 1 : 0);
 
 export function indice(e: Estado): Indice {
   const hoje = hojeISO();
-  if (memo && memo.tarefas === e.tarefas && memo.listas === e.listas && memo.hoje === hoje) return memo.indice;
+  const ocultas = e.prefs.listasOcultas ?? [];
+  if (memo && memo.tarefas === e.tarefas && memo.listas === e.listas && memo.ocultas === ocultas && memo.hoje === hoje) return memo.indice;
+  const oculta = new Set(ocultas);
   const ordemLista = new Map(e.listas.map((l, i) => [l.id, i]));
   const abertas: Tarefa[] = [];
   const feitas: Tarefa[] = [];
   const filhas = new Map<string, Tarefa[]>();
+  // Tarefa de lista oculta só aparece na tela da própria lista (porLista).
+  const daOculta: Tarefa[] = [];
+  const feitasOcultas: Tarefa[] = [];
   for (const t of Object.values(e.tarefas)) {
-    (t.concluida ? feitas : abertas).push(t);
+    if (oculta.has(t.listaId)) (t.concluida ? feitasOcultas : daOculta).push(t);
+    else (t.concluida ? feitas : abertas).push(t);
     if (t.mae) {
       const l = filhas.get(t.mae) ?? [];
       l.push(t);
@@ -63,12 +69,14 @@ export function indice(e: Estado): Indice {
   }
   // Hoje: com horário primeiro, pela hora.
   ind.hoje.sort((a, b) => (horarioDe(a) ?? "99") < (horarioDe(b) ?? "99") ? -1 : (horarioDe(a) ?? "99") > (horarioDe(b) ?? "99") ? 1 : 0);
+  for (const t of daOculta.sort(porPosicao)) push(ind.porLista, t.listaId, t);
+  for (const t of feitasOcultas) push(ind.concluidasPorLista, t.listaId, t);
   for (const t of feitas) {
     push(ind.concluidasPorLista, t.listaId, t);
     if (t.prazo) push(ind.concluidasPorDia, t.prazo, t);
     if (t.concluidaEm && t.concluidaEm.slice(0, 10) === hoje) ind.concluidasHoje.push(t);
   }
-  memo = { tarefas: e.tarefas, listas: e.listas, hoje, indice: ind };
+  memo = { tarefas: e.tarefas, listas: e.listas, ocultas, hoje, indice: ind };
   return ind;
 }
 

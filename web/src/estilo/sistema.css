@@ -542,3 +542,6 @@ html:has(.menu-barra), html:has(.menu-barra) body { scrollbar-gutter: auto; over
 /* Aviso de versão nova no popover: separado do campo de adicionar. */
 .aviso-popover { padding: 0 var(--e4); }
 .aviso-popover:not(:empty) { margin-bottom: var(--e3); }
+
+/* Lista oculta na barra lateral: apagada, com o olho riscado no lugar da contagem. */
+.item-lateral.oculta > :not(svg) { opacity: 0.45; }
